@@ -1,7 +1,11 @@
+streamlit
 numpy
+pandas
 matplotlib
 rasterio
+geopandas
+shapely
+pyproj
 pystac-client
 planetary-computer
-requests
-shapely
+Pillow
