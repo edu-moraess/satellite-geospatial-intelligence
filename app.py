@@ -1,16 +1,28 @@
 """
-Satellite Geospatial Intelligence
-==================================
+SATELLITE GEOSPATIAL INTELLIGENCE
+=================================
 
-Earth Observation • Computer Vision • Geospatial AI
+Earth Observation
+Computer Vision
+Geospatial AI
 
-Stages implemented:
-1. Sentinel-2 scene search
-2. Satellite band download
-3. RGB / False Color visualization
-4. NDVI / NDWI / NDBI
-5. Land Cover Classification
-6. Change Detection between two dates
+Pipeline:
+
+1. Sentinel-2 catalog search
+2. Satellite scene selection
+3. Satellite band download
+4. RGB visualization
+5. False Color visualization
+6. NDVI / NDWI / NDBI
+7. Land Cover Classification
+8. Change Detection
+9. Object Detection preparation
+
+Next stage:
+10. Real object detection model
+11. Bounding boxes
+12. Geospatial object statistics
+13. Temporal object tracking
 """
 
 from datetime import date
@@ -77,15 +89,21 @@ from src.change_visualization import (
     create_difference_figure,
 )
 
+from src.object_detection import (
+    normalize_rgb,
+    validate_detection_image,
+)
+
 
 # ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
     page_title="Satellite Geospatial Intelligence",
     page_icon="🛰️",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -99,6 +117,10 @@ if "search_results" not in st.session_state:
 
 if "satellite_data" not in st.session_state:
     st.session_state.satellite_data = None
+
+
+if "change_result" not in st.session_state:
+    st.session_state.change_result = None
 
 
 # ============================================================
@@ -199,7 +221,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH BUTTON
+# SEARCH
 # ============================================================
 
 if st.sidebar.button(
@@ -228,12 +250,8 @@ if st.sidebar.button(
                 latitude=latitude,
                 longitude=longitude,
                 area_size=area_size,
-                start_date=str(
-                    start_date
-                ),
-                end_date=str(
-                    end_date
-                ),
+                start_date=str(start_date),
+                end_date=str(end_date),
                 max_cloud_cover=max_cloud_cover,
             )
 
@@ -255,7 +273,7 @@ if st.sidebar.button(
 
 
 # ============================================================
-# SEARCH RESULTS
+# RESULTS
 # ============================================================
 
 items = st.session_state.search_results
@@ -380,7 +398,7 @@ if items:
 
 
 # ============================================================
-# SELECTED SCENE ANALYSIS
+# SELECTED SCENE
 # ============================================================
 
 data = st.session_state.satellite_data
@@ -541,7 +559,7 @@ if data:
 
 
     # ========================================================
-    # SATELLITE VISUALIZATION
+    # VISUALIZATION
     # ========================================================
 
     st.divider()
@@ -565,7 +583,7 @@ if data:
         st.image(
             rgb,
             caption="Sentinel-2 Natural Color",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -578,7 +596,7 @@ if data:
         st.image(
             false_color,
             caption="Sentinel-2 False Color",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -692,7 +710,6 @@ if data:
         "🗺️ Land Cover Classification"
     )
 
-
     st.caption(
         "Rule-based multispectral baseline "
         "using NDVI, NDWI and NDBI."
@@ -725,10 +742,6 @@ if data:
 
             st.stop()
 
-
-    # ========================================================
-    # LAND COVER MAP
-    # ========================================================
 
     land_cover_figure = (
         create_land_cover_figure(
@@ -805,7 +818,7 @@ if data:
 
 
     # ========================================================
-    # LAND COVER AREA
+    # AREA
     # ========================================================
 
     st.subheader(
@@ -945,10 +958,6 @@ st.caption(
 )
 
 
-# ============================================================
-# REQUIRE TWO SCENES
-# ============================================================
-
 if len(items) < 2:
 
     st.info(
@@ -961,17 +970,14 @@ else:
 
     scene_options = {}
 
+
     for item in items:
 
-        if item.datetime:
-
-            scene_date = (
-                item.datetime.date()
-            )
-
-        else:
-
-            scene_date = "Unknown"
+        scene_date = (
+            item.datetime.date()
+            if item.datetime
+            else "Unknown"
+        )
 
 
         cloud = float(
@@ -997,10 +1003,6 @@ else:
     )
 
 
-    # ========================================================
-    # SCENE SELECTION
-    # ========================================================
-
     col_a, col_b = st.columns(
         2
     )
@@ -1025,24 +1027,17 @@ else:
             "📅 Data B — After"
         )
 
-        after_index = (
-            1
-            if len(scene_names) > 1
-            else 0
-        )
-
-
         after_name = st.selectbox(
             "Satellite scene B",
             scene_names,
-            index=after_index,
+            index=(
+                1
+                if len(scene_names) > 1
+                else 0
+            ),
             key="change_after",
         )
 
-
-    # ========================================================
-    # PARAMETERS
-    # ========================================================
 
     threshold = st.slider(
         "🎚️ Change sensitivity",
@@ -1050,14 +1045,10 @@ else:
         max_value=0.50,
         value=0.10,
         step=0.01,
-        help=(
-            "Higher values detect only "
-            "larger spectral changes."
-        ),
     )
 
 
-    index_choice = st.selectbox(
+    change_index_choice = st.selectbox(
         "🔬 Index to compare",
         [
             "NDVI — Vegetation",
@@ -1067,10 +1058,6 @@ else:
         key="change_index",
     )
 
-
-    # ========================================================
-    # ANALYZE BUTTON
-    # ========================================================
 
     if st.button(
         "🔍 Analyze Changes",
@@ -1091,26 +1078,17 @@ else:
         )
 
 
-        # ----------------------------------------------------
-        # SAME SCENE PROTECTION
-        # ----------------------------------------------------
-
         if (
             before_item.id
             == after_item.id
         ):
 
             st.warning(
-                "⚠️ Escolha duas cenas "
-                "diferentes."
+                "⚠️ Escolha duas cenas diferentes."
             )
 
             st.stop()
 
-
-        # ====================================================
-        # BBOX
-        # ====================================================
 
         bbox = create_bbox(
             latitude=latitude,
@@ -1119,9 +1097,9 @@ else:
         )
 
 
-        # ====================================================
-        # DOWNLOAD BEFORE
-        # ====================================================
+        # ----------------------------------------------------
+        # DATA A
+        # ----------------------------------------------------
 
         with st.spinner(
             "🛰️ Downloading Data A..."
@@ -1158,9 +1136,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
-        # DOWNLOAD AFTER
-        # ====================================================
+        # ----------------------------------------------------
+        # DATA B
+        # ----------------------------------------------------
 
         with st.spinner(
             "🛰️ Downloading Data B..."
@@ -1197,9 +1175,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # LOAD DATA A
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.spinner(
             "📡 Loading Data A..."
@@ -1244,9 +1222,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # LOAD DATA B
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.spinner(
             "📡 Loading Data B..."
@@ -1291,9 +1269,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # ALIGN DATA A
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.spinner(
             "🔄 Aligning Data A..."
@@ -1341,9 +1319,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # ALIGN DATA B
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.spinner(
             "🔄 Aligning Data B..."
@@ -1391,9 +1369,9 @@ else:
                 st.stop()
 
 
-        # ====================================================
-        # CALCULATE INDICES
-        # ====================================================
+        # ----------------------------------------------------
+        # CALCULATE INDEX
+        # ----------------------------------------------------
 
         with st.spinner(
             "🧠 Calculating spectral changes..."
@@ -1401,7 +1379,7 @@ else:
 
             try:
 
-                if index_choice.startswith(
+                if change_index_choice.startswith(
                     "NDVI"
                 ):
 
@@ -1424,7 +1402,7 @@ else:
                     )
 
 
-                elif index_choice.startswith(
+                elif change_index_choice.startswith(
                     "NDWI"
                 ):
 
@@ -1491,6 +1469,23 @@ else:
                     )
                 )
 
+
+                st.session_state.change_result = {
+
+                    "difference": difference,
+
+                    "change_map": change_map,
+
+                    "statistics": statistics,
+
+                    "index_name": index_name,
+
+                    "before_id": before_item.id,
+
+                    "after_id": after_item.id,
+                }
+
+
             except Exception as error:
 
                 st.error(
@@ -1504,163 +1499,386 @@ else:
                 st.stop()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # RESULTS
-        # ====================================================
+        # ----------------------------------------------------
 
         st.success(
             "✅ Change detection completed."
         )
 
 
-        st.subheader(
-            f"📊 {index_name}"
+# ============================================================
+# CHANGE RESULTS
+# ============================================================
+
+change_result = (
+    st.session_state.change_result
+)
+
+
+if change_result:
+
+    st.subheader(
+        f"📊 {change_result['index_name']}"
+    )
+
+
+    statistics = (
+        change_result["statistics"]
+    )
+
+
+    result1, result2, result3 = (
+        st.columns(3)
+    )
+
+
+    with result1:
+
+        st.metric(
+            "🔴 Decrease",
+            (
+                f"{statistics['decrease_km2']:.3f} "
+                "km²"
+            ),
         )
 
 
-        result1, result2, result3 = (
-            st.columns(3)
+    with result2:
+
+        st.metric(
+            "🟢 Increase",
+            (
+                f"{statistics['increase_km2']:.3f} "
+                "km²"
+            ),
         )
 
 
-        with result1:
+    with result3:
 
-            st.metric(
-                "🔴 Decrease",
-                (
-                    f"{statistics['decrease_km2']:.3f} "
-                    "km²"
-                ),
-            )
-
-
-        with result2:
-
-            st.metric(
-                "🟢 Increase",
-                (
-                    f"{statistics['increase_km2']:.3f} "
-                    "km²"
-                ),
-            )
-
-
-        with result3:
-
-            st.metric(
-                "🛰️ Total Changed",
-                (
-                    f"{statistics['total_changed_km2']:.3f} "
-                    "km²"
-                ),
-            )
-
-
-        # ====================================================
-        # CHANGE MAP
-        # ====================================================
-
-        st.subheader(
-            "🗺️ Change Map"
+        st.metric(
+            "🛰️ Total Changed",
+            (
+                f"{statistics['total_changed_km2']:.3f} "
+                "km²"
+            ),
         )
 
 
-        change_figure = (
-            create_change_figure(
-                change_map,
+    # ========================================================
+    # CHANGE MAP
+    # ========================================================
+
+    st.subheader(
+        "🗺️ Change Map"
+    )
+
+
+    change_figure = (
+        create_change_figure(
+            change_result["change_map"],
+            title=(
+                f"{change_result['index_name']} "
+                "Change Detection"
+            ),
+        )
+    )
+
+
+    st.pyplot(
+        change_figure,
+        use_container_width=True,
+    )
+
+
+    # ========================================================
+    # CONTINUOUS DIFFERENCE
+    # ========================================================
+
+    with st.expander(
+        "🔬 View continuous spectral difference"
+    ):
+
+        difference_figure = (
+            create_difference_figure(
+                change_result["difference"],
                 title=(
-                    f"{index_name} "
-                    "Change Detection"
+                    f"{change_result['index_name']} "
+                    "— Continuous Difference"
                 ),
             )
         )
 
 
         st.pyplot(
-            change_figure,
+            difference_figure,
             use_container_width=True,
         )
 
 
+# ============================================================
+# OBJECT DETECTION
+# ============================================================
+
+st.divider()
+
+st.header(
+    "🎯 Object Detection"
+)
+
+st.caption(
+    "Computer Vision pipeline for preparing "
+    "satellite imagery for object detection."
+)
+
+
+if data:
+
+    st.subheader(
+        "🛰️ Detection Input"
+    )
+
+
+    # ========================================================
+    # PREPARE RGB
+    # ========================================================
+
+    try:
+
+        detection_rgb = normalize_rgb(
+            red=b04,
+            green=b03,
+            blue=b02,
+        )
+
+
+        validate_detection_image(
+            detection_rgb
+        )
+
+
+    except Exception as error:
+
+        st.error(
+            "❌ Could not prepare "
+            "the detection image."
+        )
+
+        st.exception(
+            error
+
+        )
+
+        detection_rgb = None
+
+
+    # ========================================================
+    # DISPLAY
+    # ========================================================
+
+    if detection_rgb is not None:
+
+        st.image(
+            detection_rgb,
+            caption=(
+                "Satellite RGB prepared "
+                "for object detection"
+            ),
+            width="stretch",
+        )
+
+
         # ====================================================
-        # CONTINUOUS DIFFERENCE
-        # ====================================================
-
-        with st.expander(
-            "🔬 View continuous spectral difference"
-        ):
-
-            difference_figure = (
-                create_difference_figure(
-                    difference,
-                    title=(
-                        f"{index_name} "
-                        "— Continuous Difference"
-                    ),
-                )
-            )
-
-
-            st.pyplot(
-                difference_figure,
-                use_container_width=True,
-            )
-
-
-        # ====================================================
-        # COMPARISON SUMMARY
+        # DETECTION SETTINGS
         # ====================================================
 
         st.subheader(
-            "📋 Comparison Summary"
+            "⚙️ Detection Configuration"
         )
 
 
-        summary1, summary2 = (
-            st.columns(2)
+        detection_threshold = st.slider(
+            "Confidence threshold",
+            min_value=0.10,
+            max_value=0.95,
+            value=0.50,
+            step=0.05,
+            key="detection_threshold",
         )
 
 
-        with summary1:
+        detection_classes = st.multiselect(
+            "Classes of interest",
+            [
+                "Buildings",
+                "Roads",
+                "Water",
+                "Vegetation",
+                "Vehicles",
+            ],
+            default=[
+                "Buildings",
+                "Roads",
+                "Water",
+            ],
+            key="detection_classes",
+        )
 
-            st.write(
-                "### 📅 Data A"
+
+        # ====================================================
+        # DETECTION STATUS
+        # ====================================================
+
+        st.info(
+            "🧠 Image preparation completed. "
+            "The real object-detection model "
+            "will be integrated in the next "
+            "sub-stage."
+        )
+
+
+        # ====================================================
+        # TECHNICAL INFORMATION
+        # ====================================================
+
+        st.subheader(
+            "🔬 Detection Pipeline"
+        )
+
+
+        pipeline1, pipeline2, pipeline3, pipeline4 = (
+            st.columns(4)
+        )
+
+
+        with pipeline1:
+
+            st.metric(
+                "Input",
+                "Sentinel-2 RGB",
             )
 
-            st.write(
-                f"**Scene:** `{before_item.id}`"
+
+        with pipeline2:
+
+            st.metric(
+                "Channels",
+                "3",
             )
 
-            st.write(
-                f"**Date:** "
-                f"`{before_item.datetime.date()}`"
+
+        with pipeline3:
+
+            st.metric(
+                "Confidence",
+                f"{detection_threshold:.0%}",
             )
 
 
-        with summary2:
+        with pipeline4:
 
-            st.write(
-                "### 📅 Data B"
-            )
-
-            st.write(
-                f"**Scene:** `{after_item.id}`"
-            )
-
-            st.write(
-                f"**Date:** "
-                f"`{after_item.datetime.date()}`"
+            st.metric(
+                "Classes",
+                len(detection_classes),
             )
 
 
         # ====================================================
-        # TECHNICAL NOTE
+        # SELECTED CLASSES
         # ====================================================
 
-        st.caption(
-            "⚠️ Change Detection nesta etapa é "
-            "uma comparação espectral baseada em "
-            "limiar. Ela ainda não representa uma "
-            "classificação supervisionada nem uma "
-            "detecção semântica de objetos."
-        )
+        if detection_classes:
+
+            st.write(
+                "**Selected classes:** "
+                + ", ".join(
+                    detection_classes
+                )
+            )
+
+        else:
+
+            st.warning(
+                "⚠️ Select at least one "
+                "class of interest."
+            )
+
+
+else:
+
+    st.info(
+        "ℹ️ Download a satellite scene "
+        "above to activate Object Detection."
+    )
+
+
+# ============================================================
+# PROJECT STATUS
+# ============================================================
+
+st.divider()
+
+st.subheader(
+    "🚀 Project Pipeline"
+)
+
+
+status1, status2, status3, status4, status5 = (
+    st.columns(5)
+)
+
+
+with status1:
+
+    st.success(
+        "✅ Scene Search"
+    )
+
+
+with status2:
+
+    st.success(
+        "✅ Spectral Analysis"
+    )
+
+
+with status3:
+
+    st.success(
+        "✅ Change Detection"
+    )
+
+
+with status4:
+
+    st.success(
+        "✅ Detection Input"
+    )
+
+
+with status5:
+
+    st.info(
+        "🔜 AI Detection"
+    )
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+
+st.caption(
+    "Satellite Geospatial Intelligence • "
+    "Earth Observation • Computer Vision • "
+    "Geospatial AI"
+)
+
+st.caption(
+    "Spectral values are analytical measurements "
+    "and should be interpreted according to "
+    "sensor characteristics and preprocessing."
+)
