@@ -1,5 +1,5 @@
 """
-Basic raster/geospatial utilities.
+Basic raster utilities.
 """
 
 import numpy as np
@@ -7,7 +7,7 @@ import rasterio
 
 
 # ============================================================
-# READ BAND
+# READ RASTER
 # ============================================================
 
 def read_band(
@@ -23,6 +23,8 @@ def read_band(
 
         data = src.read(
             1
+        ).astype(
+            np.float32
         )
 
         metadata = {
@@ -39,17 +41,16 @@ def read_band(
 
 
 # ============================================================
-# NORMALIZATION
+# NORMALIZE FOR DISPLAY
 # ============================================================
 
 def normalize_image(
     image,
 ):
     """
-    Normalize image using percentile stretching.
+    Percentile normalization.
 
-    This is for visualization only.
-    It does not modify the original satellite data.
+    Used only for visualization.
     """
 
     image = image.astype(
@@ -67,17 +68,17 @@ def normalize_image(
             dtype=np.float32,
         )
 
-    min_value = np.nanpercentile(
+    low = np.nanpercentile(
         image[valid],
         2,
     )
 
-    max_value = np.nanpercentile(
+    high = np.nanpercentile(
         image[valid],
         98,
     )
 
-    if max_value <= min_value:
+    if high <= low:
 
         return np.zeros_like(
             image,
@@ -85,9 +86,9 @@ def normalize_image(
         )
 
     normalized = (
-        image - min_value
+        image - low
     ) / (
-        max_value - min_value
+        high - low
     )
 
     return np.clip(
