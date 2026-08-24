@@ -3,19 +3,6 @@ Object Detection Engine
 =======================
 
 Satellite Geospatial Intelligence
-
-Stage 4C:
-- Detection engine
-- Bounding boxes
-- Confidence filtering
-- Visualization preparation
-
-The detector is intentionally separated from
-the satellite ingestion pipeline.
-
-This allows us to plug in a specialized
-geospatial model later without changing
-the rest of the application.
 """
 
 from __future__ import annotations
@@ -26,15 +13,8 @@ from typing import List
 import numpy as np
 
 
-# ============================================================
-# DATA MODEL
-# ============================================================
-
 @dataclass
 class Detection:
-    """
-    Single detected object.
-    """
 
     label: str
 
@@ -47,19 +27,11 @@ class Detection:
     y2: float
 
 
-# ============================================================
-# IMAGE NORMALIZATION
-# ============================================================
-
 def normalize_rgb(
     red,
     green,
     blue,
 ):
-    """
-    Convert Sentinel-2 bands into
-    normalized RGB image.
-    """
 
     red = np.asarray(
         red,
@@ -75,6 +47,7 @@ def normalize_rgb(
         blue,
         dtype=np.float32,
     )
+
 
     def stretch(channel):
 
@@ -118,6 +91,7 @@ def normalize_rgb(
             1.0,
         )
 
+
     return np.stack(
         [
             stretch(red),
@@ -128,16 +102,9 @@ def normalize_rgb(
     )
 
 
-# ============================================================
-# VALIDATION
-# ============================================================
-
 def validate_detection_image(
     image,
 ):
-    """
-    Validate detection input.
-    """
 
     image = np.asarray(
         image
@@ -175,22 +142,10 @@ def validate_detection_image(
     return True
 
 
-# ============================================================
-# CONFIDENCE FILTER
-# ============================================================
-
 def filter_detections(
     detections: List[Detection],
     confidence_threshold: float,
 ):
-    """
-    Keep only detections above
-    confidence threshold.
-    """
-
-    confidence_threshold = float(
-        confidence_threshold
-    )
 
     return [
         detection
@@ -200,17 +155,10 @@ def filter_detections(
     ]
 
 
-# ============================================================
-# CLASS FILTER
-# ============================================================
-
 def filter_classes(
     detections: List[Detection],
     selected_classes: list[str],
 ):
-    """
-    Keep only requested classes.
-    """
 
     if not selected_classes:
 
@@ -229,16 +177,9 @@ def filter_classes(
     ]
 
 
-# ============================================================
-# DETECTION SUMMARY
-# ============================================================
-
 def detection_summary(
     detections: List[Detection],
 ):
-    """
-    Generate simple class statistics.
-    """
 
     summary = {}
 
@@ -246,28 +187,39 @@ def detection_summary(
 
         label = detection.label
 
-        if label not in summary:
-
-            summary[label] = 0
-
-        summary[label] += 1
+        summary[label] = (
+            summary.get(label, 0) + 1
+        )
 
     return summary
 
 
-# ============================================================
-# DRAWING
-# ============================================================
+def convert_model_detections(
+    model_detections,
+):
+
+    result = []
+
+    for detection in model_detections:
+
+        result.append(
+            Detection(
+                label=detection.label,
+                confidence=detection.confidence,
+                x1=detection.x1,
+                y1=detection.y1,
+                x2=detection.x2,
+                y2=detection.y2,
+            )
+        )
+
+    return result
+
 
 def draw_detections(
     image,
     detections: List[Detection],
 ):
-    """
-    Draw detection boxes using matplotlib.
-
-    Returns a matplotlib Figure.
-    """
 
     import matplotlib.pyplot as plt
     from matplotlib.patches import Rectangle
@@ -340,7 +292,6 @@ def draw_detections(
     ax.axis(
         "off"
     )
-
 
     fig.tight_layout()
 
