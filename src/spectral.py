@@ -1,42 +1,58 @@
 """
-Multispectral analysis.
+Spectral index calculations.
 
-Phase 2:
-- NDVI
-- NDWI
-- NDBI
+Supported indices:
+
+NDVI -> vegetation
+NDWI -> water
+NDBI -> built-up areas
 """
 
-from pathlib import Path
+from __future__ import annotations
 
 import numpy as np
-import rasterio
 
 
 # ============================================================
-# READ RASTER
+# SAFE FLOAT ARRAY
 # ============================================================
 
-def read_raster(
-    path,
+def _to_float_array(
+    array,
 ):
     """
-    Read raster data and metadata.
+    Convert an input array to float32.
     """
 
-    with rasterio.open(
-        path
-    ) as src:
+    return np.asarray(
+        array,
+        dtype=np.float32,
+    )
 
-        data = src.read(
-            1
-        ).astype(
-            np.float32
+
+# ============================================================
+# ALIGN ARRAYS
+# ============================================================
+
+def _validate_same_shape(
+    band_a,
+    band_b,
+):
+    """
+    Validate that two arrays have identical dimensions.
+    """
+
+    if band_a.shape != band_b.shape:
+
+        raise ValueError(
+            "Spectral bands have different "
+            "spatial dimensions.\n\n"
+            f"Band A: {band_a.shape}\n"
+            f"Band B: {band_b.shape}\n\n"
+            "The lower-resolution band must "
+            "be resampled before calculating "
+            "the spectral index."
         )
-
-        profile = src.profile.copy()
-
-    return data, profile
 
 
 # ============================================================
@@ -51,38 +67,48 @@ def normalized_difference(
     Generic normalized difference:
 
         (A - B) / (A + B)
+
+    Invalid divisions are converted to NaN.
     """
 
-    band_a = band_a.astype(
-        np.float32
+    band_a = _to_float_array(
+        band_a
     )
 
-    band_b = band_b.astype(
-        np.float32
+    band_b = _to_float_array(
+        band_b
+    )
+
+    _validate_same_shape(
+        band_a,
+        band_b,
+    )
+
+    numerator = (
+        band_a - band_b
     )
 
     denominator = (
         band_a + band_b
     )
 
-    result = np.full(
-        band_a.shape,
+    result = np.full_like(
+        denominator,
         np.nan,
         dtype=np.float32,
     )
 
     valid = (
         np.isfinite(band_a)
-        &
-        np.isfinite(band_b)
-        &
-        (denominator != 0)
+        & np.isfinite(band_b)
+        & np.isfinite(denominator)
+        & (np.abs(denominator) > 1e-10)
     )
 
     result[valid] = (
-        band_a[valid]
-        - band_b[valid]
-    ) / denominator[valid]
+        numerator[valid]
+        / denominator[valid]
+    )
 
     return result
 
@@ -98,13 +124,7 @@ def calculate_ndvi(
     """
     NDVI:
 
-        (NIR - RED)
-        ------------
-        (NIR + RED)
-
-    Sentinel-2:
-        RED = B04
-        NIR = B08
+        (NIR - RED) / (NIR + RED)
     """
 
     return normalized_difference(
@@ -124,13 +144,7 @@ def calculate_ndwi(
     """
     NDWI:
 
-        (GREEN - NIR)
-        --------------
-        (GREEN + NIR)
-
-    Sentinel-2:
-        GREEN = B03
-        NIR   = B08
+        (GREEN - NIR) / (GREEN + NIR)
     """
 
     return normalized_difference(
@@ -150,13 +164,14 @@ def calculate_ndbi(
     """
     NDBI:
 
-        (SWIR - NIR)
-        -------------
-        (SWIR + NIR)
+        (SWIR - NIR) / (SWIR + NIR)
 
-    Sentinel-2:
-        NIR  = B08
-        SWIR = B11
+    Important:
+    Sentinel-2 B11 is normally 20 m while
+    B08 is 10 m.
+
+    The caller must align/resample the
+    arrays before passing them here.
     """
 
     return normalized_difference(
@@ -166,59 +181,49 @@ def calculate_ndbi(
 
 
 # ============================================================
-# SAVE INDEX
+# STATISTICS
 # ============================================================
 
-def save_index(
+def calculate_statistics(
     index,
-    reference_path,
-    output_path,
 ):
     """
-    Save spectral index as GeoTIFF.
+    Calculate robust statistics for a spectral index.
     """
 
-    output_path = Path(
-        output_path
-    )
-
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    with rasterio.open(
-        reference_path
-    ) as src:
-
-        profile = src.profile.copy()
-
-    profile.update(
-        {
-            "dtype": "float32",
-            "count": 1,
-            "nodata": -9999,
-            "compress": "deflate",
-        }
-    )
-
-    output_data = np.where(
-        np.isfinite(index),
+    index = np.asarray(
         index,
-        -9999,
-    ).astype(
-        np.float32
+        dtype=np.float32,
     )
 
-    with rasterio.open(
-        output_path,
-        "w",
-        **profile,
-    ) as dst:
+    valid = index[
+        np.isfinite(index)
+    ]
 
-        dst.write(
-            output_data,
-            1,
-        )
+    if valid.size == 0:
 
-    return output_path
+        return {
+            "mean": np.nan,
+            "median": np.nan,
+            "minimum": np.nan,
+            "maximum": np.nan,
+            "std": np.nan,
+        }
+
+    return {
+        "mean": float(
+            np.mean(valid)
+        ),
+        "median": float(
+            np.median(valid)
+        ),
+        "minimum": float(
+            np.min(valid)
+        ),
+        "maximum": float(
+            np.max(valid)
+        ),
+        "std": float(
+            np.std(valid)
+        ),
+    }
