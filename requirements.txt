@@ -13,8 +13,8 @@ planetary-computer
 
 Pillow
 
-folium
-streamlit-folium
+plotly
+pydeck
 
 torch
 torchvision
