@@ -1,9 +1,9 @@
 """
-Visualization of spectral indices.
+Visualization of spectral indices (Plotly Version).
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 
 # ============================================================
@@ -25,36 +25,33 @@ def create_index_figure(
         1,
     )
 
-    fig, ax = plt.subplots(
-        figsize=(10, 8)
-    )
-
-    image = ax.imshow(
+    fig = px.imshow(
         display_index,
-        vmin=-1,
-        vmax=1,
-        cmap=cmap,
+        zmin=-1,
+        zmax=1,
+        color_continuous_scale=cmap,
+        labels=dict(x="", y="", color="Index value"),
+        aspect="auto"
     )
 
-    ax.set_title(
-        title
+    # Ajuste para visual Dark Mode Profissional
+    fig.update_layout(
+        title=title,
+        title_font=dict(color="white", size=18),
+        plot_bgcolor="rgba(0,0,0,0)",   # Fundo do gráfico transparente
+        paper_bgcolor="rgba(0,0,0,0)",  # Fundo da "folha" transparente
+        font=dict(color="white"),
+        # Remover ticks e margens para imagem ficar limpa
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        coloraxis_colorbar=dict(
+            title="Index value",
+            title_font_color="white",
+            tickfont_color="white",
+            outlinewidth=1,
+            outlinecolor="white"
+        )
     )
-
-    ax.axis(
-        "off"
-    )
-
-    colorbar = fig.colorbar(
-        image,
-        ax=ax,
-        fraction=0.046,
-        pad=0.04,
-    )
-
-    colorbar.set_label(
-        "Index value"
-    )
-
-    fig.tight_layout()
 
     return fig
