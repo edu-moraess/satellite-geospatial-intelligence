@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 
 import numpy as np
 import streamlit as st
@@ -44,7 +43,6 @@ from src.change_detection import (
 
 from src.change_visualization import (
     create_change_figure,
-    create_difference_figure,
 )
 
 from src.object_detection import (
@@ -70,9 +68,12 @@ from src.model_registry import (
     get_model,
 )
 
-from src.geospatial_detections import (
-    georeference_detections,
-    detection_summary_geo,
+# ============================================================
+# NEW PROFESSIONAL GEOSPATIAL MAP
+# ============================================================
+
+from src.map_view import (
+    render_map_panel,
 )
 
 
@@ -102,7 +103,21 @@ DEFAULT_STATE = {
 for key, value in DEFAULT_STATE.items():
 
     if key not in st.session_state:
+
         st.session_state[key] = value
+
+
+# ============================================================
+# GLOBAL DATA
+# ============================================================
+
+items = st.session_state.search_results
+data = st.session_state.satellite_data
+
+# IMPORTANT:
+# Always initialize this before any conditional block.
+# Prevents the previous NameError.
+detection_rgb = None
 
 
 # ============================================================
@@ -189,7 +204,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH SENTINEL-2
+# SEARCH
 # ============================================================
 
 if st.sidebar.button(
@@ -223,6 +238,13 @@ if st.sidebar.button(
 
             st.session_state.search_results = results
 
+            # Clear previous analysis.
+            st.session_state.satellite_data = None
+            st.session_state.change_result = None
+            st.session_state.object_detections = []
+
+            st.rerun()
+
         except Exception as error:
 
             st.error(
@@ -233,11 +255,14 @@ if st.sidebar.button(
             st.stop()
 
 
+# Refresh references after search.
+items = st.session_state.search_results
+data = st.session_state.satellite_data
+
+
 # ============================================================
 # SEARCH RESULTS
 # ============================================================
-
-items = st.session_state.search_results
 
 if items:
 
@@ -278,7 +303,8 @@ if items:
             )
 
             st.write(
-                f"**Cloud coverage:** `{cloud:.2f}%`"
+                f"**Cloud coverage:** "
+                f"`{cloud:.2f}%`"
             )
 
             if st.button(
@@ -327,10 +353,12 @@ if items:
                     "date": str(acquisition_date),
                     "cloud": cloud,
                     "bands": downloaded,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "area_size": area_size,
                 }
 
                 st.session_state.change_result = None
-
                 st.session_state.object_detections = []
 
                 st.success(
@@ -380,6 +408,59 @@ if data:
             "Scene",
             data["scene_id"][:24],
         )
+
+
+    # ========================================================
+    # PROFESSIONAL GEOSPATIAL MAP
+    # ========================================================
+
+    st.divider()
+
+    try:
+
+        scene_bbox = create_bbox(
+            latitude=data.get(
+                "latitude",
+                latitude,
+            ),
+            longitude=data.get(
+                "longitude",
+                longitude,
+            ),
+            area_size=data.get(
+                "area_size",
+                area_size,
+            ),
+        )
+
+        render_map_panel(
+            latitude=data.get(
+                "latitude",
+                latitude,
+            ),
+            longitude=data.get(
+                "longitude",
+                longitude,
+            ),
+            area_size=data.get(
+                "area_size",
+                area_size,
+            ),
+            bbox=scene_bbox,
+            scene_id=data["scene_id"],
+            acquisition_date=data["date"],
+            cloud_cover=data["cloud"],
+            key="main_geospatial_map",
+        )
+
+    except Exception as error:
+
+        st.warning(
+            "⚠️ Interactive geospatial map "
+            "could not be rendered."
+        )
+
+        st.exception(error)
 
 
     # ========================================================
@@ -1449,72 +1530,64 @@ else:
 
         model_ids = list_models()
 
-        if not model_ids:
+        selected_model_id = st.selectbox(
+            "Model",
+            model_ids,
+            key="selected_model",
+        )
 
-            st.warning(
-                "⚠️ No models registered."
-            )
+        selected_model = get_model(
+            selected_model_id
+        )
 
-            detector = None
-            model_info = None
+        detector = SatelliteDetector(
+            model_id=selected_model_id,
+            device="cpu",
+        )
 
-        else:
+        model_info = detector.info()
 
-            selected_model_id = st.selectbox(
+
+        mc1, mc2, mc3 = st.columns(3)
+
+        with mc1:
+
+            st.metric(
                 "Model",
-                model_ids,
-                key="selected_model",
+                model_info["model"],
             )
 
-            get_model(
-                selected_model_id
+        with mc2:
+
+            st.metric(
+                "Input",
+                (
+                    f"{model_info['input_size']}×"
+                    f"{model_info['input_size']}"
+                ),
             )
 
-            detector = SatelliteDetector(
-                model_id=selected_model_id,
-                device="cpu",
-            )
+        with mc3:
 
-            model_info = detector.info()
+            if model_info[
+                "checkpoint_available"
+            ]:
 
-            mc1, mc2, mc3 = st.columns(3)
-
-            with mc1:
-
-                st.metric(
-                    "Model",
-                    model_info["model"],
+                st.success(
+                    "CHECKPOINT FOUND"
                 )
 
-            with mc2:
+            else:
 
-                st.metric(
-                    "Input",
-                    (
-                        f"{model_info['input_size']}×"
-                        f"{model_info['input_size']}"
-                    ),
+                st.warning(
+                    "CHECKPOINT MISSING"
                 )
 
-            with mc3:
 
-                if model_info[
-                    "checkpoint_available"
-                ]:
+        st.caption(
+            model_info["description"]
+        )
 
-                    st.success(
-                        "CHECKPOINT FOUND"
-                    )
-
-                else:
-
-                    st.warning(
-                        "CHECKPOINT MISSING"
-                    )
-
-            st.caption(
-                model_info["description"]
-            )
 
     except Exception as error:
 
@@ -1532,31 +1605,18 @@ else:
     # CLASSES
     # ========================================================
 
-    if detector is not None and model_info is not None:
+    if detector is not None:
 
-        available_classes = list(
-            model_info.get(
-                "classes",
-                [],
-            )
+        detection_classes = st.multiselect(
+            "Classes of interest",
+            list(
+                model_info["classes"]
+            ),
+            default=list(
+                model_info["classes"][:2]
+            ),
+            key="object_classes",
         )
-
-        if available_classes:
-
-            detection_classes = st.multiselect(
-                "Classes of interest",
-                available_classes,
-                default=available_classes[:2],
-                key="object_classes",
-            )
-
-        else:
-
-            detection_classes = []
-
-            st.warning(
-                "⚠️ No classes available for this model."
-            )
 
 
         # ====================================================
@@ -1588,8 +1648,6 @@ Object detections
 Bounding boxes
     ↓
 Geospatial coordinates
-    ↓
-GeoJSON / Map
                 """,
                 language="text",
             )
@@ -1723,10 +1781,6 @@ GeoJSON / Map
                     )
 
 
-                # ============================================
-                # PIXEL DETECTIONS
-                # ============================================
-
                 detection_figure = (
                     draw_detections(
                         detection_rgb,
@@ -1740,10 +1794,6 @@ GeoJSON / Map
                 )
 
 
-                # ============================================
-                # CLASS SUMMARY
-                # ============================================
-
                 st.subheader(
                     "🏷️ Detected Classes"
                 )
@@ -1754,237 +1804,6 @@ GeoJSON / Map
 
                     st.write(
                         f"**{label}:** {quantity}"
-                    )
-
-
-                # ============================================
-                # GEOSPATIAL DETECTIONS
-                # ============================================
-
-                st.divider()
-
-                st.subheader(
-                    "🌍 Georeferenced Detections"
-                )
-
-                try:
-
-                    # B04 é a referência espacial
-                    # utilizada pelo pipeline.
-
-                    _, reference_metadata = read_band(
-                        data["bands"]["B04"]
-                    )
-
-                    transform = (
-                        reference_metadata.get(
-                            "transform"
-                        )
-                    )
-
-                    raster_crs = (
-                        reference_metadata.get(
-                            "crs"
-                        )
-                    )
-
-
-                    if transform is None:
-
-                        st.warning(
-                            "⚠️ Raster transform "
-                            "is unavailable."
-                        )
-
-                    elif raster_crs is None:
-
-                        st.warning(
-                            "⚠️ Raster CRS "
-                            "is unavailable."
-                        )
-
-                    else:
-
-                        geo_detections = (
-                            georeference_detections(
-                                detections=detections,
-                                transform=transform,
-                                crs=raster_crs,
-                            )
-                        )
-
-
-                        if geo_detections.empty:
-
-                            st.info(
-                                "ℹ️ No georeferenced "
-                                "detections available."
-                            )
-
-                        else:
-
-                            geo_summary = (
-                                detection_summary_geo(
-                                    geo_detections
-                                )
-                            )
-
-
-                            # =================================
-                            # GEO METRICS
-                            # =================================
-
-                            gc1, gc2 = st.columns(2)
-
-                            with gc1:
-
-                                st.metric(
-                                    "🌍 Objects",
-                                    geo_summary[
-                                        "objects"
-                                    ],
-                                )
-
-                            with gc2:
-
-                                st.metric(
-                                    "🏷️ Classes",
-                                    geo_summary[
-                                        "classes"
-                                    ],
-                                )
-
-
-                            # =================================
-                            # COORDINATES
-                            # =================================
-
-                            st.subheader(
-                                "📍 Detection Coordinates"
-                            )
-
-                            display_columns = [
-                                "label",
-                                "confidence",
-                                "latitude",
-                                "longitude",
-                            ]
-
-                            available_columns = [
-                                column
-                                for column in display_columns
-                                if column
-                                in geo_detections.columns
-                            ]
-
-                            st.dataframe(
-                                geo_detections[
-                                    available_columns
-                                ],
-                                use_container_width=True,
-                            )
-
-
-                            # =================================
-                            # MAP
-                            # =================================
-
-                            if (
-                                "latitude"
-                                in geo_detections.columns
-                                and
-                                "longitude"
-                                in geo_detections.columns
-                            ):
-
-                                map_data = (
-                                    geo_detections[
-                                        [
-                                            "latitude",
-                                            "longitude",
-                                        ]
-                                    ].copy()
-                                )
-
-                                map_data = (
-                                    map_data.replace(
-                                        [
-                                            np.inf,
-                                            -np.inf,
-                                        ],
-                                        np.nan,
-                                    )
-                                )
-
-                                map_data = (
-                                    map_data.dropna()
-                                )
-
-                                if not map_data.empty:
-
-                                    st.subheader(
-                                        "🗺️ Detection Map"
-                                    )
-
-                                    st.map(
-                                        map_data,
-                                        latitude="latitude",
-                                        longitude="longitude",
-                                        size=30,
-                                    )
-
-
-                            # =================================
-                            # GEOJSON
-                            # =================================
-
-                            st.subheader(
-                                "📦 Geospatial Export"
-                            )
-
-                            try:
-
-                                geojson_bytes = (
-                                    geo_detections
-                                    .to_json()
-                                    .encode("utf-8")
-                                )
-
-                                st.download_button(
-                                    label=(
-                                        "⬇️ Download "
-                                        "detections as GeoJSON"
-                                    ),
-                                    data=geojson_bytes,
-                                    file_name=(
-                                        "satellite_"
-                                        "detections.geojson"
-                                    ),
-                                    mime=(
-                                        "application/geo+json"
-                                    ),
-                                    use_container_width=True,
-                                )
-
-                            except Exception as export_error:
-
-                                st.warning(
-                                    "⚠️ GeoJSON export "
-                                    "unavailable."
-                                )
-
-                                st.exception(
-                                    export_error
-                                )
-
-                except Exception as geo_error:
-
-                    st.error(
-                        "❌ Geospatialization failed."
-                    )
-
-                    st.exception(
-                        geo_error
                     )
 
             except Exception as error:
