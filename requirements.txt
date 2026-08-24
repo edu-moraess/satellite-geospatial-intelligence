@@ -11,10 +11,10 @@ pyproj
 pystac-client
 planetary-computer
 
+Pillow
+
 folium
 streamlit-folium
-
-Pillow
 
 torch
 torchvision
