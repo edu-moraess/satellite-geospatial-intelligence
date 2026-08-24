@@ -9,4 +9,5 @@ planetary-computer
 folium
 streamlit-folium
 matplotlib
+plotly
 pydeck==0.8.0
