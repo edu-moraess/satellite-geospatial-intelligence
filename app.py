@@ -2,14 +2,12 @@
 SATELLITE GEOSPATIAL INTELLIGENCE
 =================================
 
-Earth Observation
-Computer Vision
-Geospatial AI
+Earth Observation • Computer Vision • Geospatial AI
 
-Pipeline:
-
+Pipeline
+--------
 1. Sentinel-2 catalog search
-2. Satellite scene selection
+2. Scene selection
 3. Satellite band download
 4. RGB visualization
 5. False Color visualization
@@ -17,13 +15,10 @@ Pipeline:
 7. Land Cover Classification
 8. Change Detection
 9. Object Detection preparation
-
-Next stage:
-10. Real object detection model
-11. Bounding boxes
-12. Geospatial object statistics
-13. Temporal object tracking
+10. Object Detection engine
 """
+
+from __future__ import annotations
 
 from datetime import date
 
@@ -92,6 +87,10 @@ from src.change_visualization import (
 from src.object_detection import (
     normalize_rgb,
     validate_detection_image,
+    filter_detections,
+    filter_classes,
+    detection_summary,
+    draw_detections,
 )
 
 
@@ -114,10 +113,8 @@ st.set_page_config(
 if "search_results" not in st.session_state:
     st.session_state.search_results = []
 
-
 if "satellite_data" not in st.session_state:
     st.session_state.satellite_data = None
-
 
 if "change_result" not in st.session_state:
     st.session_state.change_result = None
@@ -144,7 +141,6 @@ st.sidebar.header(
     "📍 Area of Interest"
 )
 
-
 latitude = st.sidebar.number_input(
     "Latitude",
     min_value=-90.0,
@@ -153,7 +149,6 @@ latitude = st.sidebar.number_input(
     format="%.6f",
 )
 
-
 longitude = st.sidebar.number_input(
     "Longitude",
     min_value=-180.0,
@@ -161,7 +156,6 @@ longitude = st.sidebar.number_input(
     value=-46.6333,
     format="%.6f",
 )
-
 
 area_size = st.sidebar.slider(
     "Area size",
@@ -180,7 +174,6 @@ st.sidebar.header(
     "📅 Satellite Date Range"
 )
 
-
 start_date = st.sidebar.date_input(
     "Start date",
     value=date(
@@ -189,7 +182,6 @@ start_date = st.sidebar.date_input(
         1,
     ),
 )
-
 
 end_date = st.sidebar.date_input(
     "End date",
@@ -209,7 +201,6 @@ st.sidebar.header(
     "☁️ Image Quality"
 )
 
-
 max_cloud_cover = st.sidebar.slider(
     "Maximum cloud coverage",
     min_value=0,
@@ -221,7 +212,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH
+# SEARCH BUTTON
 # ============================================================
 
 if st.sidebar.button(
@@ -238,7 +229,6 @@ if st.sidebar.button(
         )
 
         st.stop()
-
 
     with st.spinner(
         "🛰️ Searching Sentinel-2 catalog..."
@@ -273,7 +263,7 @@ if st.sidebar.button(
 
 
 # ============================================================
-# RESULTS
+# SEARCH RESULTS
 # ============================================================
 
 items = st.session_state.search_results
@@ -289,7 +279,6 @@ if items:
         "Available Sentinel-2 Scenes"
     )
 
-
     for index, item in enumerate(
         items[:10]
     ):
@@ -301,13 +290,11 @@ if items:
             )
         )
 
-
         acquisition_date = (
             item.datetime.date()
             if item.datetime
             else "Unknown"
         )
-
 
         with st.expander(
             f"{acquisition_date} • "
@@ -328,7 +315,6 @@ if items:
                 f"`{cloud:.2f}%`"
             )
 
-
             if st.button(
                 "⬇️ Download & Analyze",
                 key=f"download_{index}",
@@ -341,11 +327,9 @@ if items:
                     area_size=area_size,
                 )
 
-
                 output_directory = (
                     RAW_DIR / item.id
                 )
-
 
                 with st.spinner(
                     "⬇️ Downloading satellite data..."
@@ -375,20 +359,16 @@ if items:
 
                         st.stop()
 
-
                 st.session_state.satellite_data = {
-
                     "scene_id": item.id,
-
                     "date": str(
                         acquisition_date
                     ),
-
                     "cloud": cloud,
-
                     "bands": downloaded,
                 }
 
+                st.session_state.change_result = None
 
                 st.success(
                     "✅ Satellite scene downloaded."
@@ -412,11 +392,7 @@ if data:
         "🛰️ Selected Satellite Scene"
     )
 
-
-    col1, col2, col3 = st.columns(
-        3
-    )
-
+    col1, col2, col3 = st.columns(3)
 
     with col1:
 
@@ -425,14 +401,12 @@ if data:
             data["date"],
         )
 
-
     with col2:
 
         st.metric(
             "Cloud Coverage",
             f"{data['cloud']:.2f}%",
         )
-
 
     with col3:
 
@@ -559,7 +533,7 @@ if data:
 
 
     # ========================================================
-    # VISUALIZATION
+    # SATELLITE VISUALIZATION
     # ========================================================
 
     st.divider()
@@ -568,11 +542,7 @@ if data:
         "🌍 Satellite Visualization"
     )
 
-
-    image1, image2 = st.columns(
-        2
-    )
-
+    image1, image2 = st.columns(2)
 
     with image1:
 
@@ -585,7 +555,6 @@ if data:
             caption="Sentinel-2 Natural Color",
             width="stretch",
         )
-
 
     with image2:
 
@@ -601,7 +570,7 @@ if data:
 
 
     # ========================================================
-    # SPECTRAL INDICES
+    # SPECTRAL ANALYSIS
     # ========================================================
 
     st.divider()
@@ -610,7 +579,6 @@ if data:
         "🔬 Multispectral Analysis"
     )
 
-
     try:
 
         ndvi = calculate_ndvi(
@@ -618,12 +586,10 @@ if data:
             nir=b08,
         )
 
-
         ndwi = calculate_ndwi(
             green=b03,
             nir=b08,
         )
-
 
         ndbi = calculate_ndbi(
             nir=b08,
@@ -647,10 +613,7 @@ if data:
     # INDEX METRICS
     # ========================================================
 
-    c1, c2, c3 = st.columns(
-        3
-    )
-
+    c1, c2, c3 = st.columns(3)
 
     with c1:
 
@@ -667,7 +630,6 @@ if data:
             ),
         )
 
-
     with c2:
 
         valid_ndwi = ndwi[
@@ -682,7 +644,6 @@ if data:
                 else "N/A"
             ),
         )
-
 
     with c3:
 
@@ -714,7 +675,6 @@ if data:
         "Rule-based multispectral baseline "
         "using NDVI, NDWI and NDBI."
     )
-
 
     with st.spinner(
         "🧠 Classifying satellite pixels..."
@@ -749,7 +709,6 @@ if data:
         )
     )
 
-
     st.pyplot(
         land_cover_figure,
         use_container_width=True,
@@ -766,16 +725,11 @@ if data:
         )
     )
 
-
     st.subheader(
         "📊 Land Cover Distribution"
     )
 
-
-    pc1, pc2, pc3, pc4, pc5 = (
-        st.columns(5)
-    )
-
+    pc1, pc2, pc3, pc4, pc5 = st.columns(5)
 
     with pc1:
 
@@ -784,14 +738,12 @@ if data:
             f"{percentages['Vegetation']:.1f}%",
         )
 
-
     with pc2:
 
         st.metric(
             "💧 Water",
             f"{percentages['Water']:.1f}%",
         )
-
 
     with pc3:
 
@@ -800,14 +752,12 @@ if data:
             f"{percentages['Built-up']:.1f}%",
         )
 
-
     with pc4:
 
         st.metric(
             "🟫 Bare Soil",
             f"{percentages['Bare Soil']:.1f}%",
         )
-
 
     with pc5:
 
@@ -825,17 +775,12 @@ if data:
         "📐 Estimated Area"
     )
 
-
     area = calculate_area_km2(
         classification,
         pixel_size_meters=10.0,
     )
 
-
-    area1, area2, area3, area4 = (
-        st.columns(4)
-    )
-
+    area1, area2, area3, area4 = st.columns(4)
 
     with area1:
 
@@ -844,7 +789,6 @@ if data:
             f"{area['Vegetation']:.3f} km²",
         )
 
-
     with area2:
 
         st.metric(
@@ -852,14 +796,12 @@ if data:
             f"{area['Water']:.3f} km²",
         )
 
-
     with area3:
 
         st.metric(
             "🏙️ Built-up",
             f"{area['Built-up']:.3f} km²",
         )
-
 
     with area4:
 
@@ -879,7 +821,6 @@ if data:
         "🔬 Spectral Index Maps"
     )
 
-
     selected_index = st.selectbox(
         "Choose index",
         [
@@ -890,50 +831,33 @@ if data:
         key="main_index",
     )
 
-
     if selected_index.startswith(
         "NDVI"
     ):
 
         index_data = ndvi
-
-        index_title = (
-            "NDVI — Vegetation"
-        )
-
+        index_title = "NDVI — Vegetation"
         index_cmap = "RdYlGn"
-
 
     elif selected_index.startswith(
         "NDWI"
     ):
 
         index_data = ndwi
-
-        index_title = (
-            "NDWI — Water"
-        )
-
+        index_title = "NDWI — Water"
         index_cmap = "Blues"
-
 
     else:
 
         index_data = ndbi
-
-        index_title = (
-            "NDBI — Built-up"
-        )
-
+        index_title = "NDBI — Built-up"
         index_cmap = "Oranges"
-
 
     index_figure = create_index_figure(
         index_data,
         index_title,
         cmap=index_cmap,
     )
-
 
     st.pyplot(
         index_figure,
@@ -970,7 +894,6 @@ else:
 
     scene_options = {}
 
-
     for item in items:
 
         scene_date = (
@@ -979,7 +902,6 @@ else:
             else "Unknown"
         )
 
-
         cloud = float(
             item.properties.get(
                 "eo:cloud_cover",
@@ -987,13 +909,11 @@ else:
             )
         )
 
-
         label = (
             f"{scene_date} • "
             f"{cloud:.2f}% clouds • "
             f"{item.id}"
         )
-
 
         scene_options[label] = item
 
@@ -1003,10 +923,7 @@ else:
     )
 
 
-    col_a, col_b = st.columns(
-        2
-    )
-
+    col_a, col_b = st.columns(2)
 
     with col_a:
 
@@ -1019,7 +936,6 @@ else:
             scene_names,
             key="change_before",
         )
-
 
     with col_b:
 
@@ -1045,6 +961,7 @@ else:
         max_value=0.50,
         value=0.10,
         step=0.01,
+        key="change_threshold",
     )
 
 
@@ -1078,10 +995,7 @@ else:
         )
 
 
-        if (
-            before_item.id
-            == after_item.id
-        ):
+        if before_item.id == after_item.id:
 
             st.warning(
                 "⚠️ Escolha duas cenas diferentes."
@@ -1108,10 +1022,8 @@ else:
             try:
 
                 before_directory = (
-                    RAW_DIR
-                    / before_item.id
+                    RAW_DIR / before_item.id
                 )
-
 
                 before_bands = (
                     download_required_bands(
@@ -1147,10 +1059,8 @@ else:
             try:
 
                 after_directory = (
-                    RAW_DIR
-                    / after_item.id
+                    RAW_DIR / after_item.id
                 )
-
 
                 after_bands = (
                     download_required_bands(
@@ -1273,100 +1183,92 @@ else:
         # ALIGN DATA A
         # ----------------------------------------------------
 
-        with st.spinner(
-            "🔄 Aligning Data A..."
-        ):
+        try:
 
-            try:
-
-                before_b03 = (
-                    align_band_to_reference(
-                        before_b03,
-                        before_m03,
-                        before_b04,
-                        before_m04,
-                    )
+            before_b03 = (
+                align_band_to_reference(
+                    before_b03,
+                    before_m03,
+                    before_b04,
+                    before_m04,
                 )
+            )
 
-                before_b08 = (
-                    align_band_to_reference(
-                        before_b08,
-                        before_m08,
-                        before_b04,
-                        before_m04,
-                    )
+            before_b08 = (
+                align_band_to_reference(
+                    before_b08,
+                    before_m08,
+                    before_b04,
+                    before_m04,
                 )
+            )
 
-                before_b11 = (
-                    align_band_to_reference(
-                        before_b11,
-                        before_m11,
-                        before_b04,
-                        before_m04,
-                    )
+            before_b11 = (
+                align_band_to_reference(
+                    before_b11,
+                    before_m11,
+                    before_b04,
+                    before_m04,
                 )
+            )
 
-            except Exception as error:
+        except Exception as error:
 
-                st.error(
-                    "❌ Failed to align Data A."
-                )
+            st.error(
+                "❌ Failed to align Data A."
+            )
 
-                st.exception(
-                    error
-                )
+            st.exception(
+                error
+            )
 
-                st.stop()
+            st.stop()
 
 
         # ----------------------------------------------------
         # ALIGN DATA B
         # ----------------------------------------------------
 
-        with st.spinner(
-            "🔄 Aligning Data B..."
-        ):
+        try:
 
-            try:
-
-                after_b03 = (
-                    align_band_to_reference(
-                        after_b03,
-                        after_m03,
-                        after_b04,
-                        after_m04,
-                    )
+            after_b03 = (
+                align_band_to_reference(
+                    after_b03,
+                    after_m03,
+                    after_b04,
+                    after_m04,
                 )
+            )
 
-                after_b08 = (
-                    align_band_to_reference(
-                        after_b08,
-                        after_m08,
-                        after_b04,
-                        after_m04,
-                    )
+            after_b08 = (
+                align_band_to_reference(
+                    after_b08,
+                    after_m08,
+                    after_b04,
+                    after_m04,
                 )
+            )
 
-                after_b11 = (
-                    align_band_to_reference(
-                        after_b11,
-                        after_m11,
-                        after_b04,
-                        after_m04,
-                    )
+            after_b11 = (
+                align_band_to_reference(
+                    after_b11,
+                    after_m11,
+                    after_b04,
+                    after_m04,
                 )
+            )
 
-            except Exception as error:
+        except Exception as error:
 
-                st.error(
-                    "❌ Failed to align Data B."
-                )
+            st.error(
+                "❌ Failed to align Data B."
+            )
 
-                st.exception(
-                    error
-                )
+            st.exception(
+                error
+            )
 
-                st.stop()
+            st.stop()
 
 
         # ----------------------------------------------------
@@ -1453,14 +1355,12 @@ else:
                     )
                 )
 
-
                 change_map = (
                     detect_change(
                         difference,
                         threshold=threshold,
                     )
                 )
-
 
                 statistics = (
                     calculate_change_statistics(
@@ -1499,10 +1399,6 @@ else:
                 st.stop()
 
 
-        # ----------------------------------------------------
-        # RESULTS
-        # ----------------------------------------------------
-
         st.success(
             "✅ Change detection completed."
         )
@@ -1523,58 +1419,43 @@ if change_result:
         f"📊 {change_result['index_name']}"
     )
 
-
     statistics = (
         change_result["statistics"]
     )
 
-
-    result1, result2, result3 = (
-        st.columns(3)
-    )
-
+    result1, result2, result3 = st.columns(3)
 
     with result1:
 
         st.metric(
             "🔴 Decrease",
             (
-                f"{statistics['decrease_km2']:.3f} "
-                "km²"
+                f"{statistics['decrease_km2']:.3f} km²"
             ),
         )
-
 
     with result2:
 
         st.metric(
             "🟢 Increase",
             (
-                f"{statistics['increase_km2']:.3f} "
-                "km²"
+                f"{statistics['increase_km2']:.3f} km²"
             ),
         )
-
 
     with result3:
 
         st.metric(
             "🛰️ Total Changed",
             (
-                f"{statistics['total_changed_km2']:.3f} "
-                "km²"
+                f"{statistics['total_changed_km2']:.3f} km²"
             ),
         )
 
 
-    # ========================================================
-    # CHANGE MAP
-    # ========================================================
-
     st.subheader(
         "🗺️ Change Map"
     )
-
 
     change_figure = (
         create_change_figure(
@@ -1586,16 +1467,11 @@ if change_result:
         )
     )
 
-
     st.pyplot(
         change_figure,
         use_container_width=True,
     )
 
-
-    # ========================================================
-    # CONTINUOUS DIFFERENCE
-    # ========================================================
 
     with st.expander(
         "🔬 View continuous spectral difference"
@@ -1610,7 +1486,6 @@ if change_result:
                 ),
             )
         )
-
 
         st.pyplot(
             difference_figure,
@@ -1653,11 +1528,9 @@ if data:
             blue=b02,
         )
 
-
         validate_detection_image(
             detection_rgb
         )
-
 
     except Exception as error:
 
@@ -1668,22 +1541,17 @@ if data:
 
         st.exception(
             error
-
         )
 
         detection_rgb = None
 
-
-    # ========================================================
-    # DISPLAY
-    # ========================================================
 
     if detection_rgb is not None:
 
         st.image(
             detection_rgb,
             caption=(
-                "Satellite RGB prepared "
+                "Sentinel-2 RGB prepared "
                 "for object detection"
             ),
             width="stretch",
@@ -1691,97 +1559,150 @@ if data:
 
 
         # ====================================================
-        # DETECTION SETTINGS
+        # CONFIGURATION
         # ====================================================
 
         st.subheader(
             "⚙️ Detection Configuration"
         )
 
-
-        detection_threshold = st.slider(
-            "Confidence threshold",
-            min_value=0.10,
-            max_value=0.95,
-            value=0.50,
-            step=0.05,
-            key="detection_threshold",
+        config_col1, config_col2 = (
+            st.columns(2)
         )
 
 
-        detection_classes = st.multiselect(
-            "Classes of interest",
-            [
-                "Buildings",
-                "Roads",
-                "Water",
-                "Vegetation",
-                "Vehicles",
-            ],
-            default=[
-                "Buildings",
-                "Roads",
-                "Water",
-            ],
-            key="detection_classes",
-        )
+        with config_col1:
+
+            detection_threshold = st.slider(
+                "Confidence threshold",
+                min_value=0.10,
+                max_value=0.95,
+                value=0.50,
+                step=0.05,
+                key="object_confidence",
+            )
+
+
+        with config_col2:
+
+            detection_classes = st.multiselect(
+                "Classes of interest",
+                [
+                    "Buildings",
+                    "Roads",
+                    "Water",
+                    "Vegetation",
+                    "Vehicles",
+                ],
+                default=[
+                    "Buildings",
+                    "Roads",
+                    "Water",
+                ],
+                key="object_classes",
+            )
 
 
         # ====================================================
-        # DETECTION STATUS
-        # ====================================================
-
-        st.info(
-            "🧠 Image preparation completed. "
-            "The real object-detection model "
-            "will be integrated in the next "
-            "sub-stage."
-        )
-
-
-        # ====================================================
-        # TECHNICAL INFORMATION
+        # ENGINE STATUS
         # ====================================================
 
         st.subheader(
-            "🔬 Detection Pipeline"
+            "🧠 Detection Engine"
+        )
+
+        st.markdown(
+            """
+            | Component | Status |
+            |---|---|
+            | 🛰️ Sentinel-2 input | ✅ |
+            | 🖼️ RGB preprocessing | ✅ |
+            | 📐 Detection input | ✅ |
+            | 🎚️ Confidence filtering | ✅ |
+            | 🏷️ Class filtering | ✅ |
+            | 📦 Bounding-box engine | ✅ |
+            | 🤖 AI model inference | 🔜 |
+            """
         )
 
 
-        pipeline1, pipeline2, pipeline3, pipeline4 = (
-            st.columns(4)
+        # ====================================================
+        # CURRENT DETECTIONS
+        # ====================================================
+
+        detections = []
+
+
+        detections = filter_detections(
+            detections,
+            detection_threshold,
         )
 
 
-        with pipeline1:
+        detections = filter_classes(
+            detections,
+            detection_classes,
+        )
+
+
+        summary = detection_summary(
+            detections
+        )
+
+
+        # ====================================================
+        # RESULTS
+        # ====================================================
+
+        st.subheader(
+            "📊 Detection Results"
+        )
+
+        result_col1, result_col2 = (
+            st.columns(2)
+        )
+
+
+        with result_col1:
 
             st.metric(
-                "Input",
-                "Sentinel-2 RGB",
+                "Objects detected",
+                len(detections),
             )
 
 
-        with pipeline2:
+        with result_col2:
 
             st.metric(
-                "Channels",
-                "3",
+                "Classes detected",
+                len(summary),
             )
 
 
-        with pipeline3:
+        # ====================================================
+        # VISUALIZATION
+        # ====================================================
 
-            st.metric(
-                "Confidence",
-                f"{detection_threshold:.0%}",
+        if detections:
+
+            detection_figure = (
+                draw_detections(
+                    detection_rgb,
+                    detections,
+                )
             )
 
+            st.pyplot(
+                detection_figure,
+                use_container_width=True,
+            )
 
-        with pipeline4:
+        else:
 
-            st.metric(
-                "Classes",
-                len(detection_classes),
+            st.info(
+                "🔜 O motor está preparado, "
+                "mas o modelo especializado ainda "
+                "será conectado na próxima etapa."
             )
 
 
@@ -1792,7 +1713,7 @@ if data:
         if detection_classes:
 
             st.write(
-                "**Selected classes:** "
+                "**Classes selecionadas:** "
                 + ", ".join(
                     detection_classes
                 )
@@ -1801,21 +1722,20 @@ if data:
         else:
 
             st.warning(
-                "⚠️ Select at least one "
-                "class of interest."
+                "⚠️ Selecione pelo menos uma classe."
             )
 
 
 else:
 
     st.info(
-        "ℹ️ Download a satellite scene "
-        "above to activate Object Detection."
+        "ℹ️ Download uma cena de satélite "
+        "para ativar Object Detection."
     )
 
 
 # ============================================================
-# PROJECT STATUS
+# PROJECT PIPELINE
 # ============================================================
 
 st.divider()
@@ -1823,7 +1743,6 @@ st.divider()
 st.subheader(
     "🚀 Project Pipeline"
 )
-
 
 status1, status2, status3, status4, status5 = (
     st.columns(5)
@@ -1854,14 +1773,14 @@ with status3:
 with status4:
 
     st.success(
-        "✅ Detection Input"
+        "✅ Detection Engine"
     )
 
 
 with status5:
 
     st.info(
-        "🔜 AI Detection"
+        "🔜 AI Model"
     )
 
 
