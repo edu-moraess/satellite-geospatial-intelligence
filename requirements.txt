@@ -8,4 +8,4 @@ shapely
 pyproj
 pystac-client
 planetary-computer
-Pillow
+Pillow 
