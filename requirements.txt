@@ -9,3 +9,6 @@ pyproj
 pystac-client
 planetary-computer
 Pillow
+torch
+torchvision
+torchgeo
