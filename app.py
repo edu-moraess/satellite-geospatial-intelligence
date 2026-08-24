@@ -1,14 +1,23 @@
 """
 Satellite Geospatial Intelligence
-----------------------------------
+=================================
 
-Phase 1:
-Satellite acquisition and visualization.
+Phase 1
+-------
+Satellite acquisition
+RGB
+False Color
 
-User controls:
+Phase 2
+-------
+NDVI
+NDWI
+NDBI
+
+The user controls:
 - Latitude
 - Longitude
-- Area size
+- AOI size
 - Start date
 - End date
 - Cloud coverage
@@ -16,7 +25,9 @@ User controls:
 
 from datetime import date
 
+import numpy as np
 import streamlit as st
+
 
 from src.catalog import (
     search_sentinel,
@@ -31,14 +42,28 @@ from src.downloader import (
     download_required_bands,
 )
 
+from src.geospatial import (
+    read_band,
+)
+
 from src.visualization import (
     create_rgb,
     create_false_color,
 )
 
+from src.spectral import (
+    calculate_ndvi,
+    calculate_ndwi,
+    calculate_ndbi,
+)
+
+from src.index_visualization import (
+    create_index_figure,
+)
+
 
 # ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -64,7 +89,7 @@ st.caption(
 
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR — AREA
 # ============================================================
 
 st.sidebar.header(
@@ -100,7 +125,7 @@ area_size = st.sidebar.slider(
 
 
 # ============================================================
-# DATE RANGE
+# SIDEBAR — DATE
 # ============================================================
 
 st.sidebar.header(
@@ -129,7 +154,7 @@ end_date = st.sidebar.date_input(
 
 
 # ============================================================
-# CLOUD FILTER
+# SIDEBAR — CLOUD
 # ============================================================
 
 st.sidebar.header(
@@ -165,7 +190,7 @@ search_button = st.sidebar.button(
 if search_button:
 
     # --------------------------------------------------------
-    # VALIDATE DATES
+    # DATE VALIDATION
     # --------------------------------------------------------
 
     if start_date > end_date:
@@ -178,11 +203,11 @@ if search_button:
         st.stop()
 
     # --------------------------------------------------------
-    # SEARCH
+    # SEARCH SATELLITE CATALOG
     # --------------------------------------------------------
 
     with st.spinner(
-        "🛰️ Searching Sentinel-2 catalog..."
+        "🛰️ Searching Sentinel-2..."
     ):
 
         try:
@@ -205,7 +230,7 @@ if search_button:
         except Exception as error:
 
             st.error(
-                "Satellite catalog search failed."
+                "❌ Satellite catalog search failed."
             )
 
             st.exception(
@@ -221,8 +246,8 @@ if search_button:
     if not items:
 
         st.warning(
-            "No Sentinel-2 images were found "
-            "for the selected parameters."
+            "No satellite scenes were found "
+            "with the selected parameters."
         )
 
         st.stop()
@@ -240,7 +265,7 @@ if search_button:
     )
 
     # --------------------------------------------------------
-    # DISPLAY FIRST 10 RESULTS
+    # DISPLAY SCENES
     # --------------------------------------------------------
 
     for index, item in enumerate(
@@ -252,29 +277,23 @@ if search_button:
             0,
         )
 
-        if item.datetime:
+        acquisition_date = (
+            item.datetime.date()
+            if item.datetime
+            else "Unknown"
+        )
 
-            acquisition_date = (
-                item.datetime.date()
-            )
-
-        else:
-
-            acquisition_date = (
-                "Unknown"
-            )
-
-        title = (
-            f"{acquisition_date}  •  "
+        scene_title = (
+            f"{acquisition_date} • "
             f"{cloud:.2f}% clouds"
         )
 
         with st.expander(
-            title
+            scene_title
         ):
 
             st.write(
-                f"**Scene:** `{item.id}`"
+                f"**Scene ID:** `{item.id}`"
             )
 
             st.write(
@@ -287,17 +306,23 @@ if search_button:
                 f"`{cloud:.2f}%`"
             )
 
+            # ------------------------------------------------
+            # DOWNLOAD BUTTON
+            # ------------------------------------------------
+
             download_button = st.button(
                 "⬇️ Download & Analyze",
-                key=f"download_{index}",
+                key=(
+                    f"download_{index}"
+                ),
                 use_container_width=True,
             )
 
             if download_button:
 
-                # ------------------------------------------------
+                # ============================================
                 # CREATE AOI
-                # ------------------------------------------------
+                # ============================================
 
                 bbox = create_bbox(
                     latitude=latitude,
@@ -305,9 +330,9 @@ if search_button:
                     area_size=area_size,
                 )
 
-                # ------------------------------------------------
+                # ============================================
                 # OUTPUT DIRECTORY
-                # ------------------------------------------------
+                # ============================================
 
                 output_directory = (
                     RAW_DIR / item.id
@@ -318,12 +343,12 @@ if search_button:
                     exist_ok=True,
                 )
 
-                # ------------------------------------------------
-                # DOWNLOAD
-                # ------------------------------------------------
+                # ============================================
+                # DOWNLOAD BANDS
+                # ============================================
 
                 with st.spinner(
-                    "⬇️ Downloading satellite bands..."
+                    "⬇️ Downloading Sentinel-2 bands..."
                 ):
 
                     try:
@@ -341,7 +366,7 @@ if search_button:
                     except Exception as error:
 
                         st.error(
-                            "❌ Download failed."
+                            "❌ Satellite download failed."
                         )
 
                         st.exception(
@@ -354,12 +379,12 @@ if search_button:
                     "✅ Satellite data downloaded."
                 )
 
-                # ------------------------------------------------
+                # ============================================
                 # RGB
-                # ------------------------------------------------
+                # ============================================
 
                 with st.spinner(
-                    "🎨 Creating RGB composite..."
+                    "🎨 Creating RGB..."
                 ):
 
                     rgb = create_rgb(
@@ -368,12 +393,12 @@ if search_button:
                         downloaded["B04"],
                     )
 
-                # ------------------------------------------------
+                # ============================================
                 # FALSE COLOR
-                # ------------------------------------------------
+                # ============================================
 
                 with st.spinner(
-                    "🌱 Creating false-color composite..."
+                    "🌱 Creating False Color..."
                 ):
 
                     false_color = (
@@ -384,14 +409,14 @@ if search_button:
                         )
                     )
 
-                # ------------------------------------------------
-                # DISPLAY
-                # ------------------------------------------------
+                # ============================================
+                # PHASE 1 VISUALIZATION
+                # ============================================
 
                 st.divider()
 
-                st.subheader(
-                    "🛰️ Satellite Analysis"
+                st.header(
+                    "🛰️ Satellite Visualization"
                 )
 
                 col1, col2 = st.columns(
@@ -400,8 +425,8 @@ if search_button:
 
                 with col1:
 
-                    st.markdown(
-                        "### 🌍 Natural RGB"
+                    st.subheader(
+                        "🌍 Natural RGB"
                     )
 
                     st.image(
@@ -411,8 +436,8 @@ if search_button:
 
                 with col2:
 
-                    st.markdown(
-                        "### 🌱 False Color"
+                    st.subheader(
+                        "🌱 False Color"
                     )
 
                     st.image(
@@ -420,51 +445,297 @@ if search_button:
                         use_container_width=True,
                     )
 
-                # ------------------------------------------------
+                # ============================================
+                # PHASE 2
+                # MULTISPECTRAL ANALYSIS
+                # ============================================
+
+                st.divider()
+
+                st.header(
+                    "🔬 Multispectral Analysis"
+                )
+
+                st.caption(
+                    "Spectral indices calculated "
+                    "from Sentinel-2 bands."
+                )
+
+                # ============================================
+                # READ BANDS
+                # ============================================
+
+                try:
+
+                    b03, _ = read_band(
+                        downloaded["B03"]
+                    )
+
+                    b04, _ = read_band(
+                        downloaded["B04"]
+                    )
+
+                    b08, _ = read_band(
+                        downloaded["B08"]
+                    )
+
+                    b11, _ = read_band(
+                        downloaded["B11"]
+                    )
+
+                except Exception as error:
+
+                    st.error(
+                        "❌ Could not read "
+                        "downloaded bands."
+                    )
+
+                    st.exception(
+                        error
+                    )
+
+                    st.stop()
+
+                # ============================================
+                # CALCULATE INDICES
+                # ============================================
+
+                ndvi = calculate_ndvi(
+                    red=b04,
+                    nir=b08,
+                )
+
+                ndwi = calculate_ndwi(
+                    green=b03,
+                    nir=b08,
+                )
+
+                ndbi = calculate_ndbi(
+                    nir=b08,
+                    swir=b11,
+                )
+
+                # ============================================
+                # VALID PIXELS
+                # ============================================
+
+                valid_ndvi = ndvi[
+                    np.isfinite(ndvi)
+                ]
+
+                valid_ndwi = ndwi[
+                    np.isfinite(ndwi)
+                ]
+
+                valid_ndbi = ndbi[
+                    np.isfinite(ndbi)
+                ]
+
+                # ============================================
+                # METRICS
+                # ============================================
+
+                metric1, metric2, metric3 = (
+                    st.columns(3)
+                )
+
+                with metric1:
+
+                    if len(valid_ndvi):
+
+                        st.metric(
+                            "🌱 Mean NDVI",
+                            f"{np.mean(valid_ndvi):.3f}",
+                        )
+
+                    else:
+
+                        st.metric(
+                            "🌱 Mean NDVI",
+                            "N/A",
+                        )
+
+                with metric2:
+
+                    if len(valid_ndwi):
+
+                        st.metric(
+                            "💧 Mean NDWI",
+                            f"{np.mean(valid_ndwi):.3f}",
+                        )
+
+                    else:
+
+                        st.metric(
+                            "💧 Mean NDWI",
+                            "N/A",
+                        )
+
+                with metric3:
+
+                    if len(valid_ndbi):
+
+                        st.metric(
+                            "🏙️ Mean NDBI",
+                            f"{np.mean(valid_ndbi):.3f}",
+                        )
+
+                    else:
+
+                        st.metric(
+                            "🏙️ Mean NDBI",
+                            "N/A",
+                        )
+
+                # ============================================
+                # INDEX SELECTOR
+                # ============================================
+
+                st.subheader(
+                    "Spectral Index"
+                )
+
+                index_selected = (
+                    st.selectbox(
+                        "Select analysis",
+                        [
+                            "NDVI — Vegetation",
+                            "NDWI — Water",
+                            "NDBI — Built-up",
+                        ],
+                        key=(
+                            f"index_{index}"
+                        ),
+                    )
+                )
+
+                # ============================================
+                # SELECT INDEX
+                # ============================================
+
+                if index_selected.startswith(
+                    "NDVI"
+                ):
+
+                    selected_index = ndvi
+
+                    title = (
+                        "NDVI — Vegetation"
+                    )
+
+                    colormap = "RdYlGn"
+
+                    description = (
+                        "NDVI highlights "
+                        "vegetation vigor."
+                    )
+
+                elif index_selected.startswith(
+                    "NDWI"
+                ):
+
+                    selected_index = ndwi
+
+                    title = (
+                        "NDWI — Water"
+                    )
+
+                    colormap = "Blues"
+
+                    description = (
+                        "NDWI highlights "
+                        "water-related spectral response."
+                    )
+
+                else:
+
+                    selected_index = ndbi
+
+                    title = (
+                        "NDBI — Built-up"
+                    )
+
+                    colormap = "Oranges"
+
+                    description = (
+                        "NDBI highlights "
+                        "built-up spectral response."
+                    )
+
+                # ============================================
+                # INDEX MAP
+                # ============================================
+
+                figure = create_index_figure(
+                    selected_index,
+                    title,
+                    cmap=colormap,
+                )
+
+                st.pyplot(
+                    figure,
+                    use_container_width=True,
+                )
+
+                st.caption(
+                    description
+                )
+
+                # ============================================
                 # BAND INFORMATION
-                # ------------------------------------------------
+                # ============================================
 
                 st.divider()
 
                 st.subheader(
-                    "📡 Downloaded Bands"
+                    "📡 Bands Used"
                 )
 
-                band_col1, band_col2, band_col3, band_col4 = (
-                    st.columns(4)
+                band1, band2, band3, band4, band5 = (
+                    st.columns(5)
                 )
 
-                with band_col1:
+                with band1:
 
                     st.metric(
                         "B02",
                         "Blue",
                     )
 
-                with band_col2:
+                with band2:
 
                     st.metric(
                         "B03",
                         "Green",
                     )
 
-                with band_col3:
+                with band3:
 
                     st.metric(
                         "B04",
                         "Red",
                     )
 
-                with band_col4:
+                with band4:
 
                     st.metric(
                         "B08",
                         "NIR",
                     )
 
-                st.info(
-                    "Phase 1 complete: "
-                    "satellite acquisition, "
-                    "AOI extraction and "
-                    "basic visualization."
+                with band5:
+
+                    st.metric(
+                        "B11",
+                        "SWIR",
+                    )
+
+                # ============================================
+                # STATUS
+                # ============================================
+
+                st.success(
+                    "✅ Phase 2 complete: "
+                    "NDVI, NDWI and NDBI "
+                    "calculated successfully."
                 )
