@@ -1,3 +1,7 @@
-rasterio
 numpy
 matplotlib
+rasterio
+pystac-client
+planetary-computer
+requests
+shapely
