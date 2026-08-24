@@ -9,7 +9,7 @@ from streamlit_folium import st_folium
 
 
 # ============================================================
-# MAP STYLE
+# BASEMAPS
 # ============================================================
 
 DEFAULT_TILES = {
@@ -26,7 +26,8 @@ DEFAULT_TILES = {
     },
     "Terrain": {
         "tiles": (
-            "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            "https://{s}.tile.opentopomap.org/"
+            "{z}/{x}/{y}.png"
         ),
         "attr": "OpenTopoMap",
     },
@@ -37,12 +38,15 @@ DEFAULT_TILES = {
 # HELPERS
 # ============================================================
 
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    """
-    Safely convert a value to float.
-    """
+def _safe_float(
+    value: Any,
+    default: float = 0.0,
+) -> float:
+    """Safely convert a value to float."""
+
     try:
         return float(value)
+
     except (TypeError, ValueError):
         return default
 
@@ -53,21 +57,30 @@ def _normalize_bbox(
     """
     Normalize bbox into:
 
-        min_lon, min_lat, max_lon, max_lat
+    min_lon, min_lat, max_lon, max_lat
     """
 
     if bbox is None:
         return None
 
-    values = list(bbox)
+    try:
+        values = list(bbox)
+
+    except TypeError:
+        return None
 
     if len(values) != 4:
         return None
 
-    min_lon = _safe_float(values[0])
-    min_lat = _safe_float(values[1])
-    max_lon = _safe_float(values[2])
-    max_lat = _safe_float(values[3])
+    try:
+
+        min_lon = float(values[0])
+        min_lat = float(values[1])
+        max_lon = float(values[2])
+        max_lat = float(values[3])
+
+    except (TypeError, ValueError):
+        return None
 
     return (
         min_lon,
@@ -93,7 +106,11 @@ def add_aoi(
 
     lat = _safe_float(latitude)
     lon = _safe_float(longitude)
-    size = max(_safe_float(area_size), 0.001)
+
+    size = max(
+        _safe_float(area_size),
+        0.001,
+    )
 
     half = size / 2
 
@@ -116,7 +133,7 @@ def add_aoi(
         fill_opacity=0.08,
         tooltip="Area of Interest",
         popup=(
-            f"<b>Area of Interest</b><br>"
+            "<b>Area of Interest</b><br>"
             f"Latitude: {lat:.6f}<br>"
             f"Longitude: {lon:.6f}<br>"
             f"Area size: {size:.3f}°"
@@ -124,7 +141,10 @@ def add_aoi(
     ).add_to(aoi_group)
 
     folium.CircleMarker(
-        location=[lat, lon],
+        location=[
+            lat,
+            lon,
+        ],
         radius=6,
         color="#FFFFFF",
         weight=2,
@@ -147,7 +167,7 @@ def add_scene_footprint(
     label: str = "Sentinel-2 Scene",
 ) -> None:
     """
-    Draw the selected scene footprint when a bbox is available.
+    Draw selected scene footprint.
     """
 
     normalized = _normalize_bbox(bbox)
@@ -155,7 +175,12 @@ def add_scene_footprint(
     if normalized is None:
         return
 
-    min_lon, min_lat, max_lon, max_lat = normalized
+    (
+        min_lon,
+        min_lat,
+        max_lon,
+        max_lat,
+    ) = normalized
 
     footprint = folium.FeatureGroup(
         name="🛰️ Scene Footprint",
@@ -192,7 +217,7 @@ def add_scene_marker(
     cloud_cover: float | None = None,
 ) -> None:
     """
-    Add a professional scene marker.
+    Add selected Sentinel-2 scene marker.
     """
 
     popup_lines = [
@@ -201,16 +226,22 @@ def add_scene_marker(
     ]
 
     if acquisition_date:
+
         popup_lines.append(
-            f"<b>Acquisition:</b> {acquisition_date}"
+            f"<b>Acquisition:</b> "
+            f"{acquisition_date}"
         )
 
     if cloud_cover is not None:
+
         popup_lines.append(
-            f"<b>Cloud:</b> {float(cloud_cover):.2f}%"
+            f"<b>Cloud:</b> "
+            f"{float(cloud_cover):.2f}%"
         )
 
-    popup_html = "<br>".join(popup_lines)
+    popup_html = "<br>".join(
+        popup_lines
+    )
 
     marker_group = folium.FeatureGroup(
         name="🛰️ Selected Scene",
@@ -257,13 +288,15 @@ def create_geospatial_map(
 
     Features:
         - Satellite basemap
+        - OpenStreetMap
+        - Terrain
         - AOI
         - Scene footprint
         - Scene marker
         - Layer control
         - Fullscreen
-        - Mouse position
-        - Measurement tools
+        - Mouse coordinates
+        - Measurement
         - Drawing tools
         - Scale
     """
@@ -277,16 +310,19 @@ def create_geospatial_map(
     )
 
     fmap = folium.Map(
-        location=[lat, lon],
-        zoom_start=zoom_start,
+        location=[
+            lat,
+            lon,
+        ],
+        zoom_start=int(zoom_start),
         tiles=None,
         control_scale=True,
         prefer_canvas=True,
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # BASEMAPS
-    # --------------------------------------------------------
+    # ========================================================
 
     for name, config in DEFAULT_TILES.items():
 
@@ -301,9 +337,9 @@ def create_geospatial_map(
             ),
         ).add_to(fmap)
 
-    # --------------------------------------------------------
+    # ========================================================
     # AOI
-    # --------------------------------------------------------
+    # ========================================================
 
     add_aoi(
         fmap=fmap,
@@ -312,9 +348,9 @@ def create_geospatial_map(
         area_size=area_size,
     )
 
-    # --------------------------------------------------------
-    # SCENE
-    # --------------------------------------------------------
+    # ========================================================
+    # SCENE FOOTPRINT
+    # ========================================================
 
     if bbox is not None:
 
@@ -322,10 +358,14 @@ def create_geospatial_map(
             fmap=fmap,
             bbox=bbox,
             label=(
-                f"Sentinel-2 • "
+                "Sentinel-2 • "
                 f"{scene_id or 'Scene'}"
             ),
         )
+
+    # ========================================================
+    # SCENE MARKER
+    # ========================================================
 
     if scene_id:
 
@@ -334,13 +374,15 @@ def create_geospatial_map(
             latitude=lat,
             longitude=lon,
             scene_id=scene_id,
-            acquisition_date=acquisition_date,
+            acquisition_date=(
+                acquisition_date
+            ),
             cloud_cover=cloud_cover,
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # FULLSCREEN
-    # --------------------------------------------------------
+    # ========================================================
 
     plugins.Fullscreen(
         position="topleft",
@@ -349,25 +391,29 @@ def create_geospatial_map(
         force_separate_button=True,
     ).add_to(fmap)
 
-    # --------------------------------------------------------
+    # ========================================================
     # MOUSE POSITION
-    # --------------------------------------------------------
+    # ========================================================
 
     plugins.MousePosition(
         position="bottomleft",
         separator=" | ",
         prefix="Coordinates:",
         lat_formatter=(
-            "function(num) { return L.Util.formatNum(num, 6); }"
+            "function(num) { "
+            "return L.Util.formatNum(num, 6); "
+            "}"
         ),
         lng_formatter=(
-            "function(num) { return L.Util.formatNum(num, 6); }"
+            "function(num) { "
+            "return L.Util.formatNum(num, 6); "
+            "}"
         ),
     ).add_to(fmap)
 
-    # --------------------------------------------------------
-    # MEASUREMENT TOOL
-    # --------------------------------------------------------
+    # ========================================================
+    # MEASUREMENT
+    # ========================================================
 
     plugins.MeasureControl(
         position="topleft",
@@ -377,9 +423,9 @@ def create_geospatial_map(
         secondary_area_unit="sqm",
     ).add_to(fmap)
 
-    # --------------------------------------------------------
-    # DRAWING TOOL
-    # --------------------------------------------------------
+    # ========================================================
+    # DRAWING
+    # ========================================================
 
     plugins.Draw(
         export=True,
@@ -398,18 +444,18 @@ def create_geospatial_map(
         },
     ).add_to(fmap)
 
-    # --------------------------------------------------------
+    # ========================================================
     # LAYER CONTROL
-    # --------------------------------------------------------
+    # ========================================================
 
     folium.LayerControl(
         collapsed=False,
         position="topright",
     ).add_to(fmap)
 
-    # --------------------------------------------------------
-    # MAP INFO
-    # --------------------------------------------------------
+    # ========================================================
+    # MAP TITLE
+    # ========================================================
 
     info = folium.Element(
         """
@@ -418,26 +464,31 @@ def create_geospatial_map(
             top: 12px;
             left: 52px;
             z-index: 9999;
-            background: rgba(15, 23, 42, 0.92);
+            background:
+                rgba(15, 23, 42, 0.92);
             color: white;
             padding: 8px 12px;
             border-radius: 6px;
             font-family: Arial, sans-serif;
             font-size: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            box-shadow:
+                0 2px 8px
+                rgba(0,0,0,0.25);
         ">
             <b>GEO INTELLIGENCE MAP</b>
         </div>
         """
     )
 
-    fmap.get_root().html.add_child(info)
+    fmap.get_root().html.add_child(
+        info
+    )
 
     return fmap
 
 
 # ============================================================
-# STREAMLIT RENDERER
+# STREAMLIT MAP RENDERER
 # ============================================================
 
 def render_geospatial_map(
@@ -453,11 +504,6 @@ def render_geospatial_map(
     height: int = 650,
     key: str = "geospatial_map",
 ) -> dict[str, Any]:
-    """
-    Render the interactive geospatial map inside Streamlit.
-
-    Returns the map interaction state.
-    """
 
     fmap = create_geospatial_map(
         latitude=latitude,
@@ -474,7 +520,7 @@ def render_geospatial_map(
     map_state = st_folium(
         fmap,
         width=None,
-        height=height,
+        height=int(height),
         returned_objects=[
             "last_clicked",
             "bounds",
@@ -485,11 +531,14 @@ def render_geospatial_map(
         key=key,
     )
 
+    if map_state is None:
+        return {}
+
     return map_state
 
 
 # ============================================================
-# STREAMLIT MAP PANEL
+# PROFESSIONAL MAP PANEL
 # ============================================================
 
 def render_map_panel(
@@ -503,9 +552,15 @@ def render_map_panel(
     key: str = "main_geospatial_map",
 ) -> dict[str, Any]:
     """
-    Professional Streamlit map panel.
+    Professional Geospatial Operations Center.
 
-    This function creates the UI controls around the map.
+    Provides:
+        - Basemap selection
+        - Zoom control
+        - Map height
+        - Interactive map
+        - Coordinate selection
+        - Spatial tools
     """
 
     st.subheader(
@@ -517,6 +572,10 @@ def render_map_panel(
         "Sentinel-2 • AOI • Spatial analysis"
     )
 
+    # ========================================================
+    # MAP CONTROLS
+    # ========================================================
+
     control_col1, control_col2, control_col3 = (
         st.columns(3)
     )
@@ -525,7 +584,9 @@ def render_map_panel(
 
         map_style = st.selectbox(
             "Basemap",
-            list(DEFAULT_TILES.keys()),
+            list(
+                DEFAULT_TILES.keys()
+            ),
             index=0,
             key=f"{key}_style",
         )
@@ -543,17 +604,24 @@ def render_map_panel(
 
     with control_col3:
 
+        # FIX:
+        # 650 MUST exist inside options.
         map_height = st.select_slider(
             "Map height",
             options=[
                 500,
                 600,
+                650,
                 700,
                 800,
             ],
             value=650,
             key=f"{key}_height",
         )
+
+    # ========================================================
+    # MAP
+    # ========================================================
 
     map_state = render_geospatial_map(
         latitude=latitude,
@@ -569,9 +637,9 @@ def render_map_panel(
         key=key,
     )
 
-    # --------------------------------------------------------
-    # INTERACTION INFORMATION
-    # --------------------------------------------------------
+    # ========================================================
+    # INTERACTION
+    # ========================================================
 
     if map_state:
 
@@ -581,20 +649,61 @@ def render_map_panel(
 
         if last_clicked:
 
-            lat = last_clicked.get(
+            selected_lat = last_clicked.get(
                 "lat"
             )
 
-            lon = last_clicked.get(
+            selected_lon = last_clicked.get(
                 "lng"
             )
 
-            if lat is not None and lon is not None:
+            if (
+                selected_lat is not None
+                and selected_lon is not None
+            ):
+
+                st.info(
+                    "📍 Selected coordinate: "
+                    f"{float(selected_lat):.6f}, "
+                    f"{float(selected_lon):.6f}"
+                )
+
+        # ====================================================
+        # CURRENT MAP CENTER
+        # ====================================================
+
+        center = map_state.get(
+            "center"
+        )
+
+        zoom = map_state.get(
+            "zoom"
+        )
+
+        if center:
+
+            center_lat = center.get(
+                "lat"
+            )
+
+            center_lon = center.get(
+                "lng"
+            )
+
+            if (
+                center_lat is not None
+                and center_lon is not None
+            ):
 
                 st.caption(
-                    f"📍 Selected coordinate: "
-                    f"{float(lat):.6f}, "
-                    f"{float(lon):.6f}"
+                    "🧭 Map center: "
+                    f"{float(center_lat):.6f}, "
+                    f"{float(center_lon):.6f}"
+                    + (
+                        f" • Zoom: {int(zoom)}"
+                        if zoom is not None
+                        else ""
+                    )
                 )
 
     return map_state
