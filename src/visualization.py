@@ -1,61 +1,84 @@
 """
-Satellite visualization.
+Satellite image visualization utilities.
 
-Phase 1:
+Creates:
+
 - Natural RGB
 - False Color
+
+Sentinel-2 mapping:
+
+RGB:
+    B04 = Red
+    B03 = Green
+    B02 = Blue
+
+False Color:
+    B08 = NIR
+    B04 = Red
+    B03 = Green
 """
+
+from __future__ import annotations
 
 import numpy as np
 
 from .geospatial import (
-    read_band,
     normalize_image,
+    stack_bands,
 )
 
 
 # ============================================================
-# RGB
+# PREPARE BAND
+# ============================================================
+
+def prepare_band(
+    band,
+):
+    """
+    Normalize one band for visualization.
+    """
+
+    return normalize_image(
+        band
+    )
+
+
+# ============================================================
+# CREATE RGB
 # ============================================================
 
 def create_rgb(
-    blue_path,
-    green_path,
-    red_path,
+    blue,
+    green,
+    red,
 ):
     """
-    Sentinel-2 natural RGB.
+    Create a Natural Color RGB image.
 
-    R = B04
-    G = B03
-    B = B02
+    Input:
+        blue  -> B02
+        green -> B03
+        red   -> B04
+
+    Output:
+        uint8 RGB image
     """
 
-    blue, _ = read_band(
-        blue_path
-    )
-
-    green, _ = read_band(
-        green_path
-    )
-
-    red, _ = read_band(
-        red_path
-    )
-
-    blue = normalize_image(
+    blue = prepare_band(
         blue
     )
 
-    green = normalize_image(
+    green = prepare_band(
         green
     )
 
-    red = normalize_image(
+    red = prepare_band(
         red
     )
 
-    return np.dstack(
+    rgb = stack_bands(
         [
             red,
             green,
@@ -63,52 +86,136 @@ def create_rgb(
         ]
     )
 
+    # --------------------------------------------------------
+    # GAMMA CORRECTION
+    # --------------------------------------------------------
+
+    gamma = 1.0 / 2.2
+
+    rgb = np.power(
+        np.clip(
+            rgb,
+            0.0,
+            1.0,
+        ),
+        gamma,
+    )
+
+    return (
+        rgb * 255
+    ).astype(
+        np.uint8
+    )
+
 
 # ============================================================
-# FALSE COLOR
+# CREATE FALSE COLOR
 # ============================================================
 
 def create_false_color(
-    green_path,
-    red_path,
-    nir_path,
+    green,
+    red,
+    nir,
 ):
     """
-    False color composite.
+    Create a False Color composite.
 
-    R = NIR
-    G = RED
-    B = GREEN
+    Sentinel-2:
+
+        Red channel   -> NIR (B08)
+        Green channel -> Red (B04)
+        Blue channel  -> Green (B03)
     """
 
-    green, _ = read_band(
-        green_path
-    )
-
-    red, _ = read_band(
-        red_path
-    )
-
-    nir, _ = read_band(
-        nir_path
-    )
-
-    green = normalize_image(
+    green = prepare_band(
         green
     )
 
-    red = normalize_image(
+    red = prepare_band(
         red
     )
 
-    nir = normalize_image(
+    nir = prepare_band(
         nir
     )
 
-    return np.dstack(
+    false_color = stack_bands(
         [
             nir,
             red,
             green,
         ]
     )
+
+    gamma = 1.0 / 2.2
+
+    false_color = np.power(
+        np.clip(
+            false_color,
+            0.0,
+            1.0,
+        ),
+        gamma,
+    )
+
+    return (
+        false_color * 255
+    ).astype(
+        np.uint8
+    )
+
+
+# ============================================================
+# CREATE GRAYSCALE
+# ============================================================
+
+def create_grayscale(
+    band,
+):
+    """
+    Create a grayscale visualization.
+    """
+
+    normalized = prepare_band(
+        band
+    )
+
+    return (
+        normalized * 255
+    ).astype(
+        np.uint8
+    )
+
+
+# ============================================================
+# IMAGE STATISTICS
+# ============================================================
+
+def image_statistics(
+    image,
+):
+    """
+    Calculate basic statistics for an RGB image.
+    """
+
+    image = np.asarray(
+        image
+    )
+
+    return {
+        "minimum": int(
+            image.min()
+        ),
+        "maximum": int(
+            image.max()
+        ),
+        "mean": float(
+            image.mean()
+        ),
+        "height": int(
+            image.shape[0]
+        ),
+        "width": int(
+            image.shape[1]
+        ),
+    }
