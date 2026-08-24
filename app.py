@@ -85,18 +85,18 @@ st.set_page_config(
 )
 
 # ============================================================
-# PROFESSIONAL DARK GEOSPATIAL UI CSS
+# PROFESSIONAL DARK GEOSPATIAL UI CSS (CORRIGIDO)
 # ============================================================
 st.markdown("""
 <style>
-    /* Fonte e fundo globais */
+    /* Fundo geral */
     .stApp {
         background-color: #0a0f16;
         color: #e0e0e0;
         font-family: 'Inter', 'Segoe UI', sans-serif;
     }
 
-    /* Barra Lateral estilo Painel de Controle */
+    /* Barra lateral estilo painel de controle */
     [data-testid="stSidebar"] {
         background-color: #111827;
         border-right: 1px solid #1f2937;
@@ -109,7 +109,7 @@ st.markdown("""
         font-size: 0.9rem;
     }
 
-    /* Títulos e cabeçalhos */
+    /* Títulos */
     h1, h2, h3 {
         color: #ffffff !important;
         letter-spacing: 0.5px;
@@ -119,7 +119,7 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Barra de métricas estilo Card */
+    /* Métricas estilo Card */
     [data-testid="stMetric"] {
         background-color: #111827;
         border: 1px solid #1f2937;
@@ -889,7 +889,7 @@ Geospatial coordinates
             st.info("🔜 No detections available. Connect a trained checkpoint to activate inference.")
 
 # ============================================================
-# PIPELINE STATUS – DYNAMIC
+# PIPELINE STATUS – DYNAMIC (CORRIGIDO COM IF/ELSE)
 # ============================================================
 st.divider()
 st.subheader("🚀 Project Pipeline")
@@ -901,15 +901,36 @@ has_ai = len(st.session_state.object_detections) > 0
 
 cols = st.columns(5)
 with cols[0]:
-    st.success("✅ Scene Search") if has_search else st.info("⏳ Scene Search")
+    if has_search:
+        st.success("✅ Scene Search")
+    else:
+        st.info("⏳ Scene Search")
+        
 with cols[1]:
-    st.success("✅ Scene Download") if has_scene else st.info("⏳ Scene Download")
+    if has_scene:
+        st.success("✅ Scene Download")
+    else:
+        st.info("⏳ Scene Download")
+        
 with cols[2]:
-    st.success("✅ Spectral Analysis") if has_scene else st.info("⏳ Spectral Analysis")
+    if has_scene:
+        st.success("✅ Spectral Analysis")
+    else:
+        st.info("⏳ Spectral Analysis")
+        
 with cols[3]:
-    st.success("✅ Change Detection") if has_change else st.info("⏳ Change Detection")
+    if has_change:
+        st.success("✅ Change Detection")
+    else:
+        st.info("⏳ Change Detection")
+        
 with cols[4]:
-    st.success("✅ AI Inference") if has_ai else (st.info("🧠 AI Ready") if has_scene else st.info("⏳ AI Waiting"))
+    if has_ai:
+        st.success("✅ AI Inference")
+    elif has_scene:
+        st.info("🧠 AI Ready")
+    else:
+        st.info("⏳ AI Waiting")
 
 # ============================================================
 # FOOTER
