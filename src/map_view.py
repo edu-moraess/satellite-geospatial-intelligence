@@ -3,11 +3,6 @@ from typing import Any, Iterable, Tuple
 
 import streamlit as st
 import pydeck as pdk
-import numpy as np
-
-# ============================================================
-# NEW PROFESSIONAL MAP USING PYdeck (DECK.GL)
-# ============================================================
 
 def _normalize_bbox(bbox) -> Tuple[float, float, float, float] | None:
     if bbox is None: return None
@@ -30,47 +25,22 @@ def create_geospatial_map(
     lat, lon = float(latitude), float(longitude)
     half = max(float(area_size), 0.001) / 2
 
-    # ========================================================
-    # DADOS PARA AS CAMADAS
-    # ========================================================
-    
-    # Polígono do AOI (Retângulo)
     aoi_data = [{
-        "polygon": [
-            [lon - half, lat - half],
-            [lon + half, lat - half],
-            [lon + half, lat + half],
-            [lon - half, lat + half],
-        ],
+        "polygon": [[lon - half, lat - half], [lon + half, lat - half], [lon + half, lat + half], [lon - half, lat + half]],
         "name": "Default AOI"
     }]
 
-    # Ponto central
-    point_data = [{
-        "position": [lon, lat],
-        "name": "AOI Center"
-    }]
+    point_data = [{"position": [lon, lat], "name": "AOI Center"}]
 
-    # Polígono do footprint se existir
     footprint_data = []
     if bbox:
         min_lon, min_lat, max_lon, max_lat = _normalize_bbox(bbox)
         footprint_data = [{
-            "polygon": [
-                [min_lon, min_lat],
-                [max_lon, min_lat],
-                [max_lon, max_lat],
-                [min_lon, max_lat],
-            ],
+            "polygon": [[min_lon, min_lat], [max_lon, min_lat], [max_lon, max_lat], [min_lon, max_lat]],
             "name": "Scene Footprint"
         }]
 
-    # ========================================================
-    # CAMADAS DO DECK.GL
-    # ========================================================
-    
     layers = [
-        # Camada de Satélite (Visual Dark Profissional)
         pdk.Layer(
             "TileLayer",
             data=None,
@@ -79,19 +49,15 @@ def create_geospatial_map(
             picking=False,
             opacity=1.0,
         ),
-        
-        # Polígono do AOI
         pdk.Layer(
             "PolygonLayer",
             data=aoi_data,
             get_polygon="polygon",
-            get_fill_color=[0, 212, 255, 50],  # Ciano com transparência
-            get_line_color=[0, 212, 255, 200],  # Ciano sólido
+            get_fill_color=[0, 212, 255, 50],
+            get_line_color=[0, 212, 255, 200],
             line_width_min_pixels=2,
             pickable=True,
         ),
-        
-        # Footprint da cena
         pdk.Layer(
             "PolygonLayer",
             data=footprint_data,
@@ -102,8 +68,6 @@ def create_geospatial_map(
             dash_array=[6, 6],
             pickable=True,
         ),
-        
-        # Ponto Central
         pdk.Layer(
             "ScatterplotLayer",
             data=point_data,
@@ -115,20 +79,14 @@ def create_geospatial_map(
         ),
     ]
 
-    # ========================================================
-    # VIEW STATE (CÂMERA)
-    # ========================================================
     view_state = pdk.ViewState(
         latitude=lat,
         longitude=lon,
         zoom=12,
-        pitch=40,  # Inclinação para dar efeito 3D profissional
+        pitch=40,
         bearing=0,
     )
 
-    # ========================================================
-    # TOOLTIP (INTERATIVIDADE)
-    # ========================================================
     tooltip = {
         "html": "<b>{name}</b>",
         "style": {
@@ -140,17 +98,12 @@ def create_geospatial_map(
         }
     }
 
-    # ========================================================
-    # DECK
-    # ========================================================
-    deck = pdk.Deck(
+    return pdk.Deck(
         layers=layers,
         initial_view_state=view_state,
-        map_style="dark", # Dark Mode Nativo do Deck.gl
+        map_style="dark",
         tooltip=tooltip,
     )
-    
-    return deck
 
 def render_map_panel(
     latitude: float,
@@ -166,33 +119,19 @@ def render_map_panel(
     st.subheader("🗺️ Geospatial Operations Center")
     st.caption("Interactive Earth observation map • Sentinel-2 • AOI")
 
-    # Controles do Mapa
     c1, c2 = st.columns(2)
-    with c1:
-        zoom_start = st.slider("Zoom", 3, 18, 12, key=f"{key}_zoom")
-    with c2:
-        pitch = st.slider("3D Tilt", 0, 60, 40, key=f"{key}_pitch")
+    with c1: zoom_start = st.slider("Zoom", 3, 18, 12, key=f"{key}_zoom")
+    with c2: pitch = st.slider("3D Tilt", 0, 60, 40, key=f"{key}_pitch")
 
-    # Cria o deck
     deck = create_geospatial_map(
-        latitude=latitude,
-        longitude=longitude,
-        area_size=area_size,
-        bbox=bbox,
-        scene_id=scene_id,
-        acquisition_date=acquisition_date,
-        cloud_cover=cloud_cover,
+        latitude=latitude, longitude=longitude, area_size=area_size,
+        bbox=bbox, scene_id=scene_id, acquisition_date=acquisition_date, cloud_cover=cloud_cover
     )
 
-    # Atualiza o Zoom e Pitch dinamicamente
     deck.initial_view_state.zoom = zoom_start
     deck.initial_view_state.pitch = pitch
 
-    # Renderiza via st.pydeck_chart (Nativo do Streamlit)
     event = st.pydeck_chart(deck, use_container_width=True, key=key)
-
-    # Retorna dados de interação se houver (o Pydeck no Streamlit retorna cliques)
     if event and 'coordinate' in event:
         return {"clicked": event['coordinate']}
-    
     return {}
