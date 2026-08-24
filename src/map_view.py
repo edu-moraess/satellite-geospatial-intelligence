@@ -4,13 +4,18 @@ from typing import Any, Iterable, Tuple
 import streamlit as st
 import pydeck as pdk
 
+
 def _normalize_bbox(bbox) -> Tuple[float, float, float, float] | None:
-    if bbox is None: return None
+    if bbox is None:
+        return None
     try:
         values = list(bbox)
-        if len(values) != 4: return None
+        if len(values) != 4:
+            return None
         return (float(values[0]), float(values[1]), float(values[2]), float(values[3]))
-    except: return None
+    except:
+        return None
+
 
 def create_geospatial_map(
     latitude: float,
@@ -25,6 +30,7 @@ def create_geospatial_map(
     lat, lon = float(latitude), float(longitude)
     half = max(float(area_size), 0.001) / 2
 
+    # Dados das camadas
     aoi_data = [{
         "polygon": [[lon - half, lat - half], [lon + half, lat - half], [lon + half, lat + half], [lon - half, lat + half]],
         "name": "Default AOI"
@@ -40,6 +46,7 @@ def create_geospatial_map(
             "name": "Scene Footprint"
         }]
 
+    # Camadas do Deck.gl
     layers = [
         pdk.Layer(
             "TileLayer",
@@ -79,6 +86,7 @@ def create_geospatial_map(
         ),
     ]
 
+    # Configuração da câmera 3D
     view_state = pdk.ViewState(
         latitude=lat,
         longitude=lon,
@@ -87,6 +95,7 @@ def create_geospatial_map(
         bearing=0,
     )
 
+    # Tooltip
     tooltip = {
         "html": "<b>{name}</b>",
         "style": {
@@ -105,6 +114,7 @@ def create_geospatial_map(
         tooltip=tooltip,
     )
 
+
 def render_map_panel(
     latitude: float,
     longitude: float,
@@ -120,8 +130,10 @@ def render_map_panel(
     st.caption("Interactive Earth observation map • Sentinel-2 • AOI")
 
     c1, c2 = st.columns(2)
-    with c1: zoom_start = st.slider("Zoom", 3, 18, 12, key=f"{key}_zoom")
-    with c2: pitch = st.slider("3D Tilt", 0, 60, 40, key=f"{key}_pitch")
+    with c1:
+        zoom_start = st.slider("Zoom", 3, 18, 12, key=f"{key}_zoom")
+    with c2:
+        pitch = st.slider("3D Tilt", 0, 60, 40, key=f"{key}_pitch")
 
     deck = create_geospatial_map(
         latitude=latitude, longitude=longitude, area_size=area_size,
@@ -131,7 +143,8 @@ def render_map_panel(
     deck.initial_view_state.zoom = zoom_start
     deck.initial_view_state.pitch = pitch
 
-    event = st.pydeck_chart(deck, use_container_width=True, key=key)
-    if event and 'coordinate' in event:
-        return {"clicked": event['coordinate']}
+    # Renderiza o mapa (o retorno do pydeck não deve ser iterado, por isso removemos a lógica de 'coordinate')
+    st.pydeck_chart(deck, use_container_width=True, key=key)
+
+    # Retornamos um dicionário vazio por padrão (sem quebrar a interface)
     return {}
