@@ -1,13 +1,12 @@
 """
-Satellite visualization utilities.
+Satellite visualization.
 
 Phase 1:
-- RGB composite
-- False Color composite
+- Natural RGB
+- False Color
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from .geospatial import (
     read_band,
@@ -25,12 +24,11 @@ def create_rgb(
     red_path,
 ):
     """
-    Create natural RGB composite.
+    Sentinel-2 natural RGB.
 
-    Sentinel-2:
-    B04 -> Red
-    B03 -> Green
-    B02 -> Blue
+    R = B04
+    G = B03
+    B = B02
     """
 
     blue, _ = read_band(
@@ -57,15 +55,13 @@ def create_rgb(
         red
     )
 
-    rgb = np.dstack(
+    return np.dstack(
         [
             red,
             green,
             blue,
         ]
     )
-
-    return rgb
 
 
 # ============================================================
@@ -78,11 +74,11 @@ def create_false_color(
     nir_path,
 ):
     """
-    Create false-color composite.
+    False color composite.
 
-    NIR -> Red
-    Red -> Green
-    Green -> Blue
+    R = NIR
+    G = RED
+    B = GREEN
     """
 
     green, _ = read_band(
@@ -109,57 +105,10 @@ def create_false_color(
         nir
     )
 
-    false_color = np.dstack(
+    return np.dstack(
         [
             nir,
             red,
             green,
         ]
     )
-
-    return false_color
-
-
-# ============================================================
-# SAVE FIGURE
-# ============================================================
-
-def save_image(
-    image,
-    output_path,
-    title,
-):
-    """
-    Save a visualization.
-    """
-
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    plt.figure(
-        figsize=(10, 8)
-    )
-
-    plt.imshow(
-        image
-    )
-
-    plt.title(
-        title
-    )
-
-    plt.axis(
-        "off"
-    )
-
-    plt.tight_layout()
-
-    plt.savefig(
-        output_path,
-        dpi=150,
-        bbox_inches="tight",
-    )
-
-    plt.close()
