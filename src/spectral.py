@@ -1,14 +1,10 @@
 """
-Satellite Geospatial Intelligence
-----------------------------------
-
-Phase 2:
 Multispectral analysis.
 
-Indices:
-- NDVI -> Vegetation
-- NDWI -> Water
-- NDBI -> Built-up areas
+Phase 2:
+- NDVI
+- NDWI
+- NDBI
 """
 
 from pathlib import Path
@@ -21,36 +17,30 @@ import rasterio
 # READ RASTER
 # ============================================================
 
-def read_raster(path):
+def read_raster(
+    path,
+):
     """
-    Read a single-band GeoTIFF.
+    Read raster data and metadata.
     """
 
-    with rasterio.open(path) as src:
+    with rasterio.open(
+        path
+    ) as src:
 
-        data = src.read(1).astype(
+        data = src.read(
+            1
+        ).astype(
             np.float32
         )
 
         profile = src.profile.copy()
 
-        transform = src.transform
-
-        crs = src.crs
-
-        nodata = src.nodata
-
-    return (
-        data,
-        profile,
-        transform,
-        crs,
-        nodata,
-    )
+    return data, profile
 
 
 # ============================================================
-# SAFE NORMALIZED DIFFERENCE
+# NORMALIZED DIFFERENCE
 # ============================================================
 
 def normalized_difference(
@@ -58,19 +48,25 @@ def normalized_difference(
     band_b,
 ):
     """
-    Calculate:
+    Generic normalized difference:
 
         (A - B) / (A + B)
-
-    Avoiding division by zero.
     """
+
+    band_a = band_a.astype(
+        np.float32
+    )
+
+    band_b = band_b.astype(
+        np.float32
+    )
 
     denominator = (
         band_a + band_b
     )
 
-    result = np.full_like(
-        band_a,
+    result = np.full(
+        band_a.shape,
         np.nan,
         dtype=np.float32,
     )
@@ -103,7 +99,7 @@ def calculate_ndvi(
     NDVI:
 
         (NIR - RED)
-        -------------
+        ------------
         (NIR + RED)
 
     Sentinel-2:
@@ -158,10 +154,9 @@ def calculate_ndbi(
         -------------
         (SWIR + NIR)
 
-    IMPORTANT:
-    Sentinel-2 SWIR is B11.
-
-    This requires downloading B11.
+    Sentinel-2:
+        NIR  = B08
+        SWIR = B11
     """
 
     return normalized_difference(
@@ -180,23 +175,8 @@ def save_index(
     output_path,
 ):
     """
-    Save calculated index as GeoTIFF.
+    Save spectral index as GeoTIFF.
     """
-
-    with rasterio.open(
-        reference_path
-    ) as src:
-
-        profile = src.profile.copy()
-
-    profile.update(
-        {
-            "dtype": "float32",
-            "count": 1,
-            "nodata": np.nan,
-            "compress": "deflate",
-        }
-    )
 
     output_path = Path(
         output_path
@@ -208,15 +188,36 @@ def save_index(
     )
 
     with rasterio.open(
+        reference_path
+    ) as src:
+
+        profile = src.profile.copy()
+
+    profile.update(
+        {
+            "dtype": "float32",
+            "count": 1,
+            "nodata": -9999,
+            "compress": "deflate",
+        }
+    )
+
+    output_data = np.where(
+        np.isfinite(index),
+        index,
+        -9999,
+    ).astype(
+        np.float32
+    )
+
+    with rasterio.open(
         output_path,
         "w",
         **profile,
     ) as dst:
 
         dst.write(
-            index.astype(
-                np.float32
-            ),
+            output_data,
             1,
         )
 
