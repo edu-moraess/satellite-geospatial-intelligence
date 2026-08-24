@@ -15,7 +15,7 @@ Pipeline
 7. Land Cover Classification
 8. Change Detection
 9. Satellite Image Tiling
-10. Object Detection Engine
+10. Geospatial AI Detection Engine
 """
 
 from __future__ import annotations
@@ -146,7 +146,7 @@ st.caption(
 
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR — AREA OF INTEREST
 # ============================================================
 
 st.sidebar.header(
@@ -224,7 +224,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH
+# SEARCH SATELLITE DATA
 # ============================================================
 
 if st.sidebar.button(
@@ -427,7 +427,7 @@ if data:
 
 
     # ========================================================
-    # LOAD BANDS
+    # LOAD SPECTRAL BANDS
     # ========================================================
 
     with st.spinner(
@@ -1258,7 +1258,7 @@ else:
 
 
         # ----------------------------------------------------
-        # INDEX
+        # CALCULATE CHANGE
         # ----------------------------------------------------
 
         with st.spinner(
@@ -1447,421 +1447,426 @@ if change_result:
 
 
 # ============================================================
-# OBJECT DETECTION
+# GEOSPATIAL AI / OBJECT DETECTION
 # ============================================================
 
 st.divider()
 
 st.header(
-    "🎯 Object Detection"
+    "🎯 Geospatial AI"
 )
 
 st.caption(
-    "Computer Vision pipeline for detecting "
-    "objects in satellite imagery."
+    "Remote-sensing computer vision pipeline "
+    "for object detection."
 )
 
 
-if data:
+if data and detection_rgb is not None:
+
+    # ========================================================
+    # INPUT
+    # ========================================================
 
     st.subheader(
         "🛰️ Detection Input"
     )
 
+    st.image(
+        detection_rgb,
+        caption=(
+            "Sentinel-2 RGB prepared "
+            "for geospatial AI"
+        ),
+        width="stretch",
+    )
+
 
     # ========================================================
-    # RGB PREPARATION
+    # TILING
     # ========================================================
 
-    try:
+    st.subheader(
+        "🧩 AI Image Tiling"
+    )
 
-        detection_rgb = normalize_rgb(
-            red=b04,
-            green=b03,
-            blue=b02,
+    tile_col1, tile_col2 = (
+        st.columns(2)
+    )
+
+    with tile_col1:
+
+        tile_size = st.selectbox(
+            "Tile size",
+            [
+                256,
+                512,
+                768,
+                1024,
+            ],
+            index=1,
+            key="tile_size",
         )
 
-        validate_detection_image(
-            detection_rgb
+    with tile_col2:
+
+        tile_overlap = st.slider(
+            "Tile overlap",
+            min_value=0,
+            max_value=256,
+            value=64,
+            step=16,
+            key="tile_overlap",
         )
 
-    except Exception as error:
+
+    if tile_overlap >= tile_size:
 
         st.error(
-            "❌ Could not prepare "
-            "the detection image."
+            "❌ Tile overlap must be smaller "
+            "than tile size."
         )
 
-        st.exception(error)
-
-        detection_rgb = None
-
-
-    if detection_rgb is not None:
-
-        st.image(
-            detection_rgb,
-            caption=(
-                "Sentinel-2 RGB prepared "
-                "for object detection"
-            ),
-            width="stretch",
-        )
-
-
-        # ====================================================
-        # TILING
-        # ====================================================
-
-        st.subheader(
-            "🧩 AI Image Tiling"
-        )
-
-        tile_col1, tile_col2 = (
-            st.columns(2)
-        )
-
-        with tile_col1:
-
-            tile_size = st.selectbox(
-                "Tile size",
-                [
-                    256,
-                    512,
-                    768,
-                    1024,
-                ],
-                index=1,
-                key="tile_size",
-            )
-
-        with tile_col2:
-
-            tile_overlap = st.slider(
-                "Tile overlap",
-                min_value=0,
-                max_value=256,
-                value=64,
-                step=16,
-                key="tile_overlap",
-            )
-
-
-        if tile_overlap >= tile_size:
-
-            st.error(
-                "Tile overlap must be smaller "
-                "than tile size."
-            )
-
-        else:
-
-            try:
-
-                number_of_tiles = tile_count(
-                    detection_rgb,
-                    tile_size=tile_size,
-                    overlap=tile_overlap,
-                )
-
-                st.metric(
-                    "🧩 Image tiles",
-                    number_of_tiles,
-                )
-
-            except Exception as error:
-
-                st.error(
-                    "❌ Failed to create tiles."
-                )
-
-                st.exception(error)
-
-
-        # ====================================================
-        # DETECTION CONFIGURATION
-        # ====================================================
-
-        st.subheader(
-            "⚙️ Detection Configuration"
-        )
-
-        config_col1, config_col2 = (
-            st.columns(2)
-        )
-
-        with config_col1:
-
-            detection_threshold = st.slider(
-                "Confidence threshold",
-                min_value=0.10,
-                max_value=0.95,
-                value=0.50,
-                step=0.05,
-                key="object_confidence",
-            )
-
-        with config_col2:
-
-            detection_classes = st.multiselect(
-                "Classes of interest",
-                [
-                    "Buildings",
-                    "Roads",
-                    "Water",
-                    "Vegetation",
-                    "Vehicles",
-                ],
-                default=[
-                    "Buildings",
-                    "Roads",
-                    "Water",
-                ],
-                key="object_classes",
-            )
-
-
-        # ====================================================
-        # MODEL ENGINE
-        # ====================================================
-
-        st.subheader(
-            "🧠 Detection Engine"
-        )
+    else:
 
         try:
 
-            detector = SatelliteDetector()
-
-            model_info = detector.info()
-
-            engine_col1, engine_col2 = (
-                st.columns(2)
+            number_of_tiles = tile_count(
+                detection_rgb,
+                tile_size=tile_size,
+                overlap=tile_overlap,
             )
 
-            with engine_col1:
-
-                st.metric(
-                    "Model",
-                    model_info["model"],
-                )
-
-            with engine_col2:
-
-                st.metric(
-                    "Engine",
-                    "READY",
-                )
+            st.metric(
+                "🧩 Image tiles",
+                number_of_tiles,
+            )
 
         except Exception as error:
 
             st.error(
-                "❌ Detection engine failed."
+                "❌ Failed to create image tiles."
             )
 
             st.exception(error)
 
-            detector = None
 
+    # ========================================================
+    # DETECTION CONFIGURATION
+    # ========================================================
 
-        # ====================================================
-        # RUN DETECTION
-        # ====================================================
+    st.subheader(
+        "⚙️ Detection Configuration"
+    )
 
-        if st.button(
-            "🤖 Run AI Detection",
-            type="primary",
-            use_container_width=True,
-        ):
+    config_col1, config_col2 = (
+        st.columns(2)
+    )
 
-            if not detection_classes:
+    with config_col1:
 
-                st.warning(
-                    "⚠️ Select at least one "
-                    "class of interest."
-                )
-
-            elif tile_overlap >= tile_size:
-
-                st.error(
-                    "⚠️ Invalid tile configuration."
-                )
-
-            elif detector is None:
-
-                st.error(
-                    "❌ Detection engine unavailable."
-                )
-
-            else:
-
-                with st.spinner(
-                    "🤖 Preparing satellite image "
-                    "for AI inference..."
-                ):
-
-                    try:
-
-                        tiles = create_tiles(
-                            detection_rgb,
-                            tile_size=tile_size,
-                            overlap=tile_overlap,
-                        )
-
-                        all_detections = []
-
-                        for tile in tiles:
-
-                            tile_image = (
-                                tile["image"]
-                            )
-
-                            predictions = (
-                                detector.predict(
-                                    tile_image,
-                                    confidence=(
-                                        detection_threshold
-                                    ),
-                                )
-                            )
-
-                            for prediction in predictions:
-
-                                prediction.x1 += (
-                                    tile["x"]
-                                )
-
-                                prediction.x2 += (
-                                    tile["x"]
-                                )
-
-                                prediction.y1 += (
-                                    tile["y"]
-                                )
-
-                                prediction.y2 += (
-                                    tile["y"]
-                                )
-
-                                all_detections.append(
-                                    prediction
-                                )
-
-
-                        all_detections = (
-                            filter_detections(
-                                all_detections,
-                                detection_threshold,
-                            )
-                        )
-
-                        all_detections = (
-                            filter_classes(
-                                all_detections,
-                                detection_classes,
-                            )
-                        )
-
-
-                        st.session_state.object_detections = (
-                            all_detections
-                        )
-
-                        st.success(
-                            f"✅ Inference completed "
-                            f"over {len(tiles)} tiles."
-                        )
-
-                    except Exception as error:
-
-                        st.error(
-                            "❌ AI inference failed."
-                        )
-
-                        st.exception(error)
-
-
-        # ====================================================
-        # DETECTION RESULTS
-        # ====================================================
-
-        detections = (
-            st.session_state.object_detections
+        detection_threshold = st.slider(
+            "Confidence threshold",
+            min_value=0.10,
+            max_value=0.95,
+            value=0.50,
+            step=0.05,
+            key="object_confidence",
         )
 
-        if detections:
+    with config_col2:
 
-            summary = detection_summary(
-                detections
+        detection_classes = st.multiselect(
+            "Classes of interest",
+            [
+                "Buildings",
+                "Roads",
+                "Vehicles",
+                "Aircraft",
+                "Ships",
+                "Storage Tanks",
+            ],
+            default=[
+                "Buildings",
+                "Roads",
+            ],
+            key="object_classes",
+        )
+
+
+    # ========================================================
+    # MODEL STATUS
+    # ========================================================
+
+    st.subheader(
+        "🧠 Geospatial AI Model"
+    )
+
+    try:
+
+        detector = SatelliteDetector(
+            model_name=(
+                "Remote Sensing Detector"
+            )
+        )
+
+        model_info = detector.info()
+
+        model_col1, model_col2, model_col3 = (
+            st.columns(3)
+        )
+
+        with model_col1:
+
+            st.metric(
+                "Model",
+                model_info["model"],
             )
 
-            st.subheader(
-                "📊 Detection Results"
+        with model_col2:
+
+            st.metric(
+                "Backend",
+                model_info["backend"],
             )
 
-            metric1, metric2 = (
-                st.columns(2)
+        with model_col3:
+
+            st.metric(
+                "Checkpoint",
+                "NOT CONNECTED",
             )
 
-            with metric1:
+    except Exception as error:
 
-                st.metric(
-                    "Objects detected",
-                    len(detections),
-                )
+        detector = None
 
-            with metric2:
+        st.error(
+            "❌ Geospatial AI backend "
+            "could not be initialized."
+        )
 
-                st.metric(
-                    "Classes detected",
-                    len(summary),
-                )
+        st.exception(error)
 
 
-            detection_figure = (
-                draw_detections(
-                    detection_rgb,
-                    detections,
-                )
+    # ========================================================
+    # MODEL INFORMATION
+    # ========================================================
+
+    with st.expander(
+        "ℹ️ About the current AI engine"
+    ):
+
+        st.write(
+            """
+            The geospatial AI interface is now
+            connected to the TorchGeo/PyTorch
+            backend.
+
+            The application intentionally does
+            not generate artificial detections.
+
+            A model checkpoint trained for the
+            target remote-sensing classes must
+            be connected before predictions are
+            displayed.
+            """
+        )
+
+        st.write(
+            "Current architecture:"
+        )
+
+        st.code(
+            """
+Sentinel-2
+    ↓
+RGB preprocessing
+    ↓
+Tile extraction
+    ↓
+Geospatial AI backend
+    ↓
+Remote-sensing checkpoint
+    ↓
+Object detection
+    ↓
+Bounding boxes
+    ↓
+Geospatial coordinates
+            """,
+            language="text",
+        )
+
+
+    # ========================================================
+    # RUN AI
+    # ========================================================
+
+    if st.button(
+        "🤖 Run Geospatial AI",
+        type="primary",
+        use_container_width=True,
+    ):
+
+        if not detection_classes:
+
+            st.warning(
+                "⚠️ Select at least one "
+                "class of interest."
             )
 
-            st.pyplot(
-                detection_figure,
-                use_container_width=True,
+        elif tile_overlap >= tile_size:
+
+            st.error(
+                "⚠️ Invalid tile configuration."
             )
 
+        elif detector is None:
 
-            st.subheader(
-                "🏷️ Detected Classes"
+            st.error(
+                "❌ AI backend unavailable."
             )
-
-            for label, quantity in (
-                summary.items()
-            ):
-
-                st.write(
-                    f"**{label}:** {quantity}"
-                )
 
         else:
 
-            st.info(
-                "🔜 O pipeline de inferência está "
-                "preparado, mas nenhum modelo "
-                "especializado foi conectado ainda."
+            with st.spinner(
+                "🧠 Preparing image tiles "
+                "for inference..."
+            ):
+
+                try:
+
+                    tiles = create_tiles(
+                        detection_rgb,
+                        tile_size=tile_size,
+                        overlap=tile_overlap,
+                    )
+
+                    detections = (
+                        detector.predict_tiles(
+                            tiles,
+                            confidence=(
+                                detection_threshold
+                            ),
+                        )
+                    )
+
+                    detections = (
+                        filter_detections(
+                            detections,
+                            detection_threshold,
+                        )
+                    )
+
+                    detections = (
+                        filter_classes(
+                            detections,
+                            detection_classes,
+                        )
+                    )
+
+                    st.session_state.object_detections = (
+                        detections
+                    )
+
+                    st.success(
+                        f"✅ {len(tiles)} tiles "
+                        "processed."
+                    )
+
+                except Exception as error:
+
+                    st.error(
+                        "❌ AI inference failed."
+                    )
+
+                    st.exception(error)
+
+
+    # ========================================================
+    # RESULTS
+    # ========================================================
+
+    detections = (
+        st.session_state.object_detections
+    )
+
+
+    if detections:
+
+        summary = detection_summary(
+            detections
+        )
+
+        st.subheader(
+            "📊 Detection Results"
+        )
+
+        result_col1, result_col2 = (
+            st.columns(2)
+        )
+
+        with result_col1:
+
+            st.metric(
+                "Objects",
+                len(detections),
             )
+
+        with result_col2:
+
+            st.metric(
+                "Classes",
+                len(summary),
+            )
+
+
+        detection_figure = (
+            draw_detections(
+                detection_rgb,
+                detections,
+            )
+        )
+
+        st.pyplot(
+            detection_figure,
+            use_container_width=True,
+        )
+
+
+        st.subheader(
+            "🏷️ Detected Classes"
+        )
+
+        for label, quantity in (
+            summary.items()
+        ):
+
+            st.write(
+                f"**{label}:** {quantity}"
+            )
+
+
+    else:
+
+        st.info(
+            "🔜 Nenhuma detecção será exibida "
+            "até conectarmos um checkpoint "
+            "treinado para sensoriamento remoto."
+        )
 
 
 else:
 
     st.info(
         "ℹ️ Download uma cena de satélite "
-        "para ativar Object Detection."
+        "para ativar o Geospatial AI."
     )
 
 
 # ============================================================
-# PIPELINE STATUS
+# PROJECT PIPELINE
 # ============================================================
 
 st.divider()
@@ -1883,7 +1888,7 @@ with status1:
 with status2:
 
     st.success(
-        "✅ Spectral Analysis"
+        "✅ Spectral AI"
     )
 
 with status3:
@@ -1901,7 +1906,7 @@ with status4:
 with status5:
 
     st.info(
-        "🔜 AI Model"
+        "🔄 Geospatial AI"
     )
 
 
@@ -1920,5 +1925,6 @@ st.caption(
 st.caption(
     "Spectral values are analytical measurements "
     "and should be interpreted according to "
-    "sensor characteristics and preprocessing."
+    "sensor characteristics, spatial resolution "
+    "and preprocessing."
 )
