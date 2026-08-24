@@ -42,7 +42,6 @@ def _safe_float(
     value: Any,
     default: float = 0.0,
 ) -> float:
-    """Safely convert a value to float."""
 
     try:
         return float(value)
@@ -54,11 +53,6 @@ def _safe_float(
 def _normalize_bbox(
     bbox: Iterable[float] | None,
 ) -> tuple[float, float, float, float] | None:
-    """
-    Normalize bbox into:
-
-    min_lon, min_lat, max_lon, max_lat
-    """
 
     if bbox is None:
         return None
@@ -100,9 +94,6 @@ def add_aoi(
     longitude: float,
     area_size: float,
 ) -> None:
-    """
-    Add the Area of Interest to the map.
-    """
 
     lat = _safe_float(latitude)
     lon = _safe_float(longitude)
@@ -120,7 +111,7 @@ def add_aoi(
     ]
 
     aoi_group = folium.FeatureGroup(
-        name="📍 Area of Interest",
+        name="📍 Default AOI",
         show=True,
     )
 
@@ -131,9 +122,9 @@ def add_aoi(
         fill=True,
         fill_color="#00D4FF",
         fill_opacity=0.08,
-        tooltip="Area of Interest",
+        tooltip="Default Area of Interest",
         popup=(
-            "<b>Area of Interest</b><br>"
+            "<b>Default Area of Interest</b><br>"
             f"Latitude: {lat:.6f}<br>"
             f"Longitude: {lon:.6f}<br>"
             f"Area size: {size:.3f}°"
@@ -166,9 +157,6 @@ def add_scene_footprint(
     bbox: Iterable[float] | None,
     label: str = "Sentinel-2 Scene",
 ) -> None:
-    """
-    Draw selected scene footprint.
-    """
 
     normalized = _normalize_bbox(bbox)
 
@@ -216,9 +204,6 @@ def add_scene_marker(
     acquisition_date: str | None = None,
     cloud_cover: float | None = None,
 ) -> None:
-    """
-    Add selected Sentinel-2 scene marker.
-    """
 
     popup_lines = [
         "<b>Sentinel-2 Scene</b>",
@@ -283,31 +268,9 @@ def create_geospatial_map(
     acquisition_date: str | None = None,
     cloud_cover: float | None = None,
 ) -> folium.Map:
-    """
-    Create the main interactive geospatial map.
-
-    Features:
-        - Satellite basemap
-        - OpenStreetMap
-        - Terrain
-        - AOI
-        - Scene footprint
-        - Scene marker
-        - Layer control
-        - Fullscreen
-        - Mouse coordinates
-        - Measurement
-        - Drawing tools
-        - Scale
-    """
 
     lat = _safe_float(latitude)
     lon = _safe_float(longitude)
-
-    style = DEFAULT_TILES.get(
-        map_style,
-        DEFAULT_TILES["Satellite"],
-    )
 
     fmap = folium.Map(
         location=[
@@ -338,7 +301,7 @@ def create_geospatial_map(
         ).add_to(fmap)
 
     # ========================================================
-    # AOI
+    # DEFAULT AOI
     # ========================================================
 
     add_aoi(
@@ -424,18 +387,18 @@ def create_geospatial_map(
     ).add_to(fmap)
 
     # ========================================================
-    # DRAWING
+    # DRAWING / AOI SELECTION
     # ========================================================
 
     plugins.Draw(
         export=True,
         position="topleft",
         draw_options={
-            "polyline": True,
+            "polyline": False,
             "polygon": True,
             "rectangle": True,
-            "circle": True,
-            "marker": True,
+            "circle": False,
+            "marker": False,
             "circlemarker": False,
         },
         edit_options={
@@ -517,6 +480,12 @@ def render_geospatial_map(
         cloud_cover=cloud_cover,
     )
 
+    # ========================================================
+    # IMPORTANT:
+    # all_drawings allows Streamlit to receive
+    # polygons and rectangles created by Folium Draw.
+    # ========================================================
+
     map_state = st_folium(
         fmap,
         width=None,
@@ -527,6 +496,7 @@ def render_geospatial_map(
             "zoom",
             "center",
             "last_object_clicked",
+            "all_drawings",
         ],
         key=key,
     )
@@ -551,17 +521,6 @@ def render_map_panel(
     cloud_cover: float | None = None,
     key: str = "main_geospatial_map",
 ) -> dict[str, Any]:
-    """
-    Professional Geospatial Operations Center.
-
-    Provides:
-        - Basemap selection
-        - Zoom control
-        - Map height
-        - Interactive map
-        - Coordinate selection
-        - Spatial tools
-    """
 
     st.subheader(
         "🗺️ Geospatial Operations Center"
@@ -604,8 +563,6 @@ def render_map_panel(
 
     with control_col3:
 
-        # FIX:
-        # 650 MUST exist inside options.
         map_height = st.select_slider(
             "Map height",
             options=[
@@ -618,6 +575,16 @@ def render_map_panel(
             value=650,
             key=f"{key}_height",
         )
+
+    # ========================================================
+    # DRAWING INSTRUCTIONS
+    # ========================================================
+
+    st.info(
+        "✏️ **AOI Selection:** use the polygon "
+        "or rectangle tool on the map to draw "
+        "the area you want to analyze."
+    )
 
     # ========================================================
     # MAP
@@ -642,6 +609,10 @@ def render_map_panel(
     # ========================================================
 
     if map_state:
+
+        # ====================================================
+        # CLICKED COORDINATE
+        # ====================================================
 
         last_clicked = map_state.get(
             "last_clicked"
@@ -705,5 +676,50 @@ def render_map_panel(
                         else ""
                     )
                 )
+
+        # ====================================================
+        # DRAWN AOI
+        # ====================================================
+
+        drawings = map_state.get(
+            "all_drawings"
+        )
+
+        if drawings:
+
+            st.success(
+                "✏️ AOI desenhada no mapa."
+            )
+
+            if isinstance(
+                drawings,
+                dict,
+            ):
+
+                features = drawings.get(
+                    "features",
+                    [],
+                )
+
+                st.caption(
+                    f"Geometrias selecionadas: "
+                    f"{len(features)}"
+                )
+
+            elif isinstance(
+                drawings,
+                list,
+            ):
+
+                st.caption(
+                    f"Geometrias selecionadas: "
+                    f"{len(drawings)}"
+                )
+
+            st.info(
+                "🛰️ A próxima etapa utilizará "
+                "essa geometria como área de busca "
+                "do Sentinel-2."
+            )
 
     return map_state
