@@ -4,17 +4,26 @@ from src.model_inference import (
     RemoteSensingInference,
 )
 
+from src.model_registry import (
+    get_model,
+    model_available,
+)
+
 
 class SatelliteDetector:
 
     def __init__(
         self,
-        model_name: str = "Remote Sensing Detector",
+        model_id: str = "remote_sensing_baseline",
         model=None,
         device: str = "cpu",
     ):
 
-        self.model_name = model_name
+        self.model_id = model_id
+
+        self.definition = get_model(
+            model_id
+        )
 
         self.engine = (
             RemoteSensingInference(
@@ -28,12 +37,43 @@ class SatelliteDetector:
 
         return self.engine.ready
 
+    @property
+    def checkpoint_available(self) -> bool:
+
+        return model_available(
+            self.model_id
+        )
+
     def info(self) -> dict:
 
         return {
-            "model": self.model_name,
-            "backend": "Remote Sensing Inference",
+
+            "model_id": self.model_id,
+
+            "model": self.definition.name,
+
+            "description": (
+                self.definition.description
+            ),
+
+            "backend": (
+                "Remote Sensing Inference"
+            ),
+
             "device": self.engine.device,
+
+            "input_size": (
+                self.definition.input_size
+            ),
+
+            "classes": (
+                self.definition.classes
+            ),
+
+            "checkpoint_available": (
+                self.checkpoint_available
+            ),
+
             "ready": self.ready,
         }
 
