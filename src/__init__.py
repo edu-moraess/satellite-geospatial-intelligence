@@ -1,0 +1,3 @@
+"""
+Satellite Geospatial Intelligence package.
+"""
