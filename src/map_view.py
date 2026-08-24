@@ -1,515 +1,156 @@
 from __future__ import annotations
+from typing import Any, Iterable, Tuple
 
-from typing import Any, Iterable
-
-import folium
-from folium import plugins
 import streamlit as st
-from streamlit_folium import st_folium
-
-
-# ============================================================
-# BASEMAPS
-# ============================================================
-
-DEFAULT_TILES = {
-    "Satellite": {
-        "tiles": (
-            "https://server.arcgisonline.com/ArcGIS/rest/services/"
-            "World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        ),
-        "attr": "Esri World Imagery",
-    },
-    "OpenStreetMap": {
-        "tiles": "OpenStreetMap",
-        "attr": "OpenStreetMap",
-    },
-    "Terrain": {
-        "tiles": (
-            "https://{s}.tile.opentopomap.org/"
-            "{z}/{x}/{y}.png"
-        ),
-        "attr": "OpenTopoMap",
-    },
-}
-
+import pydeck as pdk
+import numpy as np
 
 # ============================================================
-# HELPERS
+# NEW PROFESSIONAL MAP USING PYdeck (DECK.GL)
 # ============================================================
 
-def _safe_float(
-    value: Any,
-    default: float = 0.0,
-) -> float:
-
-    try:
-        return float(value)
-
-    except (TypeError, ValueError):
-        return default
-
-
-def _normalize_bbox(
-    bbox: Iterable[float] | None,
-) -> tuple[float, float, float, float] | None:
-
-    if bbox is None:
-        return None
-
+def _normalize_bbox(bbox) -> Tuple[float, float, float, float] | None:
+    if bbox is None: return None
     try:
         values = list(bbox)
-
-    except TypeError:
-        return None
-
-    if len(values) != 4:
-        return None
-
-    try:
-
-        min_lon = float(values[0])
-        min_lat = float(values[1])
-        max_lon = float(values[2])
-        max_lat = float(values[3])
-
-    except (TypeError, ValueError):
-        return None
-
-    return (
-        min_lon,
-        min_lat,
-        max_lon,
-        max_lat,
-    )
-
-
-# ============================================================
-# AOI
-# ============================================================
-
-def add_aoi(
-    fmap: folium.Map,
-    latitude: float,
-    longitude: float,
-    area_size: float,
-) -> None:
-
-    lat = _safe_float(latitude)
-    lon = _safe_float(longitude)
-
-    size = max(
-        _safe_float(area_size),
-        0.001,
-    )
-
-    half = size / 2
-
-    bounds = [
-        [lat - half, lon - half],
-        [lat + half, lon + half],
-    ]
-
-    aoi_group = folium.FeatureGroup(
-        name="📍 Default AOI",
-        show=True,
-    )
-
-    folium.Rectangle(
-        bounds=bounds,
-        color="#00D4FF",
-        weight=2,
-        fill=True,
-        fill_color="#00D4FF",
-        fill_opacity=0.08,
-        tooltip="Default Area of Interest",
-        popup=(
-            "<b>Default Area of Interest</b><br>"
-            f"Latitude: {lat:.6f}<br>"
-            f"Longitude: {lon:.6f}<br>"
-            f"Area size: {size:.3f}°"
-        ),
-    ).add_to(aoi_group)
-
-    folium.CircleMarker(
-        location=[
-            lat,
-            lon,
-        ],
-        radius=6,
-        color="#FFFFFF",
-        weight=2,
-        fill=True,
-        fill_color="#00D4FF",
-        fill_opacity=1,
-        tooltip="AOI Center",
-    ).add_to(aoi_group)
-
-    aoi_group.add_to(fmap)
-
-
-# ============================================================
-# SCENE FOOTPRINT
-# ============================================================
-
-def add_scene_footprint(
-    fmap: folium.Map,
-    bbox: Iterable[float] | None,
-    label: str = "Sentinel-2 Scene",
-) -> None:
-
-    normalized = _normalize_bbox(bbox)
-
-    if normalized is None:
-        return
-
-    (
-        min_lon,
-        min_lat,
-        max_lon,
-        max_lat,
-    ) = normalized
-
-    footprint = folium.FeatureGroup(
-        name="🛰️ Scene Footprint",
-        show=True,
-    )
-
-    folium.Rectangle(
-        bounds=[
-            [min_lat, min_lon],
-            [max_lat, max_lon],
-        ],
-        color="#FFD166",
-        weight=2,
-        fill=True,
-        fill_color="#FFD166",
-        fill_opacity=0.04,
-        dash_array="6,6",
-        tooltip=label,
-    ).add_to(footprint)
-
-    footprint.add_to(fmap)
-
-
-# ============================================================
-# SCENE MARKER
-# ============================================================
-
-def add_scene_marker(
-    fmap: folium.Map,
-    latitude: float,
-    longitude: float,
-    scene_id: str,
-    acquisition_date: str | None = None,
-    cloud_cover: float | None = None,
-) -> None:
-
-    popup_lines = [
-        "<b>Sentinel-2 Scene</b>",
-        f"<b>ID:</b> {scene_id}",
-    ]
-
-    if acquisition_date:
-
-        popup_lines.append(
-            f"<b>Acquisition:</b> "
-            f"{acquisition_date}"
-        )
-
-    if cloud_cover is not None:
-
-        popup_lines.append(
-            f"<b>Cloud:</b> "
-            f"{float(cloud_cover):.2f}%"
-        )
-
-    popup_html = "<br>".join(
-        popup_lines
-    )
-
-    marker_group = folium.FeatureGroup(
-        name="🛰️ Selected Scene",
-        show=True,
-    )
-
-    folium.Marker(
-        location=[
-            _safe_float(latitude),
-            _safe_float(longitude),
-        ],
-        tooltip="Selected Sentinel-2 Scene",
-        popup=folium.Popup(
-            popup_html,
-            max_width=400,
-        ),
-        icon=folium.Icon(
-            color="blue",
-            icon="satellite",
-            prefix="fa",
-        ),
-    ).add_to(marker_group)
-
-    marker_group.add_to(fmap)
-
-
-# ============================================================
-# MAP CREATION
-# ============================================================
+        if len(values) != 4: return None
+        return (float(values[0]), float(values[1]), float(values[2]), float(values[3]))
+    except: return None
 
 def create_geospatial_map(
     latitude: float,
     longitude: float,
     area_size: float = 0.05,
-    zoom_start: int = 12,
-    map_style: str = "Satellite",
     bbox: Iterable[float] | None = None,
     scene_id: str | None = None,
     acquisition_date: str | None = None,
     cloud_cover: float | None = None,
-) -> folium.Map:
+) -> pdk.Deck:
+    
+    lat, lon = float(latitude), float(longitude)
+    half = max(float(area_size), 0.001) / 2
 
-    lat = _safe_float(latitude)
-    lon = _safe_float(longitude)
-
-    fmap = folium.Map(
-        location=[
-            lat,
-            lon,
+    # ========================================================
+    # DADOS PARA AS CAMADAS
+    # ========================================================
+    
+    # Polígono do AOI (Retângulo)
+    aoi_data = [{
+        "polygon": [
+            [lon - half, lat - half],
+            [lon + half, lat - half],
+            [lon + half, lat + half],
+            [lon - half, lat + half],
         ],
-        zoom_start=int(zoom_start),
-        tiles=None,
-        control_scale=True,
-        prefer_canvas=True,
-    )
+        "name": "Default AOI"
+    }]
+
+    # Ponto central
+    point_data = [{
+        "position": [lon, lat],
+        "name": "AOI Center"
+    }]
+
+    # Polígono do footprint se existir
+    footprint_data = []
+    if bbox:
+        min_lon, min_lat, max_lon, max_lat = _normalize_bbox(bbox)
+        footprint_data = [{
+            "polygon": [
+                [min_lon, min_lat],
+                [max_lon, min_lat],
+                [max_lon, max_lat],
+                [min_lon, max_lat],
+            ],
+            "name": "Scene Footprint"
+        }]
 
     # ========================================================
-    # BASEMAPS
+    # CAMADAS DO DECK.GL
     # ========================================================
-
-    for name, config in DEFAULT_TILES.items():
-
-        folium.TileLayer(
-            tiles=config["tiles"],
-            attr=config["attr"],
-            name=f"🗺️ {name}",
-            overlay=False,
-            control=True,
-            show=(
-                name == map_style
-            ),
-        ).add_to(fmap)
+    
+    layers = [
+        # Camada de Satélite (Visual Dark Profissional)
+        pdk.Layer(
+            "TileLayer",
+            data=None,
+            get_tile_url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            get_tile_size=256,
+            picking=False,
+            opacity=1.0,
+        ),
+        
+        # Polígono do AOI
+        pdk.Layer(
+            "PolygonLayer",
+            data=aoi_data,
+            get_polygon="polygon",
+            get_fill_color=[0, 212, 255, 50],  # Ciano com transparência
+            get_line_color=[0, 212, 255, 200],  # Ciano sólido
+            line_width_min_pixels=2,
+            pickable=True,
+        ),
+        
+        # Footprint da cena
+        pdk.Layer(
+            "PolygonLayer",
+            data=footprint_data,
+            get_polygon="polygon",
+            get_fill_color=[255, 209, 102, 20],
+            get_line_color=[255, 209, 102, 200],
+            line_width_min_pixels=2,
+            dash_array=[6, 6],
+            pickable=True,
+        ),
+        
+        # Ponto Central
+        pdk.Layer(
+            "ScatterplotLayer",
+            data=point_data,
+            get_position="position",
+            get_fill_color=[255, 255, 255, 255],
+            get_radius=100,
+            radius_min_pixels=5,
+            pickable=True,
+        ),
+    ]
 
     # ========================================================
-    # DEFAULT AOI
+    # VIEW STATE (CÂMERA)
     # ========================================================
-
-    add_aoi(
-        fmap=fmap,
+    view_state = pdk.ViewState(
         latitude=lat,
         longitude=lon,
-        area_size=area_size,
+        zoom=12,
+        pitch=40,  # Inclinação para dar efeito 3D profissional
+        bearing=0,
     )
 
     # ========================================================
-    # SCENE FOOTPRINT
+    # TOOLTIP (INTERATIVIDADE)
     # ========================================================
-
-    if bbox is not None:
-
-        add_scene_footprint(
-            fmap=fmap,
-            bbox=bbox,
-            label=(
-                "Sentinel-2 • "
-                f"{scene_id or 'Scene'}"
-            ),
-        )
-
-    # ========================================================
-    # SCENE MARKER
-    # ========================================================
-
-    if scene_id:
-
-        add_scene_marker(
-            fmap=fmap,
-            latitude=lat,
-            longitude=lon,
-            scene_id=scene_id,
-            acquisition_date=(
-                acquisition_date
-            ),
-            cloud_cover=cloud_cover,
-        )
+    tooltip = {
+        "html": "<b>{name}</b>",
+        "style": {
+            "backgroundColor": "rgba(15, 23, 42, 0.9)",
+            "color": "white",
+            "borderRadius": "6px",
+            "fontFamily": "Arial, sans-serif",
+            "padding": "8px",
+        }
+    }
 
     # ========================================================
-    # FULLSCREEN
+    # DECK
     # ========================================================
-
-    plugins.Fullscreen(
-        position="topleft",
-        title="Expand map",
-        title_cancel="Exit fullscreen",
-        force_separate_button=True,
-    ).add_to(fmap)
-
-    # ========================================================
-    # MOUSE POSITION
-    # ========================================================
-
-    plugins.MousePosition(
-        position="bottomleft",
-        separator=" | ",
-        prefix="Coordinates:",
-        lat_formatter=(
-            "function(num) { "
-            "return L.Util.formatNum(num, 6); "
-            "}"
-        ),
-        lng_formatter=(
-            "function(num) { "
-            "return L.Util.formatNum(num, 6); "
-            "}"
-        ),
-    ).add_to(fmap)
-
-    # ========================================================
-    # MEASUREMENT
-    # ========================================================
-
-    plugins.MeasureControl(
-        position="topleft",
-        primary_length_unit="kilometers",
-        secondary_length_unit="meters",
-        primary_area_unit="sqkilometers",
-        secondary_area_unit="sqm",
-    ).add_to(fmap)
-
-    # ========================================================
-    # DRAWING / AOI SELECTION
-    # ========================================================
-
-    plugins.Draw(
-        export=True,
-        position="topleft",
-        draw_options={
-            "polyline": False,
-            "polygon": True,
-            "rectangle": True,
-            "circle": False,
-            "marker": False,
-            "circlemarker": False,
-        },
-        edit_options={
-            "edit": True,
-            "remove": True,
-        },
-    ).add_to(fmap)
-
-    # ========================================================
-    # LAYER CONTROL
-    # ========================================================
-
-    folium.LayerControl(
-        collapsed=False,
-        position="topright",
-    ).add_to(fmap)
-
-    # ========================================================
-    # MAP TITLE
-    # ========================================================
-
-    info = folium.Element(
-        """
-        <div style="
-            position: fixed;
-            top: 12px;
-            left: 52px;
-            z-index: 9999;
-            background:
-                rgba(15, 23, 42, 0.92);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            box-shadow:
-                0 2px 8px
-                rgba(0,0,0,0.25);
-        ">
-            <b>GEO INTELLIGENCE MAP</b>
-        </div>
-        """
+    deck = pdk.Deck(
+        layers=layers,
+        initial_view_state=view_state,
+        map_style="dark", # Dark Mode Nativo do Deck.gl
+        tooltip=tooltip,
     )
-
-    fmap.get_root().html.add_child(
-        info
-    )
-
-    return fmap
-
-
-# ============================================================
-# STREAMLIT MAP RENDERER
-# ============================================================
-
-def render_geospatial_map(
-    latitude: float,
-    longitude: float,
-    area_size: float = 0.05,
-    zoom_start: int = 12,
-    map_style: str = "Satellite",
-    bbox: Iterable[float] | None = None,
-    scene_id: str | None = None,
-    acquisition_date: str | None = None,
-    cloud_cover: float | None = None,
-    height: int = 650,
-    key: str = "geospatial_map",
-) -> dict[str, Any]:
-
-    fmap = create_geospatial_map(
-        latitude=latitude,
-        longitude=longitude,
-        area_size=area_size,
-        zoom_start=zoom_start,
-        map_style=map_style,
-        bbox=bbox,
-        scene_id=scene_id,
-        acquisition_date=acquisition_date,
-        cloud_cover=cloud_cover,
-    )
-
-    # ========================================================
-    # IMPORTANT:
-    # all_drawings allows Streamlit to receive
-    # polygons and rectangles created by Folium Draw.
-    # ========================================================
-
-    map_state = st_folium(
-        fmap,
-        width=None,
-        height=int(height),
-        returned_objects=[
-            "last_clicked",
-            "bounds",
-            "zoom",
-            "center",
-            "last_object_clicked",
-            "all_drawings",
-        ],
-        key=key,
-    )
-
-    if map_state is None:
-        return {}
-
-    return map_state
-
-
-# ============================================================
-# PROFESSIONAL MAP PANEL
-# ============================================================
+    
+    return deck
 
 def render_map_panel(
     latitude: float,
@@ -522,204 +163,36 @@ def render_map_panel(
     key: str = "main_geospatial_map",
 ) -> dict[str, Any]:
 
-    st.subheader(
-        "🗺️ Geospatial Operations Center"
-    )
+    st.subheader("🗺️ Geospatial Operations Center")
+    st.caption("Interactive Earth observation map • Sentinel-2 • AOI")
 
-    st.caption(
-        "Interactive Earth observation map • "
-        "Sentinel-2 • AOI • Spatial analysis"
-    )
+    # Controles do Mapa
+    c1, c2 = st.columns(2)
+    with c1:
+        zoom_start = st.slider("Zoom", 3, 18, 12, key=f"{key}_zoom")
+    with c2:
+        pitch = st.slider("3D Tilt", 0, 60, 40, key=f"{key}_pitch")
 
-    # ========================================================
-    # MAP CONTROLS
-    # ========================================================
-
-    control_col1, control_col2, control_col3 = (
-        st.columns(3)
-    )
-
-    with control_col1:
-
-        map_style = st.selectbox(
-            "Basemap",
-            list(
-                DEFAULT_TILES.keys()
-            ),
-            index=0,
-            key=f"{key}_style",
-        )
-
-    with control_col2:
-
-        zoom_start = st.slider(
-            "Zoom",
-            min_value=3,
-            max_value=18,
-            value=12,
-            step=1,
-            key=f"{key}_zoom",
-        )
-
-    with control_col3:
-
-        map_height = st.select_slider(
-            "Map height",
-            options=[
-                500,
-                600,
-                650,
-                700,
-                800,
-            ],
-            value=650,
-            key=f"{key}_height",
-        )
-
-    # ========================================================
-    # DRAWING INSTRUCTIONS
-    # ========================================================
-
-    st.info(
-        "✏️ **AOI Selection:** use the polygon "
-        "or rectangle tool on the map to draw "
-        "the area you want to analyze."
-    )
-
-    # ========================================================
-    # MAP
-    # ========================================================
-
-    map_state = render_geospatial_map(
+    # Cria o deck
+    deck = create_geospatial_map(
         latitude=latitude,
         longitude=longitude,
         area_size=area_size,
-        zoom_start=zoom_start,
-        map_style=map_style,
         bbox=bbox,
         scene_id=scene_id,
         acquisition_date=acquisition_date,
         cloud_cover=cloud_cover,
-        height=map_height,
-        key=key,
     )
 
-    # ========================================================
-    # INTERACTION
-    # ========================================================
+    # Atualiza o Zoom e Pitch dinamicamente
+    deck.initial_view_state.zoom = zoom_start
+    deck.initial_view_state.pitch = pitch
 
-    if map_state:
+    # Renderiza via st.pydeck_chart (Nativo do Streamlit)
+    event = st.pydeck_chart(deck, use_container_width=True, key=key)
 
-        # ====================================================
-        # CLICKED COORDINATE
-        # ====================================================
-
-        last_clicked = map_state.get(
-            "last_clicked"
-        )
-
-        if last_clicked:
-
-            selected_lat = last_clicked.get(
-                "lat"
-            )
-
-            selected_lon = last_clicked.get(
-                "lng"
-            )
-
-            if (
-                selected_lat is not None
-                and selected_lon is not None
-            ):
-
-                st.info(
-                    "📍 Selected coordinate: "
-                    f"{float(selected_lat):.6f}, "
-                    f"{float(selected_lon):.6f}"
-                )
-
-        # ====================================================
-        # CURRENT MAP CENTER
-        # ====================================================
-
-        center = map_state.get(
-            "center"
-        )
-
-        zoom = map_state.get(
-            "zoom"
-        )
-
-        if center:
-
-            center_lat = center.get(
-                "lat"
-            )
-
-            center_lon = center.get(
-                "lng"
-            )
-
-            if (
-                center_lat is not None
-                and center_lon is not None
-            ):
-
-                st.caption(
-                    "🧭 Map center: "
-                    f"{float(center_lat):.6f}, "
-                    f"{float(center_lon):.6f}"
-                    + (
-                        f" • Zoom: {int(zoom)}"
-                        if zoom is not None
-                        else ""
-                    )
-                )
-
-        # ====================================================
-        # DRAWN AOI
-        # ====================================================
-
-        drawings = map_state.get(
-            "all_drawings"
-        )
-
-        if drawings:
-
-            st.success(
-                "✏️ AOI desenhada no mapa."
-            )
-
-            if isinstance(
-                drawings,
-                dict,
-            ):
-
-                features = drawings.get(
-                    "features",
-                    [],
-                )
-
-                st.caption(
-                    f"Geometrias selecionadas: "
-                    f"{len(features)}"
-                )
-
-            elif isinstance(
-                drawings,
-                list,
-            ):
-
-                st.caption(
-                    f"Geometrias selecionadas: "
-                    f"{len(drawings)}"
-                )
-
-            st.info(
-                "🛰️ A próxima etapa utilizará "
-                "essa geometria como área de busca "
-                "do Sentinel-2."
-            )
-
-    return map_state
+    # Retorna dados de interação se houver (o Pydeck no Streamlit retorna cliques)
+    if event and 'coordinate' in event:
+        return {"clicked": event['coordinate']}
+    
+    return {}
