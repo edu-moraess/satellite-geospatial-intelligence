@@ -2,14 +2,23 @@
 Satellite Geospatial Intelligence
 ----------------------------------
 
-Satellite-2 band downloader.
+Sentinel-2 downloader.
 
-Features:
-- Downloads selected AOI only
-- Creates scene directories safely
-- Handles existing files/directories
-- Reuses already downloaded bands
-- Downloads B02, B03, B04, B08 and B11
+Responsibilities:
+
+1. Validate the data directory.
+2. Create scene directories.
+3. Download selected Sentinel-2 bands.
+4. Extract only the user's AOI.
+5. Reuse valid files when possible.
+
+Bands:
+
+B02 -> Blue
+B03 -> Green
+B04 -> Red
+B08 -> NIR
+B11 -> SWIR
 """
 
 from pathlib import Path
@@ -17,21 +26,28 @@ from pathlib import Path
 import rasterio
 
 from rasterio.windows import from_bounds
+
 from rasterio.warp import transform_bounds
 
 
 # ============================================================
-# ENSURE OUTPUT DIRECTORY
+# ENSURE DIRECTORY
 # ============================================================
 
 def ensure_output_directory(
     output_directory: Path,
 ):
     """
-    Safely create the output directory.
+    Safely create an output directory.
 
-    If a file exists where the directory should be,
-    remove the conflicting file.
+    Handles situations such as:
+
+        data/raw
+        data/raw/scene_id
+
+    If a path component is accidentally a file,
+    a clear error is generated instead of producing
+    a confusing NotADirectoryError.
     """
 
     output_directory = Path(
@@ -39,27 +55,41 @@ def ensure_output_directory(
     )
 
     # --------------------------------------------------------
-    # EXISTING PATH
+    # CHECK EVERY PARENT
     # --------------------------------------------------------
 
-    if output_directory.exists():
+    current = output_directory
 
-        # Path exists but is a file
-        if output_directory.is_file():
+    missing_parts = []
 
-            output_directory.unlink()
+    while not current.exists():
 
-        # Path exists but is not a directory
-        elif not output_directory.is_dir():
+        missing_parts.append(
+            current
+        )
 
-            raise RuntimeError(
-                "Output path exists but is "
-                "neither a file nor a directory: "
-                f"{output_directory}"
-            )
+        current = current.parent
 
     # --------------------------------------------------------
-    # CREATE DIRECTORY
+    # FIND EXISTING ANCESTOR
+    # --------------------------------------------------------
+
+    if current.exists() and not current.is_dir():
+
+        raise RuntimeError(
+            "❌ Filesystem conflict detected.\n\n"
+            f"The path:\n"
+            f"{current}\n\n"
+            "exists as a FILE, but the application "
+            "needs it to be a DIRECTORY.\n\n"
+            "Please remove that file from GitHub "
+            "and create the folder structure:\n\n"
+            "data/raw/\n"
+            "data/processed/\n"
+        )
+
+    # --------------------------------------------------------
+    # CREATE MISSING DIRECTORIES
     # --------------------------------------------------------
 
     output_directory.mkdir(
@@ -68,6 +98,41 @@ def ensure_output_directory(
     )
 
     return output_directory
+
+
+# ============================================================
+# VALIDATE EXISTING GEOTIFF
+# ============================================================
+
+def is_valid_geotiff(
+    path: Path,
+):
+    """
+    Check whether an existing file is a readable GeoTIFF.
+    """
+
+    if not path.exists():
+
+        return False
+
+    if not path.is_file():
+
+        return False
+
+    try:
+
+        with rasterio.open(
+            path
+        ) as src:
+
+            return (
+                src.width > 0
+                and src.height > 0
+            )
+
+    except Exception:
+
+        return False
 
 
 # ============================================================
@@ -81,8 +146,14 @@ def download_band(
     output_directory: Path,
 ):
     """
-    Download one Sentinel-2 band for the selected AOI.
+    Download a single Sentinel-2 band.
+
+    Only the selected AOI is downloaded.
     """
+
+    # --------------------------------------------------------
+    # ENSURE DIRECTORY
+    # --------------------------------------------------------
 
     output_directory = (
         ensure_output_directory(
@@ -91,7 +162,7 @@ def download_band(
     )
 
     # --------------------------------------------------------
-    # CHECK ASSET
+    # FIND SENTINEL ASSET
     # --------------------------------------------------------
 
     asset = item.assets.get(
@@ -115,37 +186,25 @@ def download_band(
     )
 
     # --------------------------------------------------------
-    # REUSE EXISTING BAND
+    # REUSE EXISTING FILE
     # --------------------------------------------------------
 
-    if (
-        output_path.exists()
-        and output_path.is_file()
+    if is_valid_geotiff(
+        output_path
     ):
 
-        try:
-
-            # Verify that the GeoTIFF can actually
-            # be opened before reusing it.
-
-            with rasterio.open(
-                output_path
-            ) as src:
-
-                _ = src.width
-                _ = src.height
-
-            return output_path
-
-        except Exception:
-
-            # Corrupted/incomplete file.
-            output_path.unlink(
-                missing_ok=True
-            )
+        return output_path
 
     # --------------------------------------------------------
-    # OPEN REMOTE SENTINEL RASTER
+    # DELETE CORRUPTED FILE
+    # --------------------------------------------------------
+
+    if output_path.exists():
+
+        output_path.unlink()
+
+    # --------------------------------------------------------
+    # OPEN REMOTE RASTER
     # --------------------------------------------------------
 
     with rasterio.open(
@@ -153,13 +212,15 @@ def download_band(
     ) as src:
 
         # ----------------------------------------------------
-        # TRANSFORM AOI TO RASTER CRS
+        # TRANSFORM BBOX
         # ----------------------------------------------------
 
-        raster_bbox = transform_bounds(
-            "EPSG:4326",
-            src.crs,
-            *bbox,
+        raster_bbox = (
+            transform_bounds(
+                "EPSG:4326",
+                src.crs,
+                *bbox,
+            )
         )
 
         # ----------------------------------------------------
@@ -187,8 +248,8 @@ def download_band(
         ):
 
             raise ValueError(
-                f"Selected area does not overlap "
-                f"the raster for band {band_name}."
+                f"The selected area does not "
+                f"overlap band {band_name}."
             )
 
         # ----------------------------------------------------
@@ -201,7 +262,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # TRANSFORM
+        # CREATE TRANSFORM
         # ----------------------------------------------------
 
         transform = (
@@ -211,7 +272,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # PROFILE
+        # CREATE PROFILE
         # ----------------------------------------------------
 
         profile = src.profile.copy()
@@ -245,7 +306,7 @@ def download_band(
 
 
 # ============================================================
-# DOWNLOAD REQUIRED BANDS
+# DOWNLOAD ALL REQUIRED BANDS
 # ============================================================
 
 def download_required_bands(
@@ -263,11 +324,19 @@ def download_required_bands(
     B11 -> SWIR
     """
 
+    # --------------------------------------------------------
+    # ENSURE SCENE DIRECTORY
+    # --------------------------------------------------------
+
     output_directory = (
         ensure_output_directory(
             output_directory
         )
     )
+
+    # --------------------------------------------------------
+    # REQUIRED BANDS
+    # --------------------------------------------------------
 
     bands = [
         "B02",
@@ -279,15 +348,21 @@ def download_required_bands(
 
     downloaded = {}
 
+    # --------------------------------------------------------
+    # DOWNLOAD
+    # --------------------------------------------------------
+
     for band in bands:
 
-        downloaded[band] = download_band(
-            item=item,
-            band_name=band,
-            bbox=bbox,
-            output_directory=(
-                output_directory
-            ),
+        downloaded[band] = (
+            download_band(
+                item=item,
+                band_name=band,
+                bbox=bbox,
+                output_directory=(
+                    output_directory
+                ),
+            )
         )
 
     return downloaded
