@@ -45,4 +45,5 @@ AVAILABLE_BANDS = {
     "B03": "Green",
     "B04": "Red",
     "B08": "NIR",
+    "B11": "SWIR",
 }
