@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Iterable, Tuple
+from typing import Any, Iterable
 import streamlit as st
 import pydeck as pdk
 import numpy as np
@@ -18,7 +18,7 @@ def render_map_panel(
     lat, lon = float(latitude), float(longitude)
     half = max(float(area_size), 0.001) / 2
 
-    # Base Layers (Poligonos)
+    # Base Layers (Polígonos e Pontos de Referência)
     aoi_data = [{"polygon": [[lon - half, lat - half], [lon + half, lat - half], [lon + half, lat + half], [lon - half, lat + half]], "name": "Default AOI"}]
     point_data = [{"position": [lon, lat], "name": "AOI Center"}]
     footprint_data = []
@@ -33,22 +33,35 @@ def render_map_panel(
         pdk.Layer("ScatterplotLayer", data=point_data, get_position="position", get_radius=100, radius_min_pixels=6, get_fill_color=[255, 255, 255, 255], pickable=True),
     ]
 
-    # CAMADA 1: HEATMAP DE NDVI (Verde)
+    # CAMADA 1: NDVI (Substituído por ScatterplotLayer para evitar erro de shader no WebGL)
     if ndvi is not None and bbox:
         min_lon, min_lat, max_lon, max_lat = bbox
         h, w = ndvi.shape
         step_x = max(1, w // 50)
         step_y = max(1, h // 50)
-        heatmap_data = []
+        ndvi_data = []
         for y in range(0, h, step_y):
             for x in range(0, w, step_x):
                 val = float(ndvi[y, x])
-                if np.isfinite(val):
+                if np.isfinite(val) and val > 0.1:  # Considera apenas vegetação relevante
                     plon = min_lon + (x / w) * (max_lon - min_lon)
                     plat = max_lat - (y / h) * (max_lat - min_lat)
-                    heatmap_data.append({"position": [plon, plat], "weight": val})
-        if heatmap_data:
-            layers.append(pdk.Layer("HeatmapLayer", data=heatmap_data, get_position="position", get_weight="weight", radius_pixels=20, intensity=1.5, threshold=0.5, color_range=[[0, 150, 0], [0, 255, 0]]))
+                    alpha = int(np.clip(val * 255, 60, 220))
+                    ndvi_data.append({
+                        "position": [plon, plat],
+                        "color": [0, 230, 118, alpha],
+                        "name": f"NDVI: {val:.2f}"
+                    })
+        if ndvi_data:
+            layers.append(pdk.Layer(
+                "ScatterplotLayer",
+                data=ndvi_data,
+                get_position="position",
+                get_fill_color="color",
+                get_radius=80,
+                radius_min_pixels=4,
+                pickable=True
+            ))
 
     # CAMADA 2: CLASSIFICAÇÃO (Pontos coloridos)
     if classification is not None and bbox:
@@ -60,22 +73,31 @@ def render_map_panel(
         for y in range(0, h, step_y):
             for x in range(0, w, step_x):
                 val = int(classification[y, x])
-                color = [0,0,0]
+                color = [0, 0, 0, 0]
                 if val == 1: color = [46, 125, 50, 200]
                 elif val == 2: color = [25, 118, 210, 200]
                 elif val == 3: color = [216, 67, 21, 200]
                 elif val == 4: color = [196, 154, 108, 200]
-                if color != [0,0,0]:
+                if color != [0, 0, 0, 0]:
                     plon = min_lon + (x / w) * (max_lon - min_lon)
                     plat = max_lat - (y / h) * (max_lat - min_lat)
-                    class_data.append({"position": [plon, plat], "size": (area_size / 40) * 50000, "color": color})
+                    class_data.append({"position": [plon, plat], "color": color, "name": f"Classe: {val}"})
         if class_data:
-            layers.append(pdk.Layer("ScatterplotLayer", data=class_data, get_position="position", get_radius="size", get_fill_color="color", stroked=False, pickable=True))
+            layers.append(pdk.Layer(
+                "ScatterplotLayer",
+                data=class_data,
+                get_position="position",
+                get_radius=100,
+                radius_min_pixels=5,
+                get_fill_color="color",
+                stroked=False,
+                pickable=True
+            ))
 
     # CAMADA 3: DETECÇÕES IA (Bounding Boxes)
     if detections and bbox:
         min_lon, min_lat, max_lon, max_lat = bbox
-        h, w = ndvi.shape if ndvi is not None else 512, 512
+        h, w = ndvi.shape if ndvi is not None else (512, 512)
         det_data = []
         for det in detections:
             x_min, y_min, bw, bh = det["bbox"]
@@ -83,9 +105,17 @@ def render_map_panel(
             p2 = [min_lon + ((x_min+bw)/w)*(max_lon-min_lon), max_lat - (y_min/h)*(max_lat-min_lat)]
             p3 = [min_lon + ((x_min+bw)/w)*(max_lon-min_lon), max_lat - ((y_min+bh)/h)*(max_lat-min_lat)]
             p4 = [min_lon + (x_min/w)*(max_lon-min_lon), max_lat - ((y_min+bh)/h)*(max_lat-min_lat)]
-            det_data.append({"polygon": [p1, p2, p3, p4], "name": f"Det: {det['class']}"})
+            det_data.append({"polygon": [p1, p2, p3, p4], "name": f"Det: {det.get('class', 'Objeto')}"})
         if det_data:
-            layers.append(pdk.Layer("PolygonLayer", data=det_data, get_polygon="polygon", get_fill_color=[255, 0, 128, 50], get_line_color=[255, 0, 128, 255], line_width_min_pixels=2, pickable=True))
+            layers.append(pdk.Layer(
+                "PolygonLayer",
+                data=det_data,
+                get_polygon="polygon",
+                get_fill_color=[255, 0, 128, 50],
+                get_line_color=[255, 0, 128, 255],
+                line_width_min_pixels=2,
+                pickable=True
+            ))
 
     view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=12, pitch=40, bearing=0)
     tooltip = {"html": "<b>{name}</b>", "style": {"backgroundColor": "rgba(15, 23, 42, 0.9)", "color": "white", "borderRadius": "6px"}}
