@@ -1,12 +1,29 @@
-import rasterio
+"""
+Basic raster/geospatial utilities.
+"""
+
 import numpy as np
+import rasterio
 
 
-def read_band(path):
+# ============================================================
+# READ BAND
+# ============================================================
 
-    with rasterio.open(path) as src:
+def read_band(
+    path,
+):
+    """
+    Read a single-band GeoTIFF.
+    """
 
-        data = src.read(1)
+    with rasterio.open(
+        path
+    ) as src:
+
+        data = src.read(
+            1
+        )
 
         metadata = {
             "crs": src.crs,
@@ -15,32 +32,66 @@ def read_band(path):
             "width": src.width,
             "height": src.height,
             "resolution": src.res,
+            "nodata": src.nodata,
         }
 
     return data, metadata
 
 
-def normalize_image(image):
-    image = image.astype(np.float32)
+# ============================================================
+# NORMALIZATION
+# ============================================================
+
+def normalize_image(
+    image,
+):
+    """
+    Normalize image using percentile stretching.
+
+    This is for visualization only.
+    It does not modify the original satellite data.
+    """
+
+    image = image.astype(
+        np.float32
+    )
+
+    valid = np.isfinite(
+        image
+    )
+
+    if not np.any(valid):
+
+        return np.zeros_like(
+            image,
+            dtype=np.float32,
+        )
 
     min_value = np.nanpercentile(
-        image,
+        image[valid],
         2,
     )
 
     max_value = np.nanpercentile(
-        image,
+        image[valid],
         98,
     )
 
-    image = (
+    if max_value <= min_value:
+
+        return np.zeros_like(
+            image,
+            dtype=np.float32,
+        )
+
+    normalized = (
         image - min_value
     ) / (
         max_value - min_value
     )
 
     return np.clip(
-        image,
+        normalized,
         0,
         1,
     )
