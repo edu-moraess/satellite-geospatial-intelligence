@@ -2,12 +2,15 @@
 Satellite Geospatial Intelligence
 ==================================
 
-Earth Observation
-Computer Vision
-Geospatial AI
+Earth Observation • Computer Vision • Geospatial AI
 
-Stage 2:
-Land Cover Classification
+Stages implemented:
+1. Sentinel-2 scene search
+2. Satellite band download
+3. RGB / False Color visualization
+4. NDVI / NDWI / NDBI
+5. Land Cover Classification
+6. Change Detection between two dates
 """
 
 from datetime import date
@@ -15,6 +18,10 @@ from datetime import date
 import numpy as np
 import streamlit as st
 
+
+# ============================================================
+# PROJECT IMPORTS
+# ============================================================
 
 from src.catalog import (
     search_sentinel,
@@ -59,9 +66,20 @@ from src.land_cover import (
     calculate_area_km2,
 )
 
+from src.change_detection import (
+    calculate_difference,
+    detect_change,
+    calculate_change_statistics,
+)
+
+from src.change_visualization import (
+    create_change_figure,
+    create_difference_figure,
+)
+
 
 # ============================================================
-# PAGE
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -72,16 +90,14 @@ st.set_page_config(
 
 
 # ============================================================
-# SESSION
+# SESSION STATE
 # ============================================================
 
 if "search_results" not in st.session_state:
-
     st.session_state.search_results = []
 
 
 if "satellite_data" not in st.session_state:
-
     st.session_state.satellite_data = None
 
 
@@ -135,7 +151,7 @@ area_size = st.sidebar.slider(
 
 
 # ============================================================
-# DATES
+# DATE RANGE
 # ============================================================
 
 st.sidebar.header(
@@ -164,7 +180,7 @@ end_date = st.sidebar.date_input(
 
 
 # ============================================================
-# CLOUD
+# CLOUD COVER
 # ============================================================
 
 st.sidebar.header(
@@ -183,7 +199,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH
+# SEARCH BUTTON
 # ============================================================
 
 if st.sidebar.button(
@@ -239,12 +255,10 @@ if st.sidebar.button(
 
 
 # ============================================================
-# RESULTS
+# SEARCH RESULTS
 # ============================================================
 
-items = (
-    st.session_state.search_results
-)
+items = st.session_state.search_results
 
 
 if items:
@@ -366,12 +380,10 @@ if items:
 
 
 # ============================================================
-# ANALYSIS
+# SELECTED SCENE ANALYSIS
 # ============================================================
 
-data = (
-    st.session_state.satellite_data
-)
+data = st.session_state.satellite_data
 
 
 if data:
@@ -445,7 +457,7 @@ if data:
         except Exception as error:
 
             st.error(
-                "❌ Failed to load bands."
+                "❌ Failed to load satellite bands."
             )
 
             st.exception(
@@ -456,40 +468,54 @@ if data:
 
 
     # ========================================================
-    # ALIGN
+    # ALIGN BANDS
     # ========================================================
 
     with st.spinner(
         "🔄 Aligning spectral grids..."
     ):
 
-        b02 = align_band_to_reference(
-            b02,
-            m02,
-            b04,
-            m04,
-        )
+        try:
 
-        b03 = align_band_to_reference(
-            b03,
-            m03,
-            b04,
-            m04,
-        )
+            b02 = align_band_to_reference(
+                b02,
+                m02,
+                b04,
+                m04,
+            )
 
-        b08 = align_band_to_reference(
-            b08,
-            m08,
-            b04,
-            m04,
-        )
+            b03 = align_band_to_reference(
+                b03,
+                m03,
+                b04,
+                m04,
+            )
 
-        b11 = align_band_to_reference(
-            b11,
-            m11,
-            b04,
-            m04,
-        )
+            b08 = align_band_to_reference(
+                b08,
+                m08,
+                b04,
+                m04,
+            )
+
+            b11 = align_band_to_reference(
+                b11,
+                m11,
+                b04,
+                m04,
+            )
+
+        except Exception as error:
+
+            st.error(
+                "❌ Failed to align satellite bands."
+            )
+
+            st.exception(
+                error
+            )
+
+            st.stop()
 
 
     # ========================================================
@@ -503,6 +529,10 @@ if data:
     )
 
 
+    # ========================================================
+    # FALSE COLOR
+    # ========================================================
+
     false_color = create_false_color(
         green=b03,
         red=b04,
@@ -511,7 +541,7 @@ if data:
 
 
     # ========================================================
-    # VISUALIZATION
+    # SATELLITE VISUALIZATION
     # ========================================================
 
     st.divider()
@@ -563,22 +593,36 @@ if data:
     )
 
 
-    ndvi = calculate_ndvi(
-        red=b04,
-        nir=b08,
-    )
+    try:
+
+        ndvi = calculate_ndvi(
+            red=b04,
+            nir=b08,
+        )
 
 
-    ndwi = calculate_ndwi(
-        green=b03,
-        nir=b08,
-    )
+        ndwi = calculate_ndwi(
+            green=b03,
+            nir=b08,
+        )
 
 
-    ndbi = calculate_ndbi(
-        nir=b08,
-        swir=b11,
-    )
+        ndbi = calculate_ndbi(
+            nir=b08,
+            swir=b11,
+        )
+
+    except Exception as error:
+
+        st.error(
+            "❌ Failed to calculate spectral indices."
+        )
+
+        st.exception(
+            error
+        )
+
+        st.stop()
 
 
     # ========================================================
@@ -592,15 +636,15 @@ if data:
 
     with c1:
 
-        valid = ndvi[
+        valid_ndvi = ndvi[
             np.isfinite(ndvi)
         ]
 
         st.metric(
             "🌱 Mean NDVI",
             (
-                f"{np.mean(valid):.3f}"
-                if valid.size
+                f"{np.mean(valid_ndvi):.3f}"
+                if valid_ndvi.size
                 else "N/A"
             ),
         )
@@ -608,15 +652,15 @@ if data:
 
     with c2:
 
-        valid = ndwi[
+        valid_ndwi = ndwi[
             np.isfinite(ndwi)
         ]
 
         st.metric(
             "💧 Mean NDWI",
             (
-                f"{np.mean(valid):.3f}"
-                if valid.size
+                f"{np.mean(valid_ndwi):.3f}"
+                if valid_ndwi.size
                 else "N/A"
             ),
         )
@@ -624,22 +668,22 @@ if data:
 
     with c3:
 
-        valid = ndbi[
+        valid_ndbi = ndbi[
             np.isfinite(ndbi)
         ]
 
         st.metric(
             "🏙️ Mean NDBI",
             (
-                f"{np.mean(valid):.3f}"
-                if valid.size
+                f"{np.mean(valid_ndbi):.3f}"
+                if valid_ndbi.size
                 else "N/A"
             ),
         )
 
 
     # ========================================================
-    # LAND COVER CLASSIFICATION
+    # LAND COVER
     # ========================================================
 
     st.divider()
@@ -659,20 +703,34 @@ if data:
         "🧠 Classifying satellite pixels..."
     ):
 
-        classification = (
-            classify_land_cover(
-                ndvi=ndvi,
-                ndwi=ndwi,
-                ndbi=ndbi,
+        try:
+
+            classification = (
+                classify_land_cover(
+                    ndvi=ndvi,
+                    ndwi=ndwi,
+                    ndbi=ndbi,
+                )
             )
-        )
+
+        except Exception as error:
+
+            st.error(
+                "❌ Land-cover classification failed."
+            )
+
+            st.exception(
+                error
+            )
+
+            st.stop()
 
 
     # ========================================================
     # LAND COVER MAP
     # ========================================================
 
-    figure = (
+    land_cover_figure = (
         create_land_cover_figure(
             classification
         )
@@ -680,13 +738,13 @@ if data:
 
 
     st.pyplot(
-        figure,
+        land_cover_figure,
         use_container_width=True,
     )
 
 
     # ========================================================
-    # PERCENTAGES
+    # LAND COVER PERCENTAGES
     # ========================================================
 
     percentages = (
@@ -747,7 +805,7 @@ if data:
 
 
     # ========================================================
-    # AREA
+    # LAND COVER AREA
     # ========================================================
 
     st.subheader(
@@ -799,7 +857,7 @@ if data:
 
 
     # ========================================================
-    # INDEX MAP
+    # SPECTRAL INDEX MAP
     # ========================================================
 
     st.divider()
@@ -809,73 +867,800 @@ if data:
     )
 
 
-    selected = st.selectbox(
+    selected_index = st.selectbox(
         "Choose index",
         [
             "NDVI — Vegetation",
             "NDWI — Water",
             "NDBI — Built-up",
         ],
+        key="main_index",
     )
 
 
-    if selected.startswith(
+    if selected_index.startswith(
         "NDVI"
     ):
 
         index_data = ndvi
 
-        title = (
+        index_title = (
             "NDVI — Vegetation"
         )
 
-        cmap = "RdYlGn"
+        index_cmap = "RdYlGn"
 
 
-    elif selected.startswith(
+    elif selected_index.startswith(
         "NDWI"
     ):
 
         index_data = ndwi
 
-        title = (
+        index_title = (
             "NDWI — Water"
         )
 
-        cmap = "Blues"
+        index_cmap = "Blues"
 
 
     else:
 
         index_data = ndbi
 
-        title = (
+        index_title = (
             "NDBI — Built-up"
         )
 
-        cmap = "Oranges"
+        index_cmap = "Oranges"
 
 
-    figure = create_index_figure(
+    index_figure = create_index_figure(
         index_data,
-        title,
-        cmap=cmap,
+        index_title,
+        cmap=index_cmap,
     )
 
 
     st.pyplot(
-        figure,
+        index_figure,
         use_container_width=True,
     )
 
 
-    # ========================================================
-    # STATUS
-    # ========================================================
+# ============================================================
+# CHANGE DETECTION
+# ============================================================
 
-    st.divider()
+st.divider()
 
-    st.success(
-        "🚀 Stage 2 completed: "
-        "Land Cover Classification is active."
+st.header(
+    "🛰️ Change Detection"
+)
+
+st.caption(
+    "Compare two Sentinel-2 observations "
+    "of the same area to identify "
+    "spectral changes over time."
+)
+
+
+# ============================================================
+# REQUIRE TWO SCENES
+# ============================================================
+
+if len(items) < 2:
+
+    st.info(
+        "ℹ️ Search for at least two "
+        "satellite scenes to activate "
+        "Change Detection."
     )
+
+else:
+
+    scene_options = {}
+
+    for item in items:
+
+        if item.datetime:
+
+            scene_date = (
+                item.datetime.date()
+            )
+
+        else:
+
+            scene_date = "Unknown"
+
+
+        cloud = float(
+            item.properties.get(
+                "eo:cloud_cover",
+                0,
+            )
+        )
+
+
+        label = (
+            f"{scene_date} • "
+            f"{cloud:.2f}% clouds • "
+            f"{item.id}"
+        )
+
+
+        scene_options[label] = item
+
+
+    scene_names = list(
+        scene_options.keys()
+    )
+
+
+    # ========================================================
+    # SCENE SELECTION
+    # ========================================================
+
+    col_a, col_b = st.columns(
+        2
+    )
+
+
+    with col_a:
+
+        st.subheader(
+            "📅 Data A — Before"
+        )
+
+        before_name = st.selectbox(
+            "Satellite scene A",
+            scene_names,
+            key="change_before",
+        )
+
+
+    with col_b:
+
+        st.subheader(
+            "📅 Data B — After"
+        )
+
+        after_index = (
+            1
+            if len(scene_names) > 1
+            else 0
+        )
+
+
+        after_name = st.selectbox(
+            "Satellite scene B",
+            scene_names,
+            index=after_index,
+            key="change_after",
+        )
+
+
+    # ========================================================
+    # PARAMETERS
+    # ========================================================
+
+    threshold = st.slider(
+        "🎚️ Change sensitivity",
+        min_value=0.01,
+        max_value=0.50,
+        value=0.10,
+        step=0.01,
+        help=(
+            "Higher values detect only "
+            "larger spectral changes."
+        ),
+    )
+
+
+    index_choice = st.selectbox(
+        "🔬 Index to compare",
+        [
+            "NDVI — Vegetation",
+            "NDWI — Water",
+            "NDBI — Built-up",
+        ],
+        key="change_index",
+    )
+
+
+    # ========================================================
+    # ANALYZE BUTTON
+    # ========================================================
+
+    if st.button(
+        "🔍 Analyze Changes",
+        type="primary",
+        use_container_width=True,
+    ):
+
+        before_item = (
+            scene_options[
+                before_name
+            ]
+        )
+
+        after_item = (
+            scene_options[
+                after_name
+            ]
+        )
+
+
+        # ----------------------------------------------------
+        # SAME SCENE PROTECTION
+        # ----------------------------------------------------
+
+        if (
+            before_item.id
+            == after_item.id
+        ):
+
+            st.warning(
+                "⚠️ Escolha duas cenas "
+                "diferentes."
+            )
+
+            st.stop()
+
+
+        # ====================================================
+        # BBOX
+        # ====================================================
+
+        bbox = create_bbox(
+            latitude=latitude,
+            longitude=longitude,
+            area_size=area_size,
+        )
+
+
+        # ====================================================
+        # DOWNLOAD BEFORE
+        # ====================================================
+
+        with st.spinner(
+            "🛰️ Downloading Data A..."
+        ):
+
+            try:
+
+                before_directory = (
+                    RAW_DIR
+                    / before_item.id
+                )
+
+
+                before_bands = (
+                    download_required_bands(
+                        item=before_item,
+                        bbox=bbox,
+                        output_directory=(
+                            before_directory
+                        ),
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to download Data A."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # DOWNLOAD AFTER
+        # ====================================================
+
+        with st.spinner(
+            "🛰️ Downloading Data B..."
+        ):
+
+            try:
+
+                after_directory = (
+                    RAW_DIR
+                    / after_item.id
+                )
+
+
+                after_bands = (
+                    download_required_bands(
+                        item=after_item,
+                        bbox=bbox,
+                        output_directory=(
+                            after_directory
+                        ),
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to download Data B."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # LOAD DATA A
+        # ====================================================
+
+        with st.spinner(
+            "📡 Loading Data A..."
+        ):
+
+            try:
+
+                before_b03, before_m03 = (
+                    read_band(
+                        before_bands["B03"]
+                    )
+                )
+
+                before_b04, before_m04 = (
+                    read_band(
+                        before_bands["B04"]
+                    )
+                )
+
+                before_b08, before_m08 = (
+                    read_band(
+                        before_bands["B08"]
+                    )
+                )
+
+                before_b11, before_m11 = (
+                    read_band(
+                        before_bands["B11"]
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to read Data A."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # LOAD DATA B
+        # ====================================================
+
+        with st.spinner(
+            "📡 Loading Data B..."
+        ):
+
+            try:
+
+                after_b03, after_m03 = (
+                    read_band(
+                        after_bands["B03"]
+                    )
+                )
+
+                after_b04, after_m04 = (
+                    read_band(
+                        after_bands["B04"]
+                    )
+                )
+
+                after_b08, after_m08 = (
+                    read_band(
+                        after_bands["B08"]
+                    )
+                )
+
+                after_b11, after_m11 = (
+                    read_band(
+                        after_bands["B11"]
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to read Data B."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # ALIGN DATA A
+        # ====================================================
+
+        with st.spinner(
+            "🔄 Aligning Data A..."
+        ):
+
+            try:
+
+                before_b03 = (
+                    align_band_to_reference(
+                        before_b03,
+                        before_m03,
+                        before_b04,
+                        before_m04,
+                    )
+                )
+
+                before_b08 = (
+                    align_band_to_reference(
+                        before_b08,
+                        before_m08,
+                        before_b04,
+                        before_m04,
+                    )
+                )
+
+                before_b11 = (
+                    align_band_to_reference(
+                        before_b11,
+                        before_m11,
+                        before_b04,
+                        before_m04,
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to align Data A."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # ALIGN DATA B
+        # ====================================================
+
+        with st.spinner(
+            "🔄 Aligning Data B..."
+        ):
+
+            try:
+
+                after_b03 = (
+                    align_band_to_reference(
+                        after_b03,
+                        after_m03,
+                        after_b04,
+                        after_m04,
+                    )
+                )
+
+                after_b08 = (
+                    align_band_to_reference(
+                        after_b08,
+                        after_m08,
+                        after_b04,
+                        after_m04,
+                    )
+                )
+
+                after_b11 = (
+                    align_band_to_reference(
+                        after_b11,
+                        after_m11,
+                        after_b04,
+                        after_m04,
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to align Data B."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # CALCULATE INDICES
+        # ====================================================
+
+        with st.spinner(
+            "🧠 Calculating spectral changes..."
+        ):
+
+            try:
+
+                if index_choice.startswith(
+                    "NDVI"
+                ):
+
+                    before_index = (
+                        calculate_ndvi(
+                            red=before_b04,
+                            nir=before_b08,
+                        )
+                    )
+
+                    after_index = (
+                        calculate_ndvi(
+                            red=after_b04,
+                            nir=after_b08,
+                        )
+                    )
+
+                    index_name = (
+                        "NDVI — Vegetation"
+                    )
+
+
+                elif index_choice.startswith(
+                    "NDWI"
+                ):
+
+                    before_index = (
+                        calculate_ndwi(
+                            green=before_b03,
+                            nir=before_b08,
+                        )
+                    )
+
+                    after_index = (
+                        calculate_ndwi(
+                            green=after_b03,
+                            nir=after_b08,
+                        )
+                    )
+
+                    index_name = (
+                        "NDWI — Water"
+                    )
+
+
+                else:
+
+                    before_index = (
+                        calculate_ndbi(
+                            nir=before_b08,
+                            swir=before_b11,
+                        )
+                    )
+
+                    after_index = (
+                        calculate_ndbi(
+                            nir=after_b08,
+                            swir=after_b11,
+                        )
+                    )
+
+                    index_name = (
+                        "NDBI — Built-up"
+                    )
+
+
+                difference = (
+                    calculate_difference(
+                        before_index,
+                        after_index,
+                    )
+                )
+
+
+                change_map = (
+                    detect_change(
+                        difference,
+                        threshold=threshold,
+                    )
+                )
+
+
+                statistics = (
+                    calculate_change_statistics(
+                        change_map,
+                        pixel_size_meters=10.0,
+                    )
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Change detection failed."
+                )
+
+                st.exception(
+                    error
+                )
+
+                st.stop()
+
+
+        # ====================================================
+        # RESULTS
+        # ====================================================
+
+        st.success(
+            "✅ Change detection completed."
+        )
+
+
+        st.subheader(
+            f"📊 {index_name}"
+        )
+
+
+        result1, result2, result3 = (
+            st.columns(3)
+        )
+
+
+        with result1:
+
+            st.metric(
+                "🔴 Decrease",
+                (
+                    f"{statistics['decrease_km2']:.3f} "
+                    "km²"
+                ),
+            )
+
+
+        with result2:
+
+            st.metric(
+                "🟢 Increase",
+                (
+                    f"{statistics['increase_km2']:.3f} "
+                    "km²"
+                ),
+            )
+
+
+        with result3:
+
+            st.metric(
+                "🛰️ Total Changed",
+                (
+                    f"{statistics['total_changed_km2']:.3f} "
+                    "km²"
+                ),
+            )
+
+
+        # ====================================================
+        # CHANGE MAP
+        # ====================================================
+
+        st.subheader(
+            "🗺️ Change Map"
+        )
+
+
+        change_figure = (
+            create_change_figure(
+                change_map,
+                title=(
+                    f"{index_name} "
+                    "Change Detection"
+                ),
+            )
+        )
+
+
+        st.pyplot(
+            change_figure,
+            use_container_width=True,
+        )
+
+
+        # ====================================================
+        # CONTINUOUS DIFFERENCE
+        # ====================================================
+
+        with st.expander(
+            "🔬 View continuous spectral difference"
+        ):
+
+            difference_figure = (
+                create_difference_figure(
+                    difference,
+                    title=(
+                        f"{index_name} "
+                        "— Continuous Difference"
+                    ),
+                )
+            )
+
+
+            st.pyplot(
+                difference_figure,
+                use_container_width=True,
+            )
+
+
+        # ====================================================
+        # COMPARISON SUMMARY
+        # ====================================================
+
+        st.subheader(
+            "📋 Comparison Summary"
+        )
+
+
+        summary1, summary2 = (
+            st.columns(2)
+        )
+
+
+        with summary1:
+
+            st.write(
+                "### 📅 Data A"
+            )
+
+            st.write(
+                f"**Scene:** `{before_item.id}`"
+            )
+
+            st.write(
+                f"**Date:** "
+                f"`{before_item.datetime.date()}`"
+            )
+
+
+        with summary2:
+
+            st.write(
+                "### 📅 Data B"
+            )
+
+            st.write(
+                f"**Scene:** `{after_item.id}`"
+            )
+
+            st.write(
+                f"**Date:** "
+                f"`{after_item.datetime.date()}`"
+            )
+
+
+        # ====================================================
+        # TECHNICAL NOTE
+        # ====================================================
+
+        st.caption(
+            "⚠️ Change Detection nesta etapa é "
+            "uma comparação espectral baseada em "
+            "limiar. Ela ainda não representa uma "
+            "classificação supervisionada nem uma "
+            "detecção semântica de objetos."
+        )
