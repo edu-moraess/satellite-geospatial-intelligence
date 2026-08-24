@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import streamlit as st
@@ -9,30 +10,43 @@ from src.catalog import search_sentinel, create_bbox
 from src.config import RAW_DIR
 from src.downloader import download_required_bands
 from src.geospatial import read_band, align_band_to_reference
-from src.visualization import create_rgb, create_false_color
+
+from src.visualization import (
+    create_rgb,
+    create_false_color,
+)
+
 from src.spectral import (
     calculate_ndvi,
     calculate_ndwi,
     calculate_ndbi,
 )
-from src.index_visualization import create_index_figure
+
+from src.index_visualization import (
+    create_index_figure,
+)
+
 from src.classification import (
     classify_land_cover,
     calculate_class_percentages,
 )
+
 from src.land_cover import (
     create_land_cover_figure,
     calculate_area_km2,
 )
+
 from src.change_detection import (
     calculate_difference,
     detect_change,
     calculate_change_statistics,
 )
+
 from src.change_visualization import (
     create_change_figure,
     create_difference_figure,
 )
+
 from src.object_detection import (
     normalize_rgb,
     validate_detection_image,
@@ -41,12 +55,24 @@ from src.object_detection import (
     detection_summary,
     draw_detections,
 )
-from src.tiling import create_tiles, tile_count
-from src.detector_model import SatelliteDetector
+
+from src.tiling import (
+    create_tiles,
+    tile_count,
+)
+
+from src.detector_model import (
+    SatelliteDetector,
+)
+
+from src.model_registry import (
+    list_models,
+    get_model,
+)
 
 
 # ============================================================
-# PAGE
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -78,7 +104,9 @@ for key, value in DEFAULT_STATE.items():
 # HEADER
 # ============================================================
 
-st.title("🛰️ Satellite Geospatial Intelligence")
+st.title(
+    "🛰️ Satellite Geospatial Intelligence"
+)
 
 st.caption(
     "Earth Observation • Computer Vision • Geospatial AI"
@@ -89,7 +117,9 @@ st.caption(
 # SIDEBAR
 # ============================================================
 
-st.sidebar.header("📍 Area of Interest")
+st.sidebar.header(
+    "📍 Area of Interest"
+)
 
 latitude = st.sidebar.number_input(
     "Latitude",
@@ -117,10 +147,12 @@ area_size = st.sidebar.slider(
 
 
 # ============================================================
-# DATE
+# DATE RANGE
 # ============================================================
 
-st.sidebar.header("📅 Satellite Date Range")
+st.sidebar.header(
+    "📅 Satellite Date Range"
+)
 
 start_date = st.sidebar.date_input(
     "Start date",
@@ -134,10 +166,12 @@ end_date = st.sidebar.date_input(
 
 
 # ============================================================
-# CLOUD
+# CLOUD COVER
 # ============================================================
 
-st.sidebar.header("☁️ Image Quality")
+st.sidebar.header(
+    "☁️ Image Quality"
+)
 
 max_cloud_cover = st.sidebar.slider(
     "Maximum cloud coverage",
@@ -150,7 +184,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH
+# SEARCH SENTINEL-2
 # ============================================================
 
 if st.sidebar.button(
@@ -226,7 +260,8 @@ if items:
         )
 
         with st.expander(
-            f"{acquisition_date} • {cloud:.2f}% clouds"
+            f"{acquisition_date} • "
+            f"{cloud:.2f}% clouds"
         ):
 
             st.write(
@@ -306,9 +341,7 @@ if items:
 
 data = st.session_state.satellite_data
 
-# IMPORTANT:
-# Always initialize this before using it.
-
+# Always initialize.
 detection_rgb = None
 
 
@@ -385,7 +418,7 @@ if data:
 
 
     # ========================================================
-    # ALIGN
+    # ALIGN BANDS
     # ========================================================
 
     with st.spinner(
@@ -470,12 +503,7 @@ if data:
             detection_rgb
         )
 
-    except Exception as error:
-
-        st.warning(
-            "⚠️ Could not prepare RGB "
-            "for Geospatial AI."
-        )
+    except Exception:
 
         detection_rgb = None
 
@@ -503,7 +531,7 @@ if data:
 
 
     # ========================================================
-    # VISUALIZATION
+    # SATELLITE VISUALIZATION
     # ========================================================
 
     st.divider()
@@ -540,7 +568,7 @@ if data:
 
 
     # ========================================================
-    # SPECTRAL INDICES
+    # MULTISPECTRAL ANALYSIS
     # ========================================================
 
     st.divider()
@@ -667,112 +695,121 @@ if data:
 
         st.exception(error)
 
-
-    # ========================================================
-    # DISTRIBUTION
-    # ========================================================
-
-    try:
-
-        percentages = (
-            calculate_class_percentages(
-                classification
-            )
-        )
-
-        st.subheader(
-            "📊 Land Cover Distribution"
-        )
-
-        pc1, pc2, pc3, pc4, pc5 = st.columns(5)
-
-        with pc1:
-            st.metric(
-                "🌳 Vegetation",
-                f"{percentages['Vegetation']:.1f}%",
-            )
-
-        with pc2:
-            st.metric(
-                "💧 Water",
-                f"{percentages['Water']:.1f}%",
-            )
-
-        with pc3:
-            st.metric(
-                "🏙️ Built-up",
-                f"{percentages['Built-up']:.1f}%",
-            )
-
-        with pc4:
-            st.metric(
-                "🟫 Bare Soil",
-                f"{percentages['Bare Soil']:.1f}%",
-            )
-
-        with pc5:
-            st.metric(
-                "⬜ Other",
-                f"{percentages['Other']:.1f}%",
-            )
-
-    except Exception as error:
-
-        st.warning(
-            "⚠️ Could not calculate class distribution."
-        )
+        classification = None
 
 
     # ========================================================
-    # AREA
+    # LAND COVER DISTRIBUTION
     # ========================================================
 
-    try:
+    if classification is not None:
 
-        area = calculate_area_km2(
-            classification,
-            pixel_size_meters=10.0,
-        )
+        try:
 
-        st.subheader(
-            "📐 Estimated Area"
-        )
-
-        ac1, ac2, ac3, ac4 = st.columns(4)
-
-        with ac1:
-
-            st.metric(
-                "🌳 Vegetation",
-                f"{area['Vegetation']:.3f} km²",
+            percentages = (
+                calculate_class_percentages(
+                    classification
+                )
             )
 
-        with ac2:
-
-            st.metric(
-                "💧 Water",
-                f"{area['Water']:.3f} km²",
+            st.subheader(
+                "📊 Land Cover Distribution"
             )
 
-        with ac3:
-
-            st.metric(
-                "🏙️ Built-up",
-                f"{area['Built-up']:.3f} km²",
+            pc1, pc2, pc3, pc4, pc5 = (
+                st.columns(5)
             )
 
-        with ac4:
+            with pc1:
 
-            st.metric(
-                "🟫 Bare Soil",
-                f"{area['Bare Soil']:.3f} km²",
+                st.metric(
+                    "🌳 Vegetation",
+                    f"{percentages['Vegetation']:.1f}%",
+                )
+
+            with pc2:
+
+                st.metric(
+                    "💧 Water",
+                    f"{percentages['Water']:.1f}%",
+                )
+
+            with pc3:
+
+                st.metric(
+                    "🏙️ Built-up",
+                    f"{percentages['Built-up']:.1f}%",
+                )
+
+            with pc4:
+
+                st.metric(
+                    "🟫 Bare Soil",
+                    f"{percentages['Bare Soil']:.1f}%",
+                )
+
+            with pc5:
+
+                st.metric(
+                    "⬜ Other",
+                    f"{percentages['Other']:.1f}%",
+                )
+
+        except Exception:
+
+            pass
+
+
+        # ====================================================
+        # AREA
+        # ====================================================
+
+        try:
+
+            area = calculate_area_km2(
+                classification,
+                pixel_size_meters=10.0,
             )
 
-    except Exception as error:
+            st.subheader(
+                "📐 Estimated Area"
+            )
 
-        st.warning(
-            "⚠️ Could not calculate area."
-        )
+            ac1, ac2, ac3, ac4 = (
+                st.columns(4)
+            )
+
+            with ac1:
+
+                st.metric(
+                    "🌳 Vegetation",
+                    f"{area['Vegetation']:.3f} km²",
+                )
+
+            with ac2:
+
+                st.metric(
+                    "💧 Water",
+                    f"{area['Water']:.3f} km²",
+                )
+
+            with ac3:
+
+                st.metric(
+                    "🏙️ Built-up",
+                    f"{area['Built-up']:.3f} km²",
+                )
+
+            with ac4:
+
+                st.metric(
+                    "🟫 Bare Soil",
+                    f"{area['Bare Soil']:.3f} km²",
+                )
+
+        except Exception:
+
+            pass
 
 
     # ========================================================
@@ -795,13 +832,17 @@ if data:
         key="main_index",
     )
 
-    if selected_index.startswith("NDVI"):
+    if selected_index.startswith(
+        "NDVI"
+    ):
 
         index_data = ndvi
         index_title = "NDVI — Vegetation"
         index_cmap = "RdYlGn"
 
-    elif selected_index.startswith("NDWI"):
+    elif selected_index.startswith(
+        "NDWI"
+    ):
 
         index_data = ndwi
         index_title = "NDWI — Water"
@@ -812,6 +853,7 @@ if data:
         index_data = ndbi
         index_title = "NDBI — Built-up"
         index_cmap = "Oranges"
+
 
     try:
 
@@ -826,7 +868,7 @@ if data:
             use_container_width=True,
         )
 
-    except Exception as error:
+    except Exception:
 
         st.warning(
             "⚠️ Could not render spectral map."
@@ -883,7 +925,9 @@ if len(items) >= 2:
     )
 
 
-    change_col1, change_col2 = st.columns(2)
+    change_col1, change_col2 = (
+        st.columns(2)
+    )
 
     with change_col1:
 
@@ -947,215 +991,247 @@ if len(items) >= 2:
                 "⚠️ Choose two different scenes."
             )
 
-            st.stop()
+        else:
+
+            bbox = create_bbox(
+                latitude=latitude,
+                longitude=longitude,
+                area_size=area_size,
+            )
+
+            try:
+
+                with st.spinner(
+                    "🛰️ Downloading Data A..."
+                ):
+
+                    before_bands = (
+                        download_required_bands(
+                            item=before_item,
+                            bbox=bbox,
+                            output_directory=(
+                                RAW_DIR / before_item.id
+                            ),
+                        )
+                    )
 
 
-        bbox = create_bbox(
-            latitude=latitude,
-            longitude=longitude,
-            area_size=area_size,
-        )
+                with st.spinner(
+                    "🛰️ Downloading Data B..."
+                ):
+
+                    after_bands = (
+                        download_required_bands(
+                            item=after_item,
+                            bbox=bbox,
+                            output_directory=(
+                                RAW_DIR / after_item.id
+                            ),
+                        )
+                    )
 
 
-        try:
+                before_b04, before_m04 = (
+                    read_band(
+                        before_bands["B04"]
+                    )
+                )
 
-            with st.spinner(
-                "🛰️ Downloading Data A..."
-            ):
+                before_b03, before_m03 = (
+                    read_band(
+                        before_bands["B03"]
+                    )
+                )
 
-                before_bands = (
-                    download_required_bands(
-                        item=before_item,
-                        bbox=bbox,
-                        output_directory=(
-                            RAW_DIR / before_item.id
-                        ),
+                before_b08, before_m08 = (
+                    read_band(
+                        before_bands["B08"]
+                    )
+                )
+
+                before_b11, before_m11 = (
+                    read_band(
+                        before_bands["B11"]
                     )
                 )
 
 
-            with st.spinner(
-                "🛰️ Downloading Data B..."
-            ):
+                after_b04, after_m04 = (
+                    read_band(
+                        after_bands["B04"]
+                    )
+                )
 
-                after_bands = (
-                    download_required_bands(
-                        item=after_item,
-                        bbox=bbox,
-                        output_directory=(
-                            RAW_DIR / after_item.id
-                        ),
+                after_b03, after_m03 = (
+                    read_band(
+                        after_bands["B03"]
+                    )
+                )
+
+                after_b08, after_m08 = (
+                    read_band(
+                        after_bands["B08"]
+                    )
+                )
+
+                after_b11, after_m11 = (
+                    read_band(
+                        after_bands["B11"]
                     )
                 )
 
 
-            before_b04, before_m04 = read_band(
-                before_bands["B04"]
-            )
-
-            before_b03, before_m03 = read_band(
-                before_bands["B03"]
-            )
-
-            before_b08, before_m08 = read_band(
-                before_bands["B08"]
-            )
-
-            before_b11, before_m11 = read_band(
-                before_bands["B11"]
-            )
-
-
-            after_b04, after_m04 = read_band(
-                after_bands["B04"]
-            )
-
-            after_b03, after_m03 = read_band(
-                after_bands["B03"]
-            )
-
-            after_b08, after_m08 = read_band(
-                after_bands["B08"]
-            )
-
-            after_b11, after_m11 = read_band(
-                after_bands["B11"]
-            )
-
-
-            before_b03 = align_band_to_reference(
-                before_b03,
-                before_m03,
-                before_b04,
-                before_m04,
-            )
-
-            before_b08 = align_band_to_reference(
-                before_b08,
-                before_m08,
-                before_b04,
-                before_m04,
-            )
-
-            before_b11 = align_band_to_reference(
-                before_b11,
-                before_m11,
-                before_b04,
-                before_m04,
-            )
-
-
-            after_b03 = align_band_to_reference(
-                after_b03,
-                after_m03,
-                after_b04,
-                after_m04,
-            )
-
-            after_b08 = align_band_to_reference(
-                after_b08,
-                after_m08,
-                after_b04,
-                after_m04,
-            )
-
-            after_b11 = align_band_to_reference(
-                after_b11,
-                after_m11,
-                after_b04,
-                after_m04,
-            )
-
-
-            if change_index_choice.startswith(
-                "NDVI"
-            ):
-
-                before_index = calculate_ndvi(
-                    before_b04,
-                    before_b08,
+                before_b03 = (
+                    align_band_to_reference(
+                        before_b03,
+                        before_m03,
+                        before_b04,
+                        before_m04,
+                    )
                 )
 
-                after_index = calculate_ndvi(
-                    after_b04,
-                    after_b08,
+                before_b08 = (
+                    align_band_to_reference(
+                        before_b08,
+                        before_m08,
+                        before_b04,
+                        before_m04,
+                    )
                 )
 
-                index_name = "NDVI — Vegetation"
-
-
-            elif change_index_choice.startswith(
-                "NDWI"
-            ):
-
-                before_index = calculate_ndwi(
-                    before_b03,
-                    before_b08,
+                before_b11 = (
+                    align_band_to_reference(
+                        before_b11,
+                        before_m11,
+                        before_b04,
+                        before_m04,
+                    )
                 )
 
-                after_index = calculate_ndwi(
-                    after_b03,
-                    after_b08,
+
+                after_b03 = (
+                    align_band_to_reference(
+                        after_b03,
+                        after_m03,
+                        after_b04,
+                        after_m04,
+                    )
                 )
 
-                index_name = "NDWI — Water"
-
-
-            else:
-
-                before_index = calculate_ndbi(
-                    before_b08,
-                    before_b11,
+                after_b08 = (
+                    align_band_to_reference(
+                        after_b08,
+                        after_m08,
+                        after_b04,
+                        after_m04,
+                    )
                 )
 
-                after_index = calculate_ndbi(
-                    after_b08,
-                    after_b11,
+                after_b11 = (
+                    align_band_to_reference(
+                        after_b11,
+                        after_m11,
+                        after_b04,
+                        after_m04,
+                    )
                 )
 
-                index_name = "NDBI — Built-up"
+
+                if change_index_choice.startswith(
+                    "NDVI"
+                ):
+
+                    before_index = calculate_ndvi(
+                        before_b04,
+                        before_b08,
+                    )
+
+                    after_index = calculate_ndvi(
+                        after_b04,
+                        after_b08,
+                    )
+
+                    index_name = (
+                        "NDVI — Vegetation"
+                    )
 
 
-            difference = calculate_difference(
-                before_index,
-                after_index,
-            )
+                elif change_index_choice.startswith(
+                    "NDWI"
+                ):
 
-            change_map = detect_change(
-                difference,
-                threshold=threshold,
-            )
+                    before_index = calculate_ndwi(
+                        before_b03,
+                        before_b08,
+                    )
 
-            statistics = (
-                calculate_change_statistics(
-                    change_map,
-                    pixel_size_meters=10.0,
+                    after_index = calculate_ndwi(
+                        after_b03,
+                        after_b08,
+                    )
+
+                    index_name = (
+                        "NDWI — Water"
+                    )
+
+
+                else:
+
+                    before_index = calculate_ndbi(
+                        before_b08,
+                        before_b11,
+                    )
+
+                    after_index = calculate_ndbi(
+                        after_b08,
+                        after_b11,
+                    )
+
+                    index_name = (
+                        "NDBI — Built-up"
+                    )
+
+
+                difference = (
+                    calculate_difference(
+                        before_index,
+                        after_index,
+                    )
                 )
-            )
+
+                change_map = detect_change(
+                    difference,
+                    threshold=threshold,
+                )
+
+                statistics = (
+                    calculate_change_statistics(
+                        change_map,
+                        pixel_size_meters=10.0,
+                    )
+                )
 
 
-            st.session_state.change_result = {
-                "difference": difference,
-                "change_map": change_map,
-                "statistics": statistics,
-                "index_name": index_name,
-                "before_id": before_item.id,
-                "after_id": after_item.id,
-            }
+                st.session_state.change_result = {
+                    "difference": difference,
+                    "change_map": change_map,
+                    "statistics": statistics,
+                    "index_name": index_name,
+                    "before_id": before_item.id,
+                    "after_id": after_item.id,
+                }
 
+                st.success(
+                    "✅ Change detection completed."
+                )
 
-            st.success(
-                "✅ Change detection completed."
-            )
+            except Exception as error:
 
-        except Exception as error:
+                st.error(
+                    "❌ Change detection failed."
+                )
 
-            st.error(
-                "❌ Change detection failed."
-            )
-
-            st.exception(error)
-
+                st.exception(error)
 
 else:
 
@@ -1180,9 +1256,9 @@ if change_result:
         f"📊 {change_result['index_name']}"
     )
 
-    statistics = change_result[
-        "statistics"
-    ]
+    statistics = (
+        change_result["statistics"]
+    )
 
     rc1, rc2, rc3 = st.columns(3)
 
@@ -1225,37 +1301,7 @@ if change_result:
 
     except Exception:
 
-        st.warning(
-            "⚠️ Could not render change map."
-        )
-
-
-    with st.expander(
-        "🔬 View continuous spectral difference"
-    ):
-
-        try:
-
-            difference_figure = (
-                create_difference_figure(
-                    change_result["difference"],
-                    title=(
-                        f"{change_result['index_name']} "
-                        "— Continuous Difference"
-                    ),
-                )
-            )
-
-            st.pyplot(
-                difference_figure,
-                use_container_width=True,
-            )
-
-        except Exception:
-
-            st.warning(
-                "⚠️ Could not render difference map."
-            )
+        pass
 
 
 # ============================================================
@@ -1274,10 +1320,6 @@ st.caption(
 )
 
 
-# ============================================================
-# NO DATA
-# ============================================================
-
 if data is None:
 
     st.info(
@@ -1285,192 +1327,209 @@ if data is None:
         "activate Geospatial AI."
     )
 
+elif detection_rgb is None:
+
+    st.warning(
+        "⚠️ RGB image is unavailable for AI."
+    )
+
 else:
 
-    if detection_rgb is None:
+    # ========================================================
+    # INPUT
+    # ========================================================
 
-        st.warning(
-            "⚠️ RGB image is unavailable for AI."
+    st.subheader(
+        "🛰️ Detection Input"
+    )
+
+    st.image(
+        detection_rgb,
+        caption=(
+            "Sentinel-2 RGB prepared "
+            "for Geospatial AI"
+        ),
+        width="stretch",
+    )
+
+
+    # ========================================================
+    # TILING
+    # ========================================================
+
+    st.subheader(
+        "🧩 AI Image Tiling"
+    )
+
+    tc1, tc2 = st.columns(2)
+
+    with tc1:
+
+        tile_size = st.selectbox(
+            "Tile size",
+            [256, 512, 768, 1024],
+            index=1,
+            key="tile_size",
+        )
+
+    with tc2:
+
+        tile_overlap = st.slider(
+            "Tile overlap",
+            min_value=0,
+            max_value=256,
+            value=64,
+            step=16,
+            key="tile_overlap",
+        )
+
+
+    if tile_overlap >= tile_size:
+
+        st.error(
+            "❌ Overlap must be smaller than tile size."
         )
 
     else:
 
-        # ====================================================
-        # INPUT
-        # ====================================================
-
-        st.subheader(
-            "🛰️ Detection Input"
-        )
-
-        st.image(
-            detection_rgb,
-            caption=(
-                "Sentinel-2 RGB prepared "
-                "for Geospatial AI"
-            ),
-            width="stretch",
-        )
-
-
-        # ====================================================
-        # TILING
-        # ====================================================
-
-        st.subheader(
-            "🧩 AI Image Tiling"
-        )
-
-        tc1, tc2 = st.columns(2)
-
-        with tc1:
-
-            tile_size = st.selectbox(
-                "Tile size",
-                [256, 512, 768, 1024],
-                index=1,
-                key="tile_size",
-            )
-
-        with tc2:
-
-            tile_overlap = st.slider(
-                "Tile overlap",
-                min_value=0,
-                max_value=256,
-                value=64,
-                step=16,
-                key="tile_overlap",
-            )
-
-
-        if tile_overlap >= tile_size:
-
-            st.error(
-                "❌ Overlap must be smaller "
-                "than tile size."
-            )
-
-        else:
-
-            try:
-
-                number_of_tiles = tile_count(
-                    detection_rgb,
-                    tile_size=tile_size,
-                    overlap=tile_overlap,
-                )
-
-                st.metric(
-                    "🧩 Image tiles",
-                    number_of_tiles,
-                )
-
-            except Exception as error:
-
-                st.error(
-                    "❌ Failed to calculate tiles."
-                )
-
-                st.exception(error)
-
-
-        # ====================================================
-        # DETECTION CONFIG
-        # ====================================================
-
-        st.subheader(
-            "⚙️ Detection Configuration"
-        )
-
-        dc1, dc2 = st.columns(2)
-
-        with dc1:
-
-            detection_threshold = st.slider(
-                "Confidence threshold",
-                min_value=0.10,
-                max_value=0.95,
-                value=0.50,
-                step=0.05,
-                key="object_confidence",
-            )
-
-        with dc2:
-
-            detection_classes = st.multiselect(
-                "Classes of interest",
-                [
-                    "Buildings",
-                    "Roads",
-                    "Vehicles",
-                    "Aircraft",
-                    "Ships",
-                    "Storage Tanks",
-                ],
-                default=[
-                    "Buildings",
-                    "Roads",
-                ],
-                key="object_classes",
-            )
-
-
-        # ====================================================
-        # MODEL
-        # ====================================================
-
-        st.subheader(
-            "🧠 Geospatial AI Model"
-        )
-
         try:
 
-            detector = SatelliteDetector(
-                model_name=(
-                    "Remote Sensing Detector"
-                ),
-                device="cpu",
+            number_of_tiles = tile_count(
+                detection_rgb,
+                tile_size=tile_size,
+                overlap=tile_overlap,
             )
 
-            model_info = detector.info()
-
-            mc1, mc2, mc3 = st.columns(3)
-
-            with mc1:
-
-                st.metric(
-                    "Model",
-                    model_info["model"],
-                )
-
-            with mc2:
-
-                st.metric(
-                    "Backend",
-                    model_info["backend"],
-                )
-
-            with mc3:
-
-                st.metric(
-                    "Status",
-                    (
-                        "READY"
-                        if detector.ready
-                        else "WAITING"
-                    ),
-                )
+            st.metric(
+                "🧩 Image tiles",
+                number_of_tiles,
+            )
 
         except Exception as error:
 
-            detector = None
-
             st.error(
-                "❌ AI backend could not be initialized."
+                "❌ Failed to calculate tiles."
             )
 
             st.exception(error)
+
+
+    # ========================================================
+    # DETECTION CONFIG
+    # ========================================================
+
+    st.subheader(
+        "⚙️ Detection Configuration"
+    )
+
+    detection_threshold = st.slider(
+        "Confidence threshold",
+        min_value=0.10,
+        max_value=0.95,
+        value=0.50,
+        step=0.05,
+        key="object_confidence",
+    )
+
+
+    # ========================================================
+    # MODEL REGISTRY
+    # ========================================================
+
+    st.subheader(
+        "🧠 Geospatial AI Model"
+    )
+
+    try:
+
+        model_ids = list_models()
+
+        selected_model_id = st.selectbox(
+            "Model",
+            model_ids,
+            key="selected_model",
+        )
+
+        selected_model = get_model(
+            selected_model_id
+        )
+
+        detector = SatelliteDetector(
+            model_id=selected_model_id,
+            device="cpu",
+        )
+
+        model_info = detector.info()
+
+
+        mc1, mc2, mc3 = st.columns(3)
+
+        with mc1:
+
+            st.metric(
+                "Model",
+                model_info["model"],
+            )
+
+        with mc2:
+
+            st.metric(
+                "Input",
+                (
+                    f"{model_info['input_size']}×"
+                    f"{model_info['input_size']}"
+                ),
+            )
+
+        with mc3:
+
+            if model_info[
+                "checkpoint_available"
+            ]:
+
+                st.success(
+                    "CHECKPOINT FOUND"
+                )
+
+            else:
+
+                st.warning(
+                    "CHECKPOINT MISSING"
+                )
+
+
+        st.caption(
+            model_info["description"]
+        )
+
+
+    except Exception as error:
+
+        detector = None
+
+        st.error(
+            "❌ Model registry failed."
+        )
+
+        st.exception(error)
+
+
+    # ========================================================
+    # CLASSES
+    # ========================================================
+
+    if detector is not None:
+
+        detection_classes = st.multiselect(
+            "Classes of interest",
+            list(
+                model_info["classes"]
+            ),
+            default=list(
+                model_info["classes"][:2]
+            ),
+            key="object_classes",
+        )
 
 
         # ====================================================
@@ -1489,7 +1548,9 @@ B02 + B03 + B04
     ↓
 RGB normalization
     ↓
-512 × 512 tiles
+Image tiling
+    ↓
+Model Registry
     ↓
 Remote Sensing Model
     ↓
@@ -1506,7 +1567,7 @@ Geospatial coordinates
 
 
         # ====================================================
-        # RUN
+        # RUN AI
         # ====================================================
 
         if st.button(
@@ -1527,32 +1588,28 @@ Geospatial coordinates
                     "⚠️ Invalid tile configuration."
                 )
 
-            elif detector is None:
-
-                st.error(
-                    "❌ AI backend unavailable."
-                )
-
-            elif not detector.ready:
+            elif not model_info[
+                "checkpoint_available"
+            ]:
 
                 st.info(
-                    "🧠 Pipeline ready, but no trained "
-                    "remote-sensing checkpoint is "
-                    "connected yet."
+                    "🧠 Model pipeline is ready, "
+                    "but the selected checkpoint "
+                    "is not installed yet."
                 )
 
                 st.caption(
-                    "No artificial detections are "
-                    "generated."
+                    "No artificial detections "
+                    "are generated."
                 )
 
             else:
 
-                with st.spinner(
-                    "🧠 Running Geospatial AI..."
-                ):
+                try:
 
-                    try:
+                    with st.spinner(
+                        "🧠 Running Geospatial AI..."
+                    ):
 
                         tiles = create_tiles(
                             detection_rgb,
@@ -1587,17 +1644,17 @@ Geospatial coordinates
                             detections
                         )
 
-                        st.success(
-                            f"✅ {len(tiles)} tiles processed."
-                        )
+                    st.success(
+                        f"✅ {len(tiles)} tiles processed."
+                    )
 
-                    except Exception as error:
+                except Exception as error:
 
-                        st.error(
-                            "❌ AI inference failed."
-                        )
+                    st.error(
+                        "❌ AI inference failed."
+                    )
 
-                        st.exception(error)
+                    st.exception(error)
 
 
         # ====================================================
@@ -1607,7 +1664,6 @@ Geospatial coordinates
         detections = (
             st.session_state.object_detections
         )
-
 
         if detections:
 
@@ -1638,9 +1694,11 @@ Geospatial coordinates
                     )
 
 
-                detection_figure = draw_detections(
-                    detection_rgb,
-                    detections,
+                detection_figure = (
+                    draw_detections(
+                        detection_rgb,
+                        detections,
+                    )
                 )
 
                 st.pyplot(
@@ -1672,9 +1730,9 @@ Geospatial coordinates
         else:
 
             st.info(
-                "🔜 No detections yet. "
-                "Connect a trained remote-sensing "
-                "checkpoint to activate inference."
+                "🔜 No detections available. "
+                "Connect a trained checkpoint "
+                "to activate inference."
             )
 
 
