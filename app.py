@@ -188,20 +188,12 @@ st.sidebar.header(
 
 start_date = st.sidebar.date_input(
     "Start date",
-    value=date(
-        2026,
-        1,
-        1,
-    ),
+    value=date(2026, 1, 1),
 )
 
 end_date = st.sidebar.date_input(
     "End date",
-    value=date(
-        2026,
-        8,
-        23,
-    ),
+    value=date(2026, 8, 23),
 )
 
 
@@ -236,8 +228,7 @@ if st.sidebar.button(
     if start_date > end_date:
 
         st.error(
-            "❌ Start date must be before "
-            "the end date."
+            "❌ Start date must be before the end date."
         )
 
         st.stop()
@@ -257,9 +248,7 @@ if st.sidebar.button(
                 max_cloud_cover=max_cloud_cover,
             )
 
-            st.session_state.search_results = (
-                results
-            )
+            st.session_state.search_results = results
 
         except Exception as error:
 
@@ -289,9 +278,7 @@ if items:
         "Available Sentinel-2 Scenes"
     )
 
-    for index, item in enumerate(
-        items[:10]
-    ):
+    for index, item in enumerate(items[:10]):
 
         cloud = float(
             item.properties.get(
@@ -307,8 +294,7 @@ if items:
         )
 
         with st.expander(
-            f"{acquisition_date} • "
-            f"{cloud:.2f}% clouds"
+            f"{acquisition_date} • {cloud:.2f}% clouds"
         ):
 
             st.write(
@@ -316,13 +302,11 @@ if items:
             )
 
             st.write(
-                f"**Acquisition:** "
-                f"`{acquisition_date}`"
+                f"**Acquisition:** `{acquisition_date}`"
             )
 
             st.write(
-                f"**Cloud coverage:** "
-                f"`{cloud:.2f}%`"
+                f"**Cloud coverage:** `{cloud:.2f}%`"
             )
 
             if st.button(
@@ -337,9 +321,7 @@ if items:
                     area_size=area_size,
                 )
 
-                output_directory = (
-                    RAW_DIR / item.id
-                )
+                output_directory = RAW_DIR / item.id
 
                 with st.spinner(
                     "⬇️ Downloading satellite data..."
@@ -347,14 +329,10 @@ if items:
 
                     try:
 
-                        downloaded = (
-                            download_required_bands(
-                                item=item,
-                                bbox=bbox,
-                                output_directory=(
-                                    output_directory
-                                ),
-                            )
+                        downloaded = download_required_bands(
+                            item=item,
+                            bbox=bbox,
+                            output_directory=output_directory,
                         )
 
                     except Exception as error:
@@ -369,9 +347,7 @@ if items:
 
                 st.session_state.satellite_data = {
                     "scene_id": item.id,
-                    "date": str(
-                        acquisition_date
-                    ),
+                    "date": str(acquisition_date),
                     "cloud": cloud,
                     "bands": downloaded,
                 }
@@ -392,6 +368,14 @@ if items:
 # ============================================================
 
 data = st.session_state.satellite_data
+
+
+# ============================================================
+# IMPORTANT:
+# ALWAYS INITIALIZE detection_rgb
+# ============================================================
+
+detection_rgb = None
 
 
 if data:
@@ -520,22 +504,74 @@ if data:
     # RGB
     # ========================================================
 
-    rgb = create_rgb(
-        blue=b02,
-        green=b03,
-        red=b04,
-    )
+    try:
+
+        rgb = create_rgb(
+            blue=b02,
+            green=b03,
+            red=b04,
+        )
+
+    except Exception as error:
+
+        st.error(
+            "❌ Failed to create RGB image."
+        )
+
+        st.exception(error)
+
+        st.stop()
+
+
+    # ========================================================
+    # GEOSPATIAL AI RGB
+    # ========================================================
+
+    try:
+
+        detection_rgb = normalize_rgb(
+            red=b04,
+            green=b03,
+            blue=b02,
+        )
+
+        validate_detection_image(
+            detection_rgb
+        )
+
+    except Exception as error:
+
+        st.warning(
+            "⚠️ Could not prepare RGB image "
+            "for Geospatial AI."
+        )
+
+        st.exception(error)
+
+        detection_rgb = None
 
 
     # ========================================================
     # FALSE COLOR
     # ========================================================
 
-    false_color = create_false_color(
-        green=b03,
-        red=b04,
-        nir=b08,
-    )
+    try:
+
+        false_color = create_false_color(
+            green=b03,
+            red=b04,
+            nir=b08,
+        )
+
+    except Exception as error:
+
+        st.error(
+            "❌ Failed to create False Color image."
+        )
+
+        st.exception(error)
+
+        st.stop()
 
 
     # ========================================================
@@ -680,35 +716,27 @@ if data:
         "using NDVI, NDWI and NDBI."
     )
 
-    with st.spinner(
-        "🧠 Classifying satellite pixels..."
-    ):
+    try:
 
-        try:
-
-            classification = (
-                classify_land_cover(
-                    ndvi=ndvi,
-                    ndwi=ndwi,
-                    ndbi=ndbi,
-                )
-            )
-
-        except Exception as error:
-
-            st.error(
-                "❌ Land-cover classification failed."
-            )
-
-            st.exception(error)
-
-            st.stop()
-
-
-    land_cover_figure = (
-        create_land_cover_figure(
-            classification
+        classification = classify_land_cover(
+            ndvi=ndvi,
+            ndwi=ndwi,
+            ndbi=ndbi,
         )
+
+    except Exception as error:
+
+        st.error(
+            "❌ Land-cover classification failed."
+        )
+
+        st.exception(error)
+
+        st.stop()
+
+
+    land_cover_figure = create_land_cover_figure(
+        classification
     )
 
     st.pyplot(
@@ -721,10 +749,8 @@ if data:
     # LAND COVER DISTRIBUTION
     # ========================================================
 
-    percentages = (
-        calculate_class_percentages(
-            classification
-        )
+    percentages = calculate_class_percentages(
+        classification
     )
 
     st.subheader(
@@ -833,17 +859,13 @@ if data:
         key="main_index",
     )
 
-    if selected_index.startswith(
-        "NDVI"
-    ):
+    if selected_index.startswith("NDVI"):
 
         index_data = ndvi
         index_title = "NDVI — Vegetation"
         index_cmap = "RdYlGn"
 
-    elif selected_index.startswith(
-        "NDWI"
-    ):
+    elif selected_index.startswith("NDWI"):
 
         index_data = ndwi
         index_title = "NDWI — Water"
@@ -1027,9 +1049,7 @@ else:
                     download_required_bands(
                         item=before_item,
                         bbox=bbox,
-                        output_directory=(
-                            before_directory
-                        ),
+                        output_directory=before_directory,
                     )
                 )
 
@@ -1062,9 +1082,7 @@ else:
                     download_required_bands(
                         item=after_item,
                         bbox=bbox,
-                        output_directory=(
-                            after_directory
-                        ),
+                        output_directory=after_directory,
                     )
                 )
 
@@ -1083,90 +1101,66 @@ else:
         # LOAD DATA A
         # ----------------------------------------------------
 
-        with st.spinner(
-            "📡 Loading Data A..."
-        ):
+        try:
 
-            try:
+            before_b03, before_m03 = read_band(
+                before_bands["B03"]
+            )
 
-                before_b03, before_m03 = (
-                    read_band(
-                        before_bands["B03"]
-                    )
-                )
+            before_b04, before_m04 = read_band(
+                before_bands["B04"]
+            )
 
-                before_b04, before_m04 = (
-                    read_band(
-                        before_bands["B04"]
-                    )
-                )
+            before_b08, before_m08 = read_band(
+                before_bands["B08"]
+            )
 
-                before_b08, before_m08 = (
-                    read_band(
-                        before_bands["B08"]
-                    )
-                )
+            before_b11, before_m11 = read_band(
+                before_bands["B11"]
+            )
 
-                before_b11, before_m11 = (
-                    read_band(
-                        before_bands["B11"]
-                    )
-                )
+        except Exception as error:
 
-            except Exception as error:
+            st.error(
+                "❌ Failed to read Data A."
+            )
 
-                st.error(
-                    "❌ Failed to read Data A."
-                )
+            st.exception(error)
 
-                st.exception(error)
-
-                st.stop()
+            st.stop()
 
 
         # ----------------------------------------------------
         # LOAD DATA B
         # ----------------------------------------------------
 
-        with st.spinner(
-            "📡 Loading Data B..."
-        ):
+        try:
 
-            try:
+            after_b03, after_m03 = read_band(
+                after_bands["B03"]
+            )
 
-                after_b03, after_m03 = (
-                    read_band(
-                        after_bands["B03"]
-                    )
-                )
+            after_b04, after_m04 = read_band(
+                after_bands["B04"]
+            )
 
-                after_b04, after_m04 = (
-                    read_band(
-                        after_bands["B04"]
-                    )
-                )
+            after_b08, after_m08 = read_band(
+                after_bands["B08"]
+            )
 
-                after_b08, after_m08 = (
-                    read_band(
-                        after_bands["B08"]
-                    )
-                )
+            after_b11, after_m11 = read_band(
+                after_bands["B11"]
+            )
 
-                after_b11, after_m11 = (
-                    read_band(
-                        after_bands["B11"]
-                    )
-                )
+        except Exception as error:
 
-            except Exception as error:
+            st.error(
+                "❌ Failed to read Data B."
+            )
 
-                st.error(
-                    "❌ Failed to read Data B."
-                )
+            st.exception(error)
 
-                st.exception(error)
-
-                st.stop()
+            st.stop()
 
 
         # ----------------------------------------------------
@@ -1175,31 +1169,25 @@ else:
 
         try:
 
-            before_b03 = (
-                align_band_to_reference(
-                    before_b03,
-                    before_m03,
-                    before_b04,
-                    before_m04,
-                )
+            before_b03 = align_band_to_reference(
+                before_b03,
+                before_m03,
+                before_b04,
+                before_m04,
             )
 
-            before_b08 = (
-                align_band_to_reference(
-                    before_b08,
-                    before_m08,
-                    before_b04,
-                    before_m04,
-                )
+            before_b08 = align_band_to_reference(
+                before_b08,
+                before_m08,
+                before_b04,
+                before_m04,
             )
 
-            before_b11 = (
-                align_band_to_reference(
-                    before_b11,
-                    before_m11,
-                    before_b04,
-                    before_m04,
-                )
+            before_b11 = align_band_to_reference(
+                before_b11,
+                before_m11,
+                before_b04,
+                before_m04,
             )
 
         except Exception as error:
@@ -1219,31 +1207,25 @@ else:
 
         try:
 
-            after_b03 = (
-                align_band_to_reference(
-                    after_b03,
-                    after_m03,
-                    after_b04,
-                    after_m04,
-                )
+            after_b03 = align_band_to_reference(
+                after_b03,
+                after_m03,
+                after_b04,
+                after_m04,
             )
 
-            after_b08 = (
-                align_band_to_reference(
-                    after_b08,
-                    after_m08,
-                    after_b04,
-                    after_m04,
-                )
+            after_b08 = align_band_to_reference(
+                after_b08,
+                after_m08,
+                after_b04,
+                after_m04,
             )
 
-            after_b11 = (
-                align_band_to_reference(
-                    after_b11,
-                    after_m11,
-                    after_b04,
-                    after_m04,
-                )
+            after_b11 = align_band_to_reference(
+                after_b11,
+                after_m11,
+                after_b04,
+                after_m04,
             )
 
         except Exception as error:
@@ -1320,11 +1302,9 @@ else:
                     )
 
 
-                difference = (
-                    calculate_difference(
-                        before_index,
-                        after_index,
-                    )
+                difference = calculate_difference(
+                    before_index,
+                    after_index,
                 )
 
                 change_map = detect_change(
@@ -1332,11 +1312,9 @@ else:
                     threshold=threshold,
                 )
 
-                statistics = (
-                    calculate_change_statistics(
-                        change_map,
-                        pixel_size_meters=10.0,
-                    )
+                statistics = calculate_change_statistics(
+                    change_map,
+                    pixel_size_meters=10.0,
                 )
 
 
@@ -1380,9 +1358,9 @@ if change_result:
         f"📊 {change_result['index_name']}"
     )
 
-    statistics = (
-        change_result["statistics"]
-    )
+    statistics = change_result[
+        "statistics"
+    ]
 
     result1, result2, result3 = st.columns(3)
 
@@ -1430,14 +1408,12 @@ if change_result:
         "🔬 View continuous spectral difference"
     ):
 
-        difference_figure = (
-            create_difference_figure(
-                change_result["difference"],
-                title=(
-                    f"{change_result['index_name']} "
-                    "— Continuous Difference"
-                ),
-            )
+        difference_figure = create_difference_figure(
+            change_result["difference"],
+            title=(
+                f"{change_result['index_name']} "
+                "— Continuous Difference"
+            ),
         )
 
         st.pyplot(
@@ -1447,7 +1423,7 @@ if change_result:
 
 
 # ============================================================
-# GEOSPATIAL AI / OBJECT DETECTION
+# GEOSPATIAL AI
 # ============================================================
 
 st.divider()
@@ -1462,10 +1438,15 @@ st.caption(
 )
 
 
-if data and detection_rgb is not None:
+# ============================================================
+# CRITICAL FIX:
+# detection_rgb ALWAYS EXISTS
+# ============================================================
+
+if data is not None and detection_rgb is not None:
 
     # ========================================================
-    # INPUT
+    # DETECTION INPUT
     # ========================================================
 
     st.subheader(
@@ -1476,7 +1457,7 @@ if data and detection_rgb is not None:
         detection_rgb,
         caption=(
             "Sentinel-2 RGB prepared "
-            "for geospatial AI"
+            "for Geospatial AI"
         ),
         width="stretch",
     )
@@ -1490,9 +1471,7 @@ if data and detection_rgb is not None:
         "🧩 AI Image Tiling"
     )
 
-    tile_col1, tile_col2 = (
-        st.columns(2)
-    )
+    tile_col1, tile_col2 = st.columns(2)
 
     with tile_col1:
 
@@ -1552,16 +1531,14 @@ if data and detection_rgb is not None:
 
 
     # ========================================================
-    # DETECTION CONFIGURATION
+    # CONFIGURATION
     # ========================================================
 
     st.subheader(
         "⚙️ Detection Configuration"
     )
 
-    config_col1, config_col2 = (
-        st.columns(2)
-    )
+    config_col1, config_col2 = st.columns(2)
 
     with config_col1:
 
@@ -1595,7 +1572,7 @@ if data and detection_rgb is not None:
 
 
     # ========================================================
-    # MODEL STATUS
+    # MODEL
     # ========================================================
 
     st.subheader(
@@ -1605,9 +1582,7 @@ if data and detection_rgb is not None:
     try:
 
         detector = SatelliteDetector(
-            model_name=(
-                "Remote Sensing Detector"
-            )
+            model_name="Remote Sensing Detector"
         )
 
         model_info = detector.info()
@@ -1650,7 +1625,7 @@ if data and detection_rgb is not None:
 
 
     # ========================================================
-    # MODEL INFORMATION
+    # INFORMATION
     # ========================================================
 
     with st.expander(
@@ -1659,22 +1634,16 @@ if data and detection_rgb is not None:
 
         st.write(
             """
-            The geospatial AI interface is now
-            connected to the TorchGeo/PyTorch
-            backend.
+            The geospatial AI interface is connected
+            to the PyTorch/TorchGeo architecture.
 
-            The application intentionally does
-            not generate artificial detections.
+            The application does not generate
+            artificial detections.
 
-            A model checkpoint trained for the
-            target remote-sensing classes must
-            be connected before predictions are
-            displayed.
+            A checkpoint trained for the target
+            remote-sensing task must be connected
+            before real detections are displayed.
             """
-        )
-
-        st.write(
-            "Current architecture:"
         )
 
         st.code(
@@ -1731,8 +1700,7 @@ Geospatial coordinates
         else:
 
             with st.spinner(
-                "🧠 Preparing image tiles "
-                "for inference..."
+                "🧠 Preparing image tiles..."
             ):
 
                 try:
@@ -1752,18 +1720,14 @@ Geospatial coordinates
                         )
                     )
 
-                    detections = (
-                        filter_detections(
-                            detections,
-                            detection_threshold,
-                        )
+                    detections = filter_detections(
+                        detections,
+                        detection_threshold,
                     )
 
-                    detections = (
-                        filter_classes(
-                            detections,
-                            detection_classes,
-                        )
+                    detections = filter_classes(
+                        detections,
+                        detection_classes,
                     )
 
                     st.session_state.object_detections = (
@@ -1771,8 +1735,7 @@ Geospatial coordinates
                     )
 
                     st.success(
-                        f"✅ {len(tiles)} tiles "
-                        "processed."
+                        f"✅ {len(tiles)} tiles processed."
                     )
 
                 except Exception as error:
@@ -1822,11 +1785,9 @@ Geospatial coordinates
             )
 
 
-        detection_figure = (
-            draw_detections(
-                detection_rgb,
-                detections,
-            )
+        detection_figure = draw_detections(
+            detection_rgb,
+            detections,
         )
 
         st.pyplot(
@@ -1839,14 +1800,11 @@ Geospatial coordinates
             "🏷️ Detected Classes"
         )
 
-        for label, quantity in (
-            summary.items()
-        ):
+        for label, quantity in summary.items():
 
             st.write(
                 f"**{label}:** {quantity}"
             )
-
 
     else:
 
@@ -1860,8 +1818,8 @@ Geospatial coordinates
 else:
 
     st.info(
-        "ℹ️ Download uma cena de satélite "
-        "para ativar o Geospatial AI."
+        "ℹ️ Faça o download de uma cena de "
+        "satélite para ativar o Geospatial AI."
     )
 
 
