@@ -1,34 +1,48 @@
 """
-Satellite Object Detection
-==========================
+Object Detection Engine
+=======================
 
-Prepares satellite imagery for object detection.
+Satellite Geospatial Intelligence
 
-Important:
-Sentinel-2 has relatively coarse spatial resolution.
-Object detection here is a baseline pipeline.
+Stage 4C:
+- Detection engine
+- Bounding boxes
+- Confidence filtering
+- Visualization preparation
 
-The module prepares RGB imagery and converts
-detections into geographic-aware metadata.
+The detector is intentionally separated from
+the satellite ingestion pipeline.
+
+This allows us to plug in a specialized
+geospatial model later without changing
+the rest of the application.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 
 
 # ============================================================
-# DETECTION
+# DATA MODEL
 # ============================================================
 
 @dataclass
 class Detection:
+    """
+    Single detected object.
+    """
+
     label: str
+
     confidence: float
+
     x1: float
     y1: float
+
     x2: float
     y2: float
 
@@ -43,9 +57,8 @@ def normalize_rgb(
     blue,
 ):
     """
-    Normalize Sentinel-2 reflectance bands
-    into an RGB image suitable for visualization
-    and model inference.
+    Convert Sentinel-2 bands into
+    normalized RGB image.
     """
 
     red = np.asarray(
@@ -63,7 +76,6 @@ def normalize_rgb(
         dtype=np.float32,
     )
 
-
     def stretch(channel):
 
         valid = channel[
@@ -73,7 +85,8 @@ def normalize_rgb(
         if valid.size == 0:
 
             return np.zeros_like(
-                channel
+                channel,
+                dtype=np.float32,
             )
 
         low = np.percentile(
@@ -89,7 +102,8 @@ def normalize_rgb(
         if high <= low:
 
             return np.zeros_like(
-                channel
+                channel,
+                dtype=np.float32,
             )
 
         result = (
@@ -98,16 +112,13 @@ def normalize_rgb(
             high - low
         )
 
-        result = np.clip(
+        return np.clip(
             result,
-            0,
-            1,
+            0.0,
+            1.0,
         )
 
-        return result
-
-
-    rgb = np.stack(
+    return np.stack(
         [
             stretch(red),
             stretch(green),
@@ -117,40 +128,34 @@ def normalize_rgb(
     )
 
 
-    return rgb
-
-
 # ============================================================
-# VALID IMAGE CHECK
+# VALIDATION
 # ============================================================
 
 def validate_detection_image(
     image,
 ):
     """
-    Validate image before model inference.
+    Validate detection input.
     """
 
     image = np.asarray(
         image
     )
 
-
     if image.ndim != 3:
 
         raise ValueError(
-            "Detection image must "
-            "have 3 dimensions."
+            "Detection image must have "
+            "three dimensions."
         )
-
 
     if image.shape[-1] != 3:
 
         raise ValueError(
-            "Detection image must "
-            "contain exactly 3 channels."
+            "Detection image must contain "
+            "exactly three channels."
         )
-
 
     if image.size == 0:
 
@@ -158,5 +163,185 @@ def validate_detection_image(
             "Detection image is empty."
         )
 
+    if not np.isfinite(
+        image
+    ).any():
+
+        raise ValueError(
+            "Detection image contains "
+            "no valid pixels."
+        )
 
     return True
+
+
+# ============================================================
+# CONFIDENCE FILTER
+# ============================================================
+
+def filter_detections(
+    detections: List[Detection],
+    confidence_threshold: float,
+):
+    """
+    Keep only detections above
+    confidence threshold.
+    """
+
+    confidence_threshold = float(
+        confidence_threshold
+    )
+
+    return [
+        detection
+        for detection in detections
+        if detection.confidence
+        >= confidence_threshold
+    ]
+
+
+# ============================================================
+# CLASS FILTER
+# ============================================================
+
+def filter_classes(
+    detections: List[Detection],
+    selected_classes: list[str],
+):
+    """
+    Keep only requested classes.
+    """
+
+    if not selected_classes:
+
+        return detections
+
+    selected = {
+        item.lower()
+        for item in selected_classes
+    }
+
+    return [
+        detection
+        for detection in detections
+        if detection.label.lower()
+        in selected
+    ]
+
+
+# ============================================================
+# DETECTION SUMMARY
+# ============================================================
+
+def detection_summary(
+    detections: List[Detection],
+):
+    """
+    Generate simple class statistics.
+    """
+
+    summary = {}
+
+    for detection in detections:
+
+        label = detection.label
+
+        if label not in summary:
+
+            summary[label] = 0
+
+        summary[label] += 1
+
+    return summary
+
+
+# ============================================================
+# DRAWING
+# ============================================================
+
+def draw_detections(
+    image,
+    detections: List[Detection],
+):
+    """
+    Draw detection boxes using matplotlib.
+
+    Returns a matplotlib Figure.
+    """
+
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+
+
+    image = np.asarray(
+        image
+    )
+
+
+    fig, ax = plt.subplots(
+        figsize=(12, 8)
+    )
+
+
+    ax.imshow(
+        image
+    )
+
+
+    for detection in detections:
+
+        width = (
+            detection.x2
+            - detection.x1
+        )
+
+        height = (
+            detection.y2
+            - detection.y1
+        )
+
+
+        rectangle = Rectangle(
+            (
+                detection.x1,
+                detection.y1,
+            ),
+            width,
+            height,
+            fill=False,
+            linewidth=2,
+        )
+
+
+        ax.add_patch(
+            rectangle
+        )
+
+
+        ax.text(
+            detection.x1,
+            max(
+                detection.y1 - 5,
+                5,
+            ),
+            (
+                f"{detection.label} "
+                f"{detection.confidence:.0%}"
+            ),
+            fontsize=9,
+            bbox={
+                "facecolor": "white",
+                "alpha": 0.75,
+                "edgecolor": "none",
+            },
+        )
+
+
+    ax.axis(
+        "off"
+    )
+
+
+    fig.tight_layout()
+
+    return fig
