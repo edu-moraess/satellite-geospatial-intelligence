@@ -148,8 +148,6 @@ if data:
     # ---------------- TAB 1: OPERATIONS CENTER ----------------
     with tab1:
         st.header("🛰️ Selected Satellite Scene")
-        
-        # Métricas da Cena
         c1, c2, c3 = st.columns(3)
         with c1: st.metric("Acquisition", data["date"])
         with c2: st.metric("Cloud Coverage", f"{data['cloud']:.2f}%")
@@ -157,7 +155,6 @@ if data:
 
         st.divider()
         
-        # Mapa Grande + Painel de Controle ao lado
         map_col, controls_col = st.columns([3, 1])
         with map_col:
             try:
@@ -179,7 +176,6 @@ if data:
 
     # ---------------- TAB 2: SPECTRAL ANALYSIS ----------------
     with tab2:
-        # Carregamento das bandas
         with st.spinner("📡 Loading spectral bands..."):
             try:
                 b02, m02 = read_band(data["bands"]["B02"])
@@ -286,27 +282,70 @@ if data:
             change_index_choice = st.selectbox("🔬 Index to compare", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built‑up"], key="change_index")
 
             if st.button("🔍 Analyze Changes", type="primary", use_container_width=True):
-                # (Lógica de download e cálculo permanece igual)
                 try:
-                    # ... [Código de download e cálculo preservado]
-                    before_item = scene_map[before_label]; after_item = scene_map[after_label]
-                    # (Implementação de download...)
-                    st.session_state.change_result = {"index_name": "NDVI"} # Placeholder, substituir pelo código original
-                    st.success("✅ Change detection completed.")
+                    before_item = scene_map[before_label]
+                    after_item = scene_map[after_label]
+                    if before_item.id == after_item.id:
+                        st.warning("⚠️ Please choose two different scenes.")
+                    else:
+                        bbox = create_bbox(latitude, longitude, area_size)
+                        with st.spinner("🛰️ Downloading Data A..."): before_bands = download_required_bands(before_item, bbox, RAW_DIR / before_item.id)
+                        with st.spinner("🛰️ Downloading Data B..."): after_bands = download_required_bands(after_item, bbox, RAW_DIR / after_item.id)
+                        
+                        # Leitura e alinhamento
+                        b04_before, m04_before = read_band(before_bands["B04"])
+                        b03_before, m03_before = read_band(before_bands["B03"])
+                        b08_before, m08_before = read_band(before_bands["B08"])
+                        b11_before, m11_before = read_band(before_bands["B11"])
+                        b04_after, m04_after = read_band(after_bands["B04"])
+                        b03_after, m03_after = read_band(after_bands["B03"])
+                        b08_after, m08_after = read_band(after_bands["B08"])
+                        b11_after, m11_after = read_band(after_bands["B11"])
+
+                        b03_before = align_band_to_reference(b03_before, m03_before, b04_before, m04_before)
+                        b08_before = align_band_to_reference(b08_before, m08_before, b04_before, m04_before)
+                        b11_before = align_band_to_reference(b11_before, m11_before, b04_before, m04_before)
+                        b03_after = align_band_to_reference(b03_after, m03_after, b04_after, m04_after)
+                        b08_after = align_band_to_reference(b08_after, m08_after, b04_after, m04_after)
+                        b11_after = align_band_to_reference(b11_after, m11_after, b04_after, m04_after)
+
+                        if change_index_choice.startswith("NDVI"):
+                            before_index = calculate_ndvi(b04_before, b08_before)
+                            after_index = calculate_ndvi(b04_after, b08_after)
+                            index_name = "NDVI — Vegetation"
+                        elif change_index_choice.startswith("NDWI"):
+                            before_index = calculate_ndwi(b03_before, b08_before)
+                            after_index = calculate_ndwi(b03_after, b08_after)
+                            index_name = "NDWI — Water"
+                        else:
+                            before_index = calculate_ndbi(b08_before, b11_before)
+                            after_index = calculate_ndbi(b08_after, b11_after)
+                            index_name = "NDBI — Built‑up"
+
+                        before_index, after_index = align_arrays_for_change(before_index, after_index)
+                        difference = calculate_difference(before_index, after_index)
+                        change_map = detect_change(difference, threshold=threshold)
+                        statistics = calculate_change_statistics(change_map, pixel_size_meters=10.0)
+
+                        st.session_state.change_result = {
+                            "difference": difference, "change_map": change_map, "statistics": statistics,
+                            "index_name": index_name, "before_id": before_item.id, "after_id": after_item.id
+                        }
+                        st.success("✅ Change detection completed.")
                 except Exception as error:
                     st.error("❌ Change detection could not be completed.")
+                    with st.expander("Technical details"): st.exception(error)
         else:
             st.info("ℹ️ Search for at least two satellite scenes to activate Change Detection.")
 
         change_result = st.session_state.change_result
         if change_result:
             st.subheader(f"📊 {change_result['index_name']}")
+            stats = change_result["statistics"]
             c1, c2, c3 = st.columns(3)
-            with c1: st.metric("🔴 Decrease", "0.0 km²")
-            with c2: st.metric("🟢 Increase", "0.0 km²")
-            with c3: st.metric("🛰️ Total Changed", "0.0 km²")
-            
-            # Renderização do gráfico de mudanças
+            with c1: st.metric("🔴 Decrease", f"{stats['decrease_km2']:.3f} km²")
+            with c2: st.metric("🟢 Increase", f"{stats['increase_km2']:.3f} km²")
+            with c3: st.metric("🛰️ Total Changed", f"{stats['total_changed_km2']:.3f} km²")
             try:
                 fig = create_change_figure(change_result["change_map"], title=f"{change_result['index_name']} Change Detection")
                 st.plotly_chart(fig, use_container_width=True)
@@ -334,9 +373,13 @@ if data:
                 detector = SatelliteDetector(model_id=selected_model_id, device="cpu")
                 model_info = detector.info()
                 
-                # CORREÇÃO: if/else no lugar do ternário
-                if model_info["checkpoint_available"]: st.success("CHECKPOINT FOUND")
-                else: st.warning("CHECKPOINT MISSING")
+                c1, c2, c3 = st.columns(3)
+                with c1: st.metric("Model", model_info["model"])
+                with c2: st.metric("Input", f"{model_info['input_size']}×{model_info['input_size']}")
+                with c3:
+                    if model_info["checkpoint_available"]: st.success("CHECKPOINT FOUND")
+                    else: st.warning("CHECKPOINT MISSING")
+                
                 st.caption(model_info["description"])
                 
                 detection_classes = st.multiselect("Classes of interest", list(model_info["classes"]), default=list(model_info["classes"][:2]), key="object_classes")
@@ -375,7 +418,7 @@ else:
     st.info("🛰️ Procure e baixe uma cena de satélite para iniciar a análise.")
 
 # ============================================================
-# PIPELINE STATUS
+# PIPELINE STATUS (CORRIGIDO SEM TERNÁRIOS)
 # ============================================================
 st.divider()
 st.subheader("🚀 Project Pipeline")
@@ -385,10 +428,37 @@ has_change = st.session_state.change_result is not None
 has_ai = len(st.session_state.object_detections) > 0
 
 cols = st.columns(5)
-with cols[0]: st.success("✅ Search") if has_search else st.info("⏳ Search")
-with cols[1]: st.success("✅ Download") if has_scene else st.info("⏳ Download")
-with cols[2]: st.success("✅ Spectral") if has_scene else st.info("⏳ Spectral")
-with cols[3]: st.success("✅ Changes") if has_change else st.info("⏳ Changes")
-with cols[4]: st.success("✅ AI") if has_ai else (st.info("🧠 AI Ready") if has_scene else st.info("⏳ AI"))
+
+with cols[0]:
+    if has_search:
+        st.success("✅ Search")
+    else:
+        st.info("⏳ Search")
+
+with cols[1]:
+    if has_scene:
+        st.success("✅ Download")
+    else:
+        st.info("⏳ Download")
+
+with cols[2]:
+    if has_scene:
+        st.success("✅ Spectral")
+    else:
+        st.info("⏳ Spectral")
+
+with cols[3]:
+    if has_change:
+        st.success("✅ Changes")
+    else:
+        st.info("⏳ Changes")
+
+with cols[4]:
+    if has_ai:
+        st.success("✅ AI")
+    elif has_scene:
+        st.info("🧠 AI Ready")
+    else:
+        st.info("⏳ AI")
 
 st.caption("Satellite Geospatial Intelligence • Earth Observation • Computer Vision • Geospatial AI")
