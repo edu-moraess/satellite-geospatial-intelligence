@@ -1,8 +1,8 @@
 """
 Sentinel-2 band downloader.
 
-Downloads only the selected geographic window
-instead of unnecessarily downloading the entire scene.
+Downloads only the geographic window
+selected by the user.
 """
 
 from pathlib import Path
@@ -25,7 +25,7 @@ def download_band(
     output_directory: Path,
 ):
     """
-    Download one Sentinel-2 band for the selected AOI.
+    Download one Sentinel-2 band.
     """
 
     asset = item.assets.get(
@@ -35,11 +35,12 @@ def download_band(
     if asset is None:
 
         raise ValueError(
-            f"Band {band_name} is not available "
-            f"in this Sentinel-2 scene."
+            f"Band {band_name} is not "
+            "available in this scene."
         )
 
-    # Create directory only when needed
+    # Create directory only when
+    # the download actually happens.
     output_directory.mkdir(
         parents=True,
         exist_ok=True,
@@ -58,8 +59,8 @@ def download_band(
         asset.href
     ) as src:
 
-        # Transform geographic coordinates
-        # into the raster CRS.
+        # Transform AOI from WGS84
+        # to the raster CRS.
 
         raster_bbox = transform_bounds(
             "EPSG:4326",
@@ -68,7 +69,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # CREATE WINDOW
+        # CREATE RASTER WINDOW
         # ----------------------------------------------------
 
         window = from_bounds(
@@ -83,7 +84,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # READ PIXELS
+        # READ DATA
         # ----------------------------------------------------
 
         data = src.read(
@@ -98,7 +99,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # CREATE OUTPUT PROFILE
+        # OUTPUT PROFILE
         # ----------------------------------------------------
 
         profile = src.profile.copy()
@@ -114,7 +115,7 @@ def download_band(
         )
 
         # ----------------------------------------------------
-        # WRITE GEOTIFF
+        # SAVE GEOTIFF
         # ----------------------------------------------------
 
         with rasterio.open(
@@ -141,12 +142,14 @@ def download_required_bands(
     output_directory: Path,
 ):
     """
-    Download the four bands needed for Phase 1.
+    Download all bands required by
+    Phase 1 and Phase 2.
 
     B02 -> Blue
     B03 -> Green
     B04 -> Red
     B08 -> NIR
+    B11 -> SWIR
     """
 
     bands = [
@@ -154,6 +157,7 @@ def download_required_bands(
         "B03",
         "B04",
         "B08",
+        "B11",
     ]
 
     downloaded = {}
@@ -164,7 +168,9 @@ def download_required_bands(
             item=item,
             band_name=band,
             bbox=bbox,
-            output_directory=output_directory,
+            output_directory=(
+                output_directory
+            ),
         )
 
     return downloaded
