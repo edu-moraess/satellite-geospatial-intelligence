@@ -14,8 +14,8 @@ Pipeline
 6. NDVI / NDWI / NDBI
 7. Land Cover Classification
 8. Change Detection
-9. Object Detection preparation
-10. Object Detection engine
+9. Satellite Image Tiling
+10. Object Detection Engine
 """
 
 from __future__ import annotations
@@ -93,9 +93,18 @@ from src.object_detection import (
     draw_detections,
 )
 
+from src.tiling import (
+    create_tiles,
+    tile_count,
+)
+
+from src.detector_model import (
+    SatelliteDetector,
+)
+
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -118,6 +127,9 @@ if "satellite_data" not in st.session_state:
 
 if "change_result" not in st.session_state:
     st.session_state.change_result = None
+
+if "object_detections" not in st.session_state:
+    st.session_state.object_detections = []
 
 
 # ============================================================
@@ -212,7 +224,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH BUTTON
+# SEARCH
 # ============================================================
 
 if st.sidebar.button(
@@ -255,9 +267,7 @@ if st.sidebar.button(
                 "❌ Satellite catalog search failed."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
@@ -353,9 +363,7 @@ if items:
                             "❌ Satellite download failed."
                         )
 
-                        st.exception(
-                            error
-                        )
+                        st.exception(error)
 
                         st.stop()
 
@@ -369,6 +377,8 @@ if items:
                 }
 
                 st.session_state.change_result = None
+
+                st.session_state.object_detections = []
 
                 st.success(
                     "✅ Satellite scene downloaded."
@@ -452,9 +462,7 @@ if data:
                 "❌ Failed to load satellite bands."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
@@ -503,9 +511,7 @@ if data:
                 "❌ Failed to align satellite bands."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
@@ -602,9 +608,7 @@ if data:
             "❌ Failed to calculate spectral indices."
         )
 
-        st.exception(
-            error
-        )
+        st.exception(error)
 
         st.stop()
 
@@ -696,9 +700,7 @@ if data:
                 "❌ Land-cover classification failed."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
@@ -716,7 +718,7 @@ if data:
 
 
     # ========================================================
-    # LAND COVER PERCENTAGES
+    # LAND COVER DISTRIBUTION
     # ========================================================
 
     percentages = (
@@ -812,7 +814,7 @@ if data:
 
 
     # ========================================================
-    # SPECTRAL INDEX MAP
+    # INDEX MAP
     # ========================================================
 
     st.divider()
@@ -982,17 +984,13 @@ else:
         use_container_width=True,
     ):
 
-        before_item = (
-            scene_options[
-                before_name
-            ]
-        )
+        before_item = scene_options[
+            before_name
+        ]
 
-        after_item = (
-            scene_options[
-                after_name
-            ]
-        )
+        after_item = scene_options[
+            after_name
+        ]
 
 
         if before_item.id == after_item.id:
@@ -1041,9 +1039,7 @@ else:
                     "❌ Failed to download Data A."
                 )
 
-                st.exception(
-                    error
-                )
+                st.exception(error)
 
                 st.stop()
 
@@ -1078,9 +1074,7 @@ else:
                     "❌ Failed to download Data B."
                 )
 
-                st.exception(
-                    error
-                )
+                st.exception(error)
 
                 st.stop()
 
@@ -1125,9 +1119,7 @@ else:
                     "❌ Failed to read Data A."
                 )
 
-                st.exception(
-                    error
-                )
+                st.exception(error)
 
                 st.stop()
 
@@ -1172,9 +1164,7 @@ else:
                     "❌ Failed to read Data B."
                 )
 
-                st.exception(
-                    error
-                )
+                st.exception(error)
 
                 st.stop()
 
@@ -1218,9 +1208,7 @@ else:
                 "❌ Failed to align Data A."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
@@ -1264,15 +1252,13 @@ else:
                 "❌ Failed to align Data B."
             )
 
-            st.exception(
-                error
-            )
+            st.exception(error)
 
             st.stop()
 
 
         # ----------------------------------------------------
-        # CALCULATE INDEX
+        # INDEX
         # ----------------------------------------------------
 
         with st.spinner(
@@ -1285,62 +1271,48 @@ else:
                     "NDVI"
                 ):
 
-                    before_index = (
-                        calculate_ndvi(
-                            red=before_b04,
-                            nir=before_b08,
-                        )
+                    before_index = calculate_ndvi(
+                        red=before_b04,
+                        nir=before_b08,
                     )
 
-                    after_index = (
-                        calculate_ndvi(
-                            red=after_b04,
-                            nir=after_b08,
-                        )
+                    after_index = calculate_ndvi(
+                        red=after_b04,
+                        nir=after_b08,
                     )
 
                     index_name = (
                         "NDVI — Vegetation"
                     )
 
-
                 elif change_index_choice.startswith(
                     "NDWI"
                 ):
 
-                    before_index = (
-                        calculate_ndwi(
-                            green=before_b03,
-                            nir=before_b08,
-                        )
+                    before_index = calculate_ndwi(
+                        green=before_b03,
+                        nir=before_b08,
                     )
 
-                    after_index = (
-                        calculate_ndwi(
-                            green=after_b03,
-                            nir=after_b08,
-                        )
+                    after_index = calculate_ndwi(
+                        green=after_b03,
+                        nir=after_b08,
                     )
 
                     index_name = (
                         "NDWI — Water"
                     )
 
-
                 else:
 
-                    before_index = (
-                        calculate_ndbi(
-                            nir=before_b08,
-                            swir=before_b11,
-                        )
+                    before_index = calculate_ndbi(
+                        nir=before_b08,
+                        swir=before_b11,
                     )
 
-                    after_index = (
-                        calculate_ndbi(
-                            nir=after_b08,
-                            swir=after_b11,
-                        )
+                    after_index = calculate_ndbi(
+                        nir=after_b08,
+                        swir=after_b11,
                     )
 
                     index_name = (
@@ -1355,11 +1327,9 @@ else:
                     )
                 )
 
-                change_map = (
-                    detect_change(
-                        difference,
-                        threshold=threshold,
-                    )
+                change_map = detect_change(
+                    difference,
+                    threshold=threshold,
                 )
 
                 statistics = (
@@ -1371,20 +1341,13 @@ else:
 
 
                 st.session_state.change_result = {
-
                     "difference": difference,
-
                     "change_map": change_map,
-
                     "statistics": statistics,
-
                     "index_name": index_name,
-
                     "before_id": before_item.id,
-
                     "after_id": after_item.id,
                 }
-
 
             except Exception as error:
 
@@ -1392,9 +1355,7 @@ else:
                     "❌ Change detection failed."
                 )
 
-                st.exception(
-                    error
-                )
+                st.exception(error)
 
                 st.stop()
 
@@ -1429,27 +1390,21 @@ if change_result:
 
         st.metric(
             "🔴 Decrease",
-            (
-                f"{statistics['decrease_km2']:.3f} km²"
-            ),
+            f"{statistics['decrease_km2']:.3f} km²",
         )
 
     with result2:
 
         st.metric(
             "🟢 Increase",
-            (
-                f"{statistics['increase_km2']:.3f} km²"
-            ),
+            f"{statistics['increase_km2']:.3f} km²",
         )
 
     with result3:
 
         st.metric(
             "🛰️ Total Changed",
-            (
-                f"{statistics['total_changed_km2']:.3f} km²"
-            ),
+            f"{statistics['total_changed_km2']:.3f} km²",
         )
 
 
@@ -1457,14 +1412,12 @@ if change_result:
         "🗺️ Change Map"
     )
 
-    change_figure = (
-        create_change_figure(
-            change_result["change_map"],
-            title=(
-                f"{change_result['index_name']} "
-                "Change Detection"
-            ),
-        )
+    change_figure = create_change_figure(
+        change_result["change_map"],
+        title=(
+            f"{change_result['index_name']} "
+            "Change Detection"
+        ),
     )
 
     st.pyplot(
@@ -1504,8 +1457,8 @@ st.header(
 )
 
 st.caption(
-    "Computer Vision pipeline for preparing "
-    "satellite imagery for object detection."
+    "Computer Vision pipeline for detecting "
+    "objects in satellite imagery."
 )
 
 
@@ -1517,7 +1470,7 @@ if data:
 
 
     # ========================================================
-    # PREPARE RGB
+    # RGB PREPARATION
     # ========================================================
 
     try:
@@ -1539,9 +1492,7 @@ if data:
             "the detection image."
         )
 
-        st.exception(
-            error
-        )
+        st.exception(error)
 
         detection_rgb = None
 
@@ -1559,7 +1510,76 @@ if data:
 
 
         # ====================================================
-        # CONFIGURATION
+        # TILING
+        # ====================================================
+
+        st.subheader(
+            "🧩 AI Image Tiling"
+        )
+
+        tile_col1, tile_col2 = (
+            st.columns(2)
+        )
+
+        with tile_col1:
+
+            tile_size = st.selectbox(
+                "Tile size",
+                [
+                    256,
+                    512,
+                    768,
+                    1024,
+                ],
+                index=1,
+                key="tile_size",
+            )
+
+        with tile_col2:
+
+            tile_overlap = st.slider(
+                "Tile overlap",
+                min_value=0,
+                max_value=256,
+                value=64,
+                step=16,
+                key="tile_overlap",
+            )
+
+
+        if tile_overlap >= tile_size:
+
+            st.error(
+                "Tile overlap must be smaller "
+                "than tile size."
+            )
+
+        else:
+
+            try:
+
+                number_of_tiles = tile_count(
+                    detection_rgb,
+                    tile_size=tile_size,
+                    overlap=tile_overlap,
+                )
+
+                st.metric(
+                    "🧩 Image tiles",
+                    number_of_tiles,
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "❌ Failed to create tiles."
+                )
+
+                st.exception(error)
+
+
+        # ====================================================
+        # DETECTION CONFIGURATION
         # ====================================================
 
         st.subheader(
@@ -1569,7 +1589,6 @@ if data:
         config_col1, config_col2 = (
             st.columns(2)
         )
-
 
         with config_col1:
 
@@ -1581,7 +1600,6 @@ if data:
                 step=0.05,
                 key="object_confidence",
             )
-
 
         with config_col2:
 
@@ -1604,86 +1622,201 @@ if data:
 
 
         # ====================================================
-        # ENGINE STATUS
+        # MODEL ENGINE
         # ====================================================
 
         st.subheader(
             "🧠 Detection Engine"
         )
 
-        st.markdown(
-            """
-            | Component | Status |
-            |---|---|
-            | 🛰️ Sentinel-2 input | ✅ |
-            | 🖼️ RGB preprocessing | ✅ |
-            | 📐 Detection input | ✅ |
-            | 🎚️ Confidence filtering | ✅ |
-            | 🏷️ Class filtering | ✅ |
-            | 📦 Bounding-box engine | ✅ |
-            | 🤖 AI model inference | 🔜 |
-            """
-        )
+        try:
 
+            detector = SatelliteDetector()
 
-        # ====================================================
-        # CURRENT DETECTIONS
-        # ====================================================
+            model_info = detector.info()
 
-        detections = []
-
-
-        detections = filter_detections(
-            detections,
-            detection_threshold,
-        )
-
-
-        detections = filter_classes(
-            detections,
-            detection_classes,
-        )
-
-
-        summary = detection_summary(
-            detections
-        )
-
-
-        # ====================================================
-        # RESULTS
-        # ====================================================
-
-        st.subheader(
-            "📊 Detection Results"
-        )
-
-        result_col1, result_col2 = (
-            st.columns(2)
-        )
-
-
-        with result_col1:
-
-            st.metric(
-                "Objects detected",
-                len(detections),
+            engine_col1, engine_col2 = (
+                st.columns(2)
             )
 
+            with engine_col1:
 
-        with result_col2:
+                st.metric(
+                    "Model",
+                    model_info["model"],
+                )
 
-            st.metric(
-                "Classes detected",
-                len(summary),
+            with engine_col2:
+
+                st.metric(
+                    "Engine",
+                    "READY",
+                )
+
+        except Exception as error:
+
+            st.error(
+                "❌ Detection engine failed."
             )
 
+            st.exception(error)
+
+            detector = None
+
 
         # ====================================================
-        # VISUALIZATION
+        # RUN DETECTION
         # ====================================================
+
+        if st.button(
+            "🤖 Run AI Detection",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            if not detection_classes:
+
+                st.warning(
+                    "⚠️ Select at least one "
+                    "class of interest."
+                )
+
+            elif tile_overlap >= tile_size:
+
+                st.error(
+                    "⚠️ Invalid tile configuration."
+                )
+
+            elif detector is None:
+
+                st.error(
+                    "❌ Detection engine unavailable."
+                )
+
+            else:
+
+                with st.spinner(
+                    "🤖 Preparing satellite image "
+                    "for AI inference..."
+                ):
+
+                    try:
+
+                        tiles = create_tiles(
+                            detection_rgb,
+                            tile_size=tile_size,
+                            overlap=tile_overlap,
+                        )
+
+                        all_detections = []
+
+                        for tile in tiles:
+
+                            tile_image = (
+                                tile["image"]
+                            )
+
+                            predictions = (
+                                detector.predict(
+                                    tile_image,
+                                    confidence=(
+                                        detection_threshold
+                                    ),
+                                )
+                            )
+
+                            for prediction in predictions:
+
+                                prediction.x1 += (
+                                    tile["x"]
+                                )
+
+                                prediction.x2 += (
+                                    tile["x"]
+                                )
+
+                                prediction.y1 += (
+                                    tile["y"]
+                                )
+
+                                prediction.y2 += (
+                                    tile["y"]
+                                )
+
+                                all_detections.append(
+                                    prediction
+                                )
+
+
+                        all_detections = (
+                            filter_detections(
+                                all_detections,
+                                detection_threshold,
+                            )
+                        )
+
+                        all_detections = (
+                            filter_classes(
+                                all_detections,
+                                detection_classes,
+                            )
+                        )
+
+
+                        st.session_state.object_detections = (
+                            all_detections
+                        )
+
+                        st.success(
+                            f"✅ Inference completed "
+                            f"over {len(tiles)} tiles."
+                        )
+
+                    except Exception as error:
+
+                        st.error(
+                            "❌ AI inference failed."
+                        )
+
+                        st.exception(error)
+
+
+        # ====================================================
+        # DETECTION RESULTS
+        # ====================================================
+
+        detections = (
+            st.session_state.object_detections
+        )
 
         if detections:
+
+            summary = detection_summary(
+                detections
+            )
+
+            st.subheader(
+                "📊 Detection Results"
+            )
+
+            metric1, metric2 = (
+                st.columns(2)
+            )
+
+            with metric1:
+
+                st.metric(
+                    "Objects detected",
+                    len(detections),
+                )
+
+            with metric2:
+
+                st.metric(
+                    "Classes detected",
+                    len(summary),
+                )
+
 
             detection_figure = (
                 draw_detections(
@@ -1697,32 +1830,25 @@ if data:
                 use_container_width=True,
             )
 
+
+            st.subheader(
+                "🏷️ Detected Classes"
+            )
+
+            for label, quantity in (
+                summary.items()
+            ):
+
+                st.write(
+                    f"**{label}:** {quantity}"
+                )
+
         else:
 
             st.info(
-                "🔜 O motor está preparado, "
-                "mas o modelo especializado ainda "
-                "será conectado na próxima etapa."
-            )
-
-
-        # ====================================================
-        # SELECTED CLASSES
-        # ====================================================
-
-        if detection_classes:
-
-            st.write(
-                "**Classes selecionadas:** "
-                + ", ".join(
-                    detection_classes
-                )
-            )
-
-        else:
-
-            st.warning(
-                "⚠️ Selecione pelo menos uma classe."
+                "🔜 O pipeline de inferência está "
+                "preparado, mas nenhum modelo "
+                "especializado foi conectado ainda."
             )
 
 
@@ -1735,7 +1861,7 @@ else:
 
 
 # ============================================================
-# PROJECT PIPELINE
+# PIPELINE STATUS
 # ============================================================
 
 st.divider()
@@ -1748,13 +1874,11 @@ status1, status2, status3, status4, status5 = (
     st.columns(5)
 )
 
-
 with status1:
 
     st.success(
         "✅ Scene Search"
     )
-
 
 with status2:
 
@@ -1762,20 +1886,17 @@ with status2:
         "✅ Spectral Analysis"
     )
 
-
 with status3:
 
     st.success(
         "✅ Change Detection"
     )
 
-
 with status4:
 
     st.success(
-        "✅ Detection Engine"
+        "✅ Image Tiling"
     )
-
 
 with status5:
 
