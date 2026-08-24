@@ -1,22 +1,24 @@
 """
 Satellite Geospatial Intelligence
-=================================
+==================================
 
-Phase 1
--------
-Satellite acquisition
-RGB
-False Color
+Earth Observation
+Computer Vision
+Multispectral Analysis
 
-Phase 2
--------
-NDVI
-NDWI
-NDBI
+Current capabilities:
 
-The selected satellite scene is stored in
-Streamlit session state so the visualization
-persists after interactions.
+- Sentinel-2 STAC search
+- Date selection
+- Cloud filtering
+- AOI selection
+- Satellite scene download
+- RGB visualization
+- False Color visualization
+- NDVI
+- NDWI
+- NDBI
+- Persistent Streamlit session state
 """
 
 from datetime import date
@@ -40,6 +42,7 @@ from src.downloader import (
 
 from src.geospatial import (
     read_band,
+    align_band_to_reference,
 )
 
 from src.visualization import (
@@ -73,9 +76,11 @@ st.set_page_config(
 # SESSION STATE
 # ============================================================
 
+if "search_results" not in st.session_state:
+    st.session_state.search_results = []
+
 if "satellite_data" not in st.session_state:
     st.session_state.satellite_data = None
-
 
 if "selected_scene" not in st.session_state:
     st.session_state.selected_scene = None
@@ -95,7 +100,7 @@ st.caption(
 
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR — AREA OF INTEREST
 # ============================================================
 
 st.sidebar.header(
@@ -131,7 +136,7 @@ area_size = st.sidebar.slider(
 
 
 # ============================================================
-# DATE RANGE
+# SIDEBAR — DATE
 # ============================================================
 
 st.sidebar.header(
@@ -160,7 +165,7 @@ end_date = st.sidebar.date_input(
 
 
 # ============================================================
-# CLOUD COVER
+# SIDEBAR — CLOUD
 # ============================================================
 
 st.sidebar.header(
@@ -179,7 +184,7 @@ max_cloud_cover = st.sidebar.slider(
 
 
 # ============================================================
-# SEARCH
+# SEARCH BUTTON
 # ============================================================
 
 search_button = st.sidebar.button(
@@ -211,8 +216,12 @@ if search_button:
                 latitude=latitude,
                 longitude=longitude,
                 area_size=area_size,
-                start_date=str(start_date),
-                end_date=str(end_date),
+                start_date=str(
+                    start_date
+                ),
+                end_date=str(
+                    end_date
+                ),
                 max_cloud_cover=max_cloud_cover,
             )
 
@@ -229,23 +238,15 @@ if search_button:
             st.stop()
 
 
-    # Store search results
     st.session_state.search_results = items
 
 
 # ============================================================
-# GET SEARCH RESULTS FROM SESSION
+# SEARCH RESULTS
 # ============================================================
 
-items = st.session_state.get(
-    "search_results",
-    [],
-)
+items = st.session_state.search_results
 
-
-# ============================================================
-# DISPLAY SEARCH RESULTS
-# ============================================================
 
 if items:
 
@@ -267,11 +268,18 @@ if items:
             0,
         )
 
-        acquisition_date = (
-            item.datetime.date()
-            if item.datetime
-            else "Unknown"
-        )
+        if item.datetime:
+
+            acquisition_date = (
+                item.datetime.date()
+            )
+
+        else:
+
+            acquisition_date = (
+                "Unknown"
+            )
+
 
         scene_title = (
             f"{acquisition_date} • "
@@ -329,7 +337,9 @@ if items:
                             download_required_bands(
                                 item=item,
                                 bbox=bbox,
-                                output_directory=output_directory,
+                                output_directory=(
+                                    output_directory
+                                ),
                             )
                         )
 
@@ -347,17 +357,21 @@ if items:
 
 
                 # ------------------------------------------------
-                # SAVE DOWNLOADED DATA IN SESSION
+                # SAVE TO SESSION
                 # ------------------------------------------------
 
                 st.session_state.satellite_data = {
+
                     "scene_id": item.id,
+
                     "date": str(
                         acquisition_date
                     ),
+
                     "cloud": float(
                         cloud
                     ),
+
                     "bands": downloaded,
                 }
 
@@ -368,17 +382,15 @@ if items:
 
 
                 st.success(
-                    "✅ Download completed."
+                    "✅ Satellite scene downloaded successfully."
                 )
 
 
-                # Force Streamlit to rebuild
-                # the interface using the saved data.
                 st.rerun()
 
 
 # ============================================================
-# LOAD SELECTED SATELLITE DATA
+# SATELLITE DATA
 # ============================================================
 
 satellite_data = (
@@ -394,7 +406,7 @@ if satellite_data:
 
 
     # ========================================================
-    # SCENE INFORMATION
+    # SCENE HEADER
     # ========================================================
 
     st.divider()
@@ -421,34 +433,164 @@ if satellite_data:
 
         st.metric(
             "Cloud Coverage",
-            f"{satellite_data['cloud']:.2f}%",
+            (
+                f"{satellite_data['cloud']:.2f}%"
+            ),
         )
 
 
     with info3:
 
+        scene_id = (
+            satellite_data["scene_id"]
+        )
+
         st.metric(
             "Scene",
-            satellite_data["scene_id"][
-                :20
-            ],
+            scene_id[:20],
         )
 
 
     # ========================================================
-    # CREATE RGB
+    # READ VISUAL BANDS
     # ========================================================
 
     with st.spinner(
-        "🎨 Processing RGB image..."
+        "📡 Loading Sentinel-2 bands..."
+    ):
+
+        try:
+
+            b02, meta_b02 = read_band(
+                downloaded["B02"]
+            )
+
+            b03, meta_b03 = read_band(
+                downloaded["B03"]
+            )
+
+            b04, meta_b04 = read_band(
+                downloaded["B04"]
+            )
+
+            b08, meta_b08 = read_band(
+                downloaded["B08"]
+            )
+
+            b11, meta_b11 = read_band(
+                downloaded["B11"]
+            )
+
+        except Exception as error:
+
+            st.error(
+                "❌ Failed to read satellite bands."
+            )
+
+            st.exception(
+                error
+            )
+
+            st.stop()
+
+
+    # ========================================================
+    # ALIGN BANDS
+    # ========================================================
+
+    with st.spinner(
+        "🔄 Aligning spectral bands..."
+    ):
+
+        try:
+
+            # ------------------------------------------------
+            # B03 → B04
+            # ------------------------------------------------
+
+            b03_aligned = (
+                align_band_to_reference(
+                    band_array=b03,
+                    band_metadata=meta_b03,
+                    reference_array=b04,
+                    reference_metadata=meta_b04,
+                )
+            )
+
+
+            # ------------------------------------------------
+            # B02 → B04
+            # ------------------------------------------------
+
+            b02_aligned = (
+                align_band_to_reference(
+                    band_array=b02,
+                    band_metadata=meta_b02,
+                    reference_array=b04,
+                    reference_metadata=meta_b04,
+                )
+            )
+
+
+            # ------------------------------------------------
+            # B08 → B04
+            # ------------------------------------------------
+
+            b08_aligned = (
+                align_band_to_reference(
+                    band_array=b08,
+                    band_metadata=meta_b08,
+                    reference_array=b04,
+                    reference_metadata=meta_b04,
+                )
+            )
+
+
+            # ------------------------------------------------
+            # B11 → B08
+            #
+            # This is the important fix.
+            #
+            # B11 can be 20 m while B08 is 10 m.
+            # ------------------------------------------------
+
+            b11_aligned = (
+                align_band_to_reference(
+                    band_array=b11,
+                    band_metadata=meta_b11,
+                    reference_array=b08,
+                    reference_metadata=meta_b08,
+                )
+            )
+
+
+        except Exception as error:
+
+            st.error(
+                "❌ Failed to align spectral bands."
+            )
+
+            st.exception(
+                error
+            )
+
+            st.stop()
+
+
+    # ========================================================
+    # RGB
+    # ========================================================
+
+    with st.spinner(
+        "🎨 Creating Natural RGB..."
     ):
 
         try:
 
             rgb = create_rgb(
-                downloaded["B02"],
-                downloaded["B03"],
-                downloaded["B04"],
+                blue=b02_aligned,
+                green=b03_aligned,
+                red=b04,
             )
 
         except Exception as error:
@@ -465,19 +607,19 @@ if satellite_data:
 
 
     # ========================================================
-    # CREATE FALSE COLOR
+    # FALSE COLOR
     # ========================================================
 
     with st.spinner(
-        "🌱 Processing False Color image..."
+        "🌱 Creating False Color..."
     ):
 
         try:
 
             false_color = create_false_color(
-                downloaded["B03"],
-                downloaded["B04"],
-                downloaded["B08"],
+                green=b03_aligned,
+                red=b04,
+                nir=b08_aligned,
             )
 
         except Exception as error:
@@ -494,7 +636,7 @@ if satellite_data:
 
 
     # ========================================================
-    # DISPLAY IMAGES
+    # VISUALIZATION
     # ========================================================
 
     st.divider()
@@ -536,6 +678,35 @@ if satellite_data:
 
 
     # ========================================================
+    # IMAGE QUALITY CHECK
+    # ========================================================
+
+    rgb_mean = float(
+        np.mean(rgb)
+    )
+
+    false_color_mean = float(
+        np.mean(false_color)
+    )
+
+
+    if rgb_mean == 0:
+
+        st.warning(
+            "⚠️ RGB image contains only zero values. "
+            "Check the downloaded raster data."
+        )
+
+
+    if false_color_mean == 0:
+
+        st.warning(
+            "⚠️ False Color image contains only zero values. "
+            "Check the downloaded raster data."
+        )
+
+
+    # ========================================================
     # MULTISPECTRAL ANALYSIS
     # ========================================================
 
@@ -547,35 +718,48 @@ if satellite_data:
 
 
     # ========================================================
-    # READ BANDS
+    # CALCULATE INDICES
     # ========================================================
 
     with st.spinner(
-        "📡 Reading spectral bands..."
+        "🧠 Calculating spectral indices..."
     ):
 
         try:
 
-            b03, _ = read_band(
-                downloaded["B03"]
+            # ------------------------------------------------
+            # NDVI
+            # ------------------------------------------------
+
+            ndvi = calculate_ndvi(
+                red=b04,
+                nir=b08_aligned,
             )
 
-            b04, _ = read_band(
-                downloaded["B04"]
+
+            # ------------------------------------------------
+            # NDWI
+            # ------------------------------------------------
+
+            ndwi = calculate_ndwi(
+                green=b03_aligned,
+                nir=b08_aligned,
             )
 
-            b08, _ = read_band(
-                downloaded["B08"]
-            )
 
-            b11, _ = read_band(
-                downloaded["B11"]
+            # ------------------------------------------------
+            # NDBI
+            # ------------------------------------------------
+
+            ndbi = calculate_ndbi(
+                nir=b08_aligned,
+                swir=b11_aligned,
             )
 
         except Exception as error:
 
             st.error(
-                "❌ Could not read downloaded bands."
+                "❌ Spectral index calculation failed."
             )
 
             st.exception(
@@ -586,40 +770,16 @@ if satellite_data:
 
 
     # ========================================================
-    # CALCULATE INDICES
-    # ========================================================
-
-    ndvi = calculate_ndvi(
-        red=b04,
-        nir=b08,
-    )
-
-
-    ndwi = calculate_ndwi(
-        green=b03,
-        nir=b08,
-    )
-
-
-    ndbi = calculate_ndbi(
-        nir=b08,
-        swir=b11,
-    )
-
-
-    # ========================================================
-    # VALID PIXELS
+    # VALID VALUES
     # ========================================================
 
     valid_ndvi = ndvi[
         np.isfinite(ndvi)
     ]
 
-
     valid_ndwi = ndwi[
         np.isfinite(ndwi)
     ]
-
 
     valid_ndbi = ndbi[
         np.isfinite(ndbi)
@@ -637,38 +797,65 @@ if satellite_data:
 
     with metric1:
 
-        st.metric(
-            "🌱 Mean NDVI",
-            (
-                f"{np.mean(valid_ndvi):.3f}"
-                if len(valid_ndvi)
-                else "N/A"
-            ),
-        )
+        if valid_ndvi.size:
+
+            ndvi_mean = np.mean(
+                valid_ndvi
+            )
+
+            st.metric(
+                "🌱 Mean NDVI",
+                f"{ndvi_mean:.3f}",
+            )
+
+        else:
+
+            st.metric(
+                "🌱 Mean NDVI",
+                "N/A",
+            )
 
 
     with metric2:
 
-        st.metric(
-            "💧 Mean NDWI",
-            (
-                f"{np.mean(valid_ndwi):.3f}"
-                if len(valid_ndwi)
-                else "N/A"
-            ),
-        )
+        if valid_ndwi.size:
+
+            ndwi_mean = np.mean(
+                valid_ndwi
+            )
+
+            st.metric(
+                "💧 Mean NDWI",
+                f"{ndwi_mean:.3f}",
+            )
+
+        else:
+
+            st.metric(
+                "💧 Mean NDWI",
+                "N/A",
+            )
 
 
     with metric3:
 
-        st.metric(
-            "🏙️ Mean NDBI",
-            (
-                f"{np.mean(valid_ndbi):.3f}"
-                if len(valid_ndbi)
-                else "N/A"
-            ),
-        )
+        if valid_ndbi.size:
+
+            ndbi_mean = np.mean(
+                valid_ndbi
+            )
+
+            st.metric(
+                "🏙️ Mean NDBI",
+                f"{ndbi_mean:.3f}",
+            )
+
+        else:
+
+            st.metric(
+                "🏙️ Mean NDBI",
+                "N/A",
+            )
 
 
     # ========================================================
@@ -691,6 +878,10 @@ if satellite_data:
     )
 
 
+    # ========================================================
+    # SELECT INDEX
+    # ========================================================
+
     if index_selected.startswith(
         "NDVI"
     ):
@@ -704,9 +895,8 @@ if satellite_data:
         colormap = "RdYlGn"
 
         description = (
-            "NDVI highlights the "
-            "spectral response associated "
-            "with vegetation."
+            "NDVI highlights spectral "
+            "responses associated with vegetation."
         )
 
 
@@ -750,14 +940,28 @@ if satellite_data:
     # ========================================================
 
     with st.spinner(
-        "🧠 Generating spectral map..."
+        "🗺️ Generating spectral map..."
     ):
 
-        figure = create_index_figure(
-            selected_index,
-            title,
-            cmap=colormap,
-        )
+        try:
+
+            figure = create_index_figure(
+                selected_index,
+                title,
+                cmap=colormap,
+            )
+
+        except Exception as error:
+
+            st.error(
+                "❌ Failed to generate spectral map."
+            )
+
+            st.exception(
+                error
+            )
+
+            st.stop()
 
 
     st.pyplot(
@@ -772,13 +976,13 @@ if satellite_data:
 
 
     # ========================================================
-    # BANDS
+    # BAND INFORMATION
     # ========================================================
 
     st.divider()
 
     st.subheader(
-        "📡 Bands Downloaded"
+        "📡 Bands Used"
     )
 
 
@@ -791,7 +995,7 @@ if satellite_data:
 
         st.metric(
             "B02",
-            "Blue",
+            "Blue • 10 m",
         )
 
 
@@ -799,7 +1003,7 @@ if satellite_data:
 
         st.metric(
             "B03",
-            "Green",
+            "Green • 10 m",
         )
 
 
@@ -807,7 +1011,7 @@ if satellite_data:
 
         st.metric(
             "B04",
-            "Red",
+            "Red • 10 m",
         )
 
 
@@ -815,7 +1019,7 @@ if satellite_data:
 
         st.metric(
             "B08",
-            "NIR",
+            "NIR • 10 m",
         )
 
 
@@ -823,12 +1027,12 @@ if satellite_data:
 
         st.metric(
             "B11",
-            "SWIR",
+            "SWIR • aligned",
         )
 
 
     # ========================================================
-    # STATUS
+    # FINAL STATUS
     # ========================================================
 
     st.success(
