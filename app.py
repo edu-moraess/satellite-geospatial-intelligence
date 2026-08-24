@@ -21,49 +21,29 @@ from src.model_registry import list_models, get_model
 from src.map_view import render_map_panel
 
 # ============================================================
-# CONFIGURAÇÃO DA PÁGINA & CSS PROFISSIONAL (DARK GEOSPATIAL)
+# CONFIGURAÇÃO DA PÁGINA & CSS
 # ============================================================
 st.set_page_config(page_title="Satellite Geospatial Intelligence", page_icon="🛰️", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-    
     .stApp { background-color: #0a0f16; color: #e0e0e0; font-family: 'Inter', sans-serif; }
     [data-testid="stSidebar"] { background-color: #111827; border-right: 1px solid #1f2937; }
-    
-    /* Títulos com efeito Glow Neon */
     h1, h2, h3 { color: #ffffff !important; border-bottom: 1px solid #1f2937; padding-bottom: 10px; text-shadow: 0 0 10px rgba(0,212,255,0.3); }
-    
-    /* Abas (Tabs) estilo dashboard */
     .stTabs [data-baseweb="tab-list"] { background-color: #111827; border-radius: 8px; padding: 4px; border: 1px solid #1f2937; }
     .stTabs [data-baseweb="tab"] { color: #9ca3af; border-radius: 6px; }
     .stTabs [aria-selected="true"] { background-color: #1f2937; color: #00d4ff !important; }
-    
-    /* Métricas estilo Glassmorphism */
     [data-testid="stMetric"] { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(10px); border: 1px solid #1f2937; border-radius: 10px; padding: 15px; transition: all 0.3s; }
     [data-testid="stMetric"]:hover { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0, 212, 255, 0.2); transform: translateY(-2px); }
     [data-testid="stMetricLabel"] { color: #9ca3af; text-transform: uppercase; font-size: 0.8rem; }
     [data-testid="stMetricValue"] { color: #ffffff; font-weight: 700; font-size: 1.5rem; }
-    
-    /* Botões */
     .stButton > button { background-color: #1f2937; color: #e0e0e0; border: 1px solid #374151; border-radius: 6px; }
-    .stButton > button:hover { border-color: #00d4ff; color: #00d4ff; }
     .stButton > button[kind="primary"] { background: linear-gradient(90deg, #00b4d8, #0077b6); color: #fff; border: none; }
-    
-    /* Inputs e Alertas */
     div[data-baseweb="select"] > div, .stNumberInput input, .stDateInput input { background-color: #1f2937; border-color: #374151; color: white; }
     .stAlert { background-color: #1f2937; border-left: 4px solid #00d4ff; border-radius: 6px; }
     .stImage img, .stPlotlyChart, .stPydeckChart { border-radius: 10px; border: 1px solid #1f2937; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-    
-    /* Expander (Menu retrátil) */
-    .streamlit-expanderHeader {
-        background-color: #1f2937;
-        color: #00d4ff !important;
-        border-radius: 8px;
-        border: 1px solid #1f2937;
-        font-weight: bold;
-    }
+    .streamlit-expanderHeader { background-color: #1f2937; color: #00d4ff !important; border-radius: 8px; border: 1px solid #1f2937; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -97,7 +77,7 @@ end_date = st.sidebar.date_input("End date", date(2026, 8, 23))
 st.sidebar.header("☁️ Image Quality")
 max_cloud_cover = st.sidebar.slider("Maximum cloud coverage", 0, 100, 10, 1, format="%d%%")
 
-if st.sidebar.button("🔎 Search Satellite Data", type="primary", use_container_width=True):
+if st.sidebar.button("🔎 Search Satellite Data", type="primary", width='stretch'):
     if start_date > end_date: st.error("❌ Start date must be before the end date."); st.stop()
     with st.spinner("🛰️ Searching Sentinel‑2 catalog..."):
         try:
@@ -129,7 +109,7 @@ if items:
             
             with st.expander(f"{acquisition_date} • {cloud:.2f}% clouds"):
                 st.write(f"**Scene ID:** `{item.id}`")
-                if st.button("⬇️ Download & Analyze", key=f"download_{index}", use_container_width=True):
+                if st.button("⬇️ Download & Analyze", key=f"download_{index}", width='stretch'):
                     bbox = create_bbox(latitude, longitude, area_size)
                     output_dir = RAW_DIR / item.id
                     with st.spinner("⬇️ Downloading satellite data..."):
@@ -153,10 +133,9 @@ data = st.session_state.satellite_data
 detection_rgb = None
 
 # ============================================================
-# PROCESSAMENTO PRINCIPAL (ANTES DAS ABAS PARA ALIMENTAR O MAPA)
+# PROCESSAMENTO PRINCIPAL (ANTES DAS ABAS)
 # ============================================================
 if data:
-    # Carregamento das bandas
     with st.spinner("📡 Loading spectral bands..."):
         try:
             b02, m02 = read_band(data["bands"]["B02"])
@@ -185,11 +164,9 @@ if data:
         detection_rgb = normalize_rgb(red=b04, green=b03, blue=b02)
         validate_detection_image(detection_rgb)
         false_color = create_false_color(green=b03, red=b04, nir=b08)
-        
         ndvi = calculate_ndvi(red=b04, nir=b08)
         ndwi = calculate_ndwi(green=b03, nir=b08)
         ndbi = calculate_ndbi(nir=b08, swir=b11)
-        
         classification = classify_land_cover(ndvi=ndvi, ndwi=ndwi, ndbi=ndbi)
     except Exception as error:
         st.error("❌ Failed to create images.")
@@ -243,8 +220,8 @@ if data:
     # ---------------- TAB 2: SPECTRAL ANALYSIS ----------------
     with tab2:
         col1, col2 = st.columns(2)
-        with col1: st.subheader("🌍 Natural RGB"); st.image(rgb, use_container_width=True)
-        with col2: st.subheader("🌱 False Color"); st.image(false_color, use_container_width=True)
+        with col1: st.subheader("🌍 Natural RGB"); st.image(rgb, width='stretch')
+        with col2: st.subheader("🌱 False Color"); st.image(false_color, width='stretch')
 
         st.divider()
         st.header("🔬 Multispectral Indices")
@@ -259,7 +236,7 @@ if data:
 
         st.subheader("🗺️ Land Cover Classification")
         land_cover_figure = create_land_cover_figure(classification)
-        st.plotly_chart(land_cover_figure, use_container_width=True)
+        st.plotly_chart(land_cover_figure, width='stretch')
 
         percentages = calculate_class_percentages(classification)
         cols = st.columns(5)
@@ -285,7 +262,7 @@ if data:
         else: index_data, index_title, index_cmap = ndbi, "NDBI — Built‑up", "Oranges"
         
         fig = create_index_figure(index_data, index_title, cmap=index_cmap)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # ---------------- TAB 3: CHANGE DETECTION ----------------
     with tab3:
@@ -305,7 +282,7 @@ if data:
             threshold = st.slider("🎚️ Change sensitivity", 0.01, 0.50, 0.10, 0.01, key="change_threshold")
             change_index_choice = st.selectbox("🔬 Index to compare", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built‑up"], key="change_index")
 
-            if st.button("🔍 Analyze Changes", type="primary", use_container_width=True):
+            if st.button("🔍 Analyze Changes", type="primary", width='stretch'):
                 try:
                     before_item = scene_map[before_label]
                     after_item = scene_map[after_label]
@@ -369,7 +346,7 @@ if data:
             with c2: st.metric("🟢 Increase", f"{stats['increase_km2']:.3f} km²")
             with c3: st.metric("🛰️ Total Changed", f"{stats['total_changed_km2']:.3f} km²")
             fig = create_change_figure(change_result["change_map"], title=f"{change_result['index_name']} Change Detection")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     # ---------------- TAB 4: GEOSPATIAL AI ----------------
     with tab4:
@@ -377,7 +354,7 @@ if data:
         if data is None: st.info("ℹ️ Download a satellite scene to activate Geospatial AI.")
         elif detection_rgb is None: st.warning("⚠️ RGB image is unavailable for AI.")
         else:
-            st.image(detection_rgb, caption="Sentinel‑2 RGB prepared for Geospatial AI", use_container_width=True)
+            st.image(detection_rgb, caption="Sentinel‑2 RGB prepared for Geospatial AI", width='stretch')
             col1, col2 = st.columns(2)
             with col1: tile_size = st.selectbox("Tile size", [256, 512, 768, 1024], index=1, key="tile_size")
             with col2: tile_overlap = st.slider("Tile overlap", 0, 256, 64, 16, key="tile_overlap")
@@ -397,7 +374,7 @@ if data:
                 
                 detection_classes = st.multiselect("Classes of interest", list(model_info["classes"]), default=list(model_info["classes"][:2]), key="object_classes")
 
-                if st.button("🤖 Run Geospatial AI", type="primary", use_container_width=True):
+                if st.button("🤖 Run Geospatial AI", type="primary", width='stretch'):
                     if not detection_classes: st.warning("⚠️ Select at least one class.")
                     elif not model_info["checkpoint_available"]: st.info("🧠 Model pipeline is ready, but the selected checkpoint is not installed yet.")
                     else:
@@ -421,7 +398,7 @@ if data:
                     with c1: st.metric("Objects", len(detections))
                     with c2: st.metric("Classes", len(summary))
                     fig = draw_detections(detection_rgb, detections)
-                    st.pyplot(fig, use_container_width=True)
+                    st.pyplot(fig, width='stretch')
 
             except Exception as error:
                 st.error("❌ Model registry failed.")
@@ -431,7 +408,7 @@ else:
     st.info("🛰️ Procure e baixe uma cena de satélite para iniciar a análise.")
 
 # ============================================================
-# STATUS DO PROJETO (CORRIGIDO SEM TERNÁRIOS)
+# PIPELINE STATUS (SEM TERNÁRIOS)
 # ============================================================
 st.divider()
 st.subheader("🚀 Project Pipeline")
