@@ -85,6 +85,136 @@ st.set_page_config(
 )
 
 # ============================================================
+# PROFESSIONAL DARK GEOSPATIAL UI CSS
+# ============================================================
+st.markdown("""
+<style>
+    /* Fonte e fundo globais */
+    .stApp {
+        background-color: #0a0f16;
+        color: #e0e0e0;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+
+    /* Barra Lateral estilo Painel de Controle */
+    [data-testid="stSidebar"] {
+        background-color: #111827;
+        border-right: 1px solid #1f2937;
+    }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #00d4ff !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: none;
+        font-size: 0.9rem;
+    }
+
+    /* Títulos e cabeçalhos */
+    h1, h2, h3 {
+        color: #ffffff !important;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #1f2937;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+    
+    /* Barra de métricas estilo Card */
+    [data-testid="stMetric"] {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.05);
+        transition: transform 0.2s;
+    }
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        border-color: #00d4ff;
+        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.15);
+    }
+    [data-testid="stMetricLabel"] {
+        color: #9ca3af;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+    }
+    [data-testid="stMetricValue"] {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+
+    /* Botões */
+    .stButton > button {
+        background-color: #1f2937;
+        color: #e0e0e0;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        transition: all 0.3s;
+    }
+    .stButton > button:hover {
+        border-color: #00d4ff;
+        color: #00d4ff;
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #00b4d8, #0077b6);
+        color: #ffffff;
+        border: none;
+        font-weight: bold;
+    }
+    .stButton > button[kind="primary"]:hover {
+        box-shadow: 0 0 15px rgba(0, 180, 216, 0.5);
+    }
+
+    /* Inputs, Selects e Sliders */
+    div[data-baseweb="select"] > div {
+        background-color: #1f2937;
+        border-color: #374151;
+        color: white;
+    }
+    div[data-baseweb="slider"] > div {
+        color: #00d4ff;
+    }
+    .stNumberInput input {
+        background-color: #1f2937;
+        color: white;
+    }
+    .stDateInput input {
+        background-color: #1f2937;
+        color: white;
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        color: #9ca3af;
+        background-color: #111827;
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+    }
+    .streamlit-expanderHeader:hover {
+        color: #00d4ff;
+        border-color: #00d4ff;
+    }
+
+    /* Imagens e Gráficos */
+    .stImage img, .stPlotlyChart {
+        border: 1px solid #1f2937;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    /* Avisos e Infos */
+    .stAlert {
+        border-radius: 8px;
+        border-left: 4px solid #00d4ff;
+        background-color: #1f2937;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
 # SESSION STATE – ORGANIZED
 # ============================================================
 
@@ -108,11 +238,6 @@ def align_arrays_for_change(
     before: np.ndarray,
     after: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Force two 2D arrays to the same shape by cropping to the minimum
-    dimensions. This is a last‑resort safety net; ideal alignment
-    should be done at the geospatial level (src/geospatial.py).
-    """
     before = np.asarray(before)
     after = np.asarray(after)
 
@@ -130,14 +255,12 @@ def align_arrays_for_change(
 # ============================================================
 # HEADER
 # ============================================================
-
 st.title("🛰️ Satellite Geospatial Intelligence")
 st.caption("Earth Observation • Computer Vision • Geospatial AI")
 
 # ============================================================
 # SIDEBAR – SEARCH PARAMETERS
 # ============================================================
-
 st.sidebar.header("📍 Area of Interest")
 
 latitude = st.sidebar.number_input(
@@ -190,7 +313,6 @@ max_cloud_cover = st.sidebar.slider(
 # ============================================================
 # SEARCH BUTTON
 # ============================================================
-
 if st.sidebar.button(
     "🔎 Search Satellite Data",
     type="primary",
@@ -211,7 +333,6 @@ if st.sidebar.button(
                 max_cloud_cover=max_cloud_cover,
             )
             st.session_state.search_results = results
-            # Clear previous analysis when new search is performed
             st.session_state.satellite_data = None
             st.session_state.change_result = None
             st.session_state.object_detections = []
@@ -222,14 +343,12 @@ if st.sidebar.button(
                 st.exception(error)
             st.stop()
 
-# Refresh references after search
 items = st.session_state.search_results
 data = st.session_state.satellite_data
 
 # ============================================================
 # DISPLAY SEARCH RESULTS
 # ============================================================
-
 if items:
     st.success(f"🛰️ {len(items)} satellite scenes found.")
     st.subheader("Available Sentinel‑2 Scenes")
@@ -285,9 +404,8 @@ if items:
 # ============================================================
 # SELECTED SCENE – ANALYSIS
 # ============================================================
-
 data = st.session_state.satellite_data
-detection_rgb = None  # will be set if available
+detection_rgb = None
 
 if data:
     st.divider()
@@ -301,9 +419,6 @@ if data:
     with col3:
         st.metric("Scene", data["scene_id"][:24])
 
-    # ------------------------------------------------------------
-    # GEOSPATIAL MAP PANEL
-    # ------------------------------------------------------------
     st.divider()
     try:
         scene_bbox = create_bbox(
@@ -326,9 +441,6 @@ if data:
         with st.expander("Technical details"):
             st.exception(error)
 
-    # ------------------------------------------------------------
-    # LOAD BANDS
-    # ------------------------------------------------------------
     with st.spinner("📡 Loading spectral bands..."):
         try:
             b02, m02 = read_band(data["bands"]["B02"])
@@ -342,9 +454,6 @@ if data:
                 st.exception(error)
             st.stop()
 
-    # ------------------------------------------------------------
-    # ALIGN BANDS TO B04 (reference)
-    # ------------------------------------------------------------
     with st.spinner("🔄 Aligning spectral grids..."):
         try:
             b02 = align_band_to_reference(b02, m02, b04, m04)
@@ -357,9 +466,6 @@ if data:
                 st.exception(error)
             st.stop()
 
-    # ------------------------------------------------------------
-    # RGB & FALSE COLOR
-    # ------------------------------------------------------------
     try:
         rgb = create_rgb(blue=b02, green=b03, red=b04)
     except Exception as error:
@@ -372,7 +478,7 @@ if data:
         detection_rgb = normalize_rgb(red=b04, green=b03, blue=b02)
         validate_detection_image(detection_rgb)
     except Exception:
-        detection_rgb = None  # fallback for AI
+        detection_rgb = None
 
     try:
         false_color = create_false_color(green=b03, red=b04, nir=b08)
@@ -382,9 +488,6 @@ if data:
             st.exception(error)
         st.stop()
 
-    # ------------------------------------------------------------
-    # VISUALIZATION
-    # ------------------------------------------------------------
     st.divider()
     st.header("🌍 Satellite Visualization")
     col1, col2 = st.columns(2)
@@ -395,9 +498,6 @@ if data:
         st.subheader("🌱 False Color")
         st.image(false_color, caption="Sentinel‑2 False Color", use_container_width=True)
 
-    # ------------------------------------------------------------
-    # SPECTRAL INDICES
-    # ------------------------------------------------------------
     st.divider()
     st.header("🔬 Multispectral Analysis")
     try:
@@ -410,7 +510,6 @@ if data:
             st.exception(error)
         st.stop()
 
-    # Metrics
     valid_ndvi = ndvi[np.isfinite(ndvi)]
     valid_ndwi = ndwi[np.isfinite(ndwi)]
     valid_ndbi = ndbi[np.isfinite(ndbi)]
@@ -423,9 +522,6 @@ if data:
     with col3:
         st.metric("🏙️ Mean NDBI", f"{np.mean(valid_ndbi):.3f}" if valid_ndbi.size else "N/A")
 
-    # ------------------------------------------------------------
-    # LAND COVER CLASSIFICATION
-    # ------------------------------------------------------------
     st.divider()
     st.header("🗺️ Land Cover Classification")
     st.caption("Rule‑based multispectral baseline using NDVI, NDWI and NDBI.")
@@ -472,9 +568,6 @@ if data:
         except Exception:
             pass
 
-    # ------------------------------------------------------------
-    # SPECTRAL INDEX MAP
-    # ------------------------------------------------------------
     st.divider()
     st.header("🔬 Spectral Index Maps")
     selected_index = st.selectbox(
@@ -498,13 +591,11 @@ if data:
 # ============================================================
 # CHANGE DETECTION
 # ============================================================
-
 st.divider()
 st.header("🛰️ Change Detection")
 st.caption("Compare two Sentinel‑2 observations of the same area to identify spectral changes over time.")
 
 if len(items) >= 2:
-    # Build scene selection using internal ID as key, but show a human‑readable label
     scene_map = {}
     for item in items:
         scene_date = item.datetime.date() if item.datetime else "Unknown"
@@ -518,7 +609,6 @@ if len(items) >= 2:
     with col1:
         before_label = st.selectbox("📅 Data A — Before", labels, key="change_before")
     with col2:
-        # Default to the second scene if available
         default_idx = min(1, len(labels) - 1)
         after_label = st.selectbox("📅 Data B — After", labels, index=default_idx, key="change_after")
 
@@ -544,7 +634,6 @@ if len(items) >= 2:
         if before_item.id == after_item.id:
             st.warning("⚠️ Please choose two different scenes.")
         else:
-            # Optional temporal validation: warn if before is later than after
             before_date = before_item.datetime.date() if before_item.datetime else None
             after_date = after_item.datetime.date() if after_item.datetime else None
             if before_date and after_date and before_date > after_date:
@@ -570,19 +659,16 @@ if len(items) >= 2:
                         output_directory=RAW_DIR / after_item.id,
                     )
 
-                # Read bands for before
                 b04_before, m04_before = read_band(before_bands["B04"])
                 b03_before, m03_before = read_band(before_bands["B03"])
                 b08_before, m08_before = read_band(before_bands["B08"])
                 b11_before, m11_before = read_band(before_bands["B11"])
 
-                # Read bands for after
                 b04_after, m04_after = read_band(after_bands["B04"])
                 b03_after, m03_after = read_band(after_bands["B03"])
                 b08_after, m08_after = read_band(after_bands["B08"])
                 b11_after, m11_after = read_band(after_bands["B11"])
 
-                # Align each band to its own B04 (reference within scene)
                 b03_before = align_band_to_reference(b03_before, m03_before, b04_before, m04_before)
                 b08_before = align_band_to_reference(b08_before, m08_before, b04_before, m04_before)
                 b11_before = align_band_to_reference(b11_before, m11_before, b04_before, m04_before)
@@ -591,7 +677,6 @@ if len(items) >= 2:
                 b08_after = align_band_to_reference(b08_after, m08_after, b04_after, m04_after)
                 b11_after = align_band_to_reference(b11_after, m11_after, b04_after, m04_after)
 
-                # Calculate chosen index for both scenes
                 if change_index_choice.startswith("NDVI"):
                     before_index = calculate_ndvi(b04_before, b08_before)
                     after_index = calculate_ndvi(b04_after, b08_after)
@@ -605,10 +690,8 @@ if len(items) >= 2:
                     after_index = calculate_ndbi(b08_after, b11_after)
                     index_name = "NDBI — Built‑up"
 
-                # ***** CRITICAL FIX: align arrays before difference *****
                 before_index, after_index = align_arrays_for_change(before_index, after_index)
 
-                # Now safe to compute difference
                 difference = calculate_difference(before_index, after_index)
                 change_map = detect_change(difference, threshold=threshold)
                 statistics = calculate_change_statistics(change_map, pixel_size_meters=10.0)
@@ -633,7 +716,6 @@ else:
 # ============================================================
 # CHANGE RESULTS
 # ============================================================
-
 change_result = st.session_state.change_result
 if change_result:
     st.subheader(f"📊 {change_result['index_name']}")
@@ -659,7 +741,6 @@ if change_result:
 # ============================================================
 # GEOSPATIAL AI
 # ============================================================
-
 st.divider()
 st.header("🎯 Geospatial AI")
 st.caption("Remote‑sensing computer vision pipeline for object detection.")
@@ -669,15 +750,9 @@ if data is None:
 elif detection_rgb is None:
     st.warning("⚠️ RGB image is unavailable for AI.")
 else:
-    # ------------------------------------------------------------
-    # INPUT
-    # ------------------------------------------------------------
     st.subheader("🛰️ Detection Input")
     st.image(detection_rgb, caption="Sentinel‑2 RGB prepared for Geospatial AI", use_container_width=True)
 
-    # ------------------------------------------------------------
-    # TILING
-    # ------------------------------------------------------------
     st.subheader("🧩 AI Image Tiling")
     col1, col2 = st.columns(2)
     with col1:
@@ -696,9 +771,6 @@ else:
             with st.expander("Technical details"):
                 st.exception(error)
 
-    # ------------------------------------------------------------
-    # DETECTION CONFIG
-    # ------------------------------------------------------------
     st.subheader("⚙️ Detection Configuration")
     confidence_threshold = st.slider(
         "Confidence threshold",
@@ -709,9 +781,6 @@ else:
         key="object_confidence",
     )
 
-    # ------------------------------------------------------------
-    # MODEL REGISTRY
-    # ------------------------------------------------------------
     st.subheader("🧠 Geospatial AI Model")
     try:
         model_ids = list_models()
@@ -795,9 +864,6 @@ Geospatial coordinates
                     with st.expander("Technical details"):
                         st.exception(error)
 
-        # ------------------------------------------------------------
-        # DETECTION RESULTS
-        # ------------------------------------------------------------
         detections = st.session_state.object_detections
         if detections:
             try:
@@ -825,11 +891,9 @@ Geospatial coordinates
 # ============================================================
 # PIPELINE STATUS – DYNAMIC
 # ============================================================
-
 st.divider()
 st.subheader("🚀 Project Pipeline")
 
-# Determine pipeline stages based on current state
 has_search = len(st.session_state.search_results) > 0
 has_scene = st.session_state.satellite_data is not None
 has_change = st.session_state.change_result is not None
@@ -837,42 +901,19 @@ has_ai = len(st.session_state.object_detections) > 0
 
 cols = st.columns(5)
 with cols[0]:
-    if has_search:
-        st.success("✅ Scene Search")
-    else:
-        st.info("⏳ Scene Search")
+    st.success("✅ Scene Search") if has_search else st.info("⏳ Scene Search")
 with cols[1]:
-    if has_scene:
-        st.success("✅ Scene Download")
-    else:
-        st.info("⏳ Scene Download")
+    st.success("✅ Scene Download") if has_scene else st.info("⏳ Scene Download")
 with cols[2]:
-    if has_scene:
-        st.success("✅ Spectral Analysis")
-    else:
-        st.info("⏳ Spectral Analysis")
+    st.success("✅ Spectral Analysis") if has_scene else st.info("⏳ Spectral Analysis")
 with cols[3]:
-    if has_change:
-        st.success("✅ Change Detection")
-    else:
-        st.info("⏳ Change Detection")
+    st.success("✅ Change Detection") if has_change else st.info("⏳ Change Detection")
 with cols[4]:
-    if has_ai:
-        st.success("✅ AI Inference")
-    elif has_scene:
-        st.info("🧠 AI Ready")
-    else:
-        st.info("⏳ AI Waiting")
+    st.success("✅ AI Inference") if has_ai else (st.info("🧠 AI Ready") if has_scene else st.info("⏳ AI Waiting"))
 
 # ============================================================
 # FOOTER
 # ============================================================
-
 st.divider()
-st.caption(
-    "Satellite Geospatial Intelligence • Earth Observation • Computer Vision • Geospatial AI"
-)
-st.caption(
-    "Spectral values are analytical measurements and should be interpreted according to sensor characteristics, "
-    "spatial resolution and preprocessing."
-)
+st.caption("Satellite Geospatial Intelligence • Earth Observation • Computer Vision • Geospatial AI")
+st.caption("Spectral values are analytical measurements and should be interpreted according to sensor characteristics, spatial resolution and preprocessing.")
