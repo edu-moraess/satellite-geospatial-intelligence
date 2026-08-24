@@ -20,29 +20,56 @@ from src.detector_model import SatelliteDetector
 from src.model_registry import list_models, get_model
 from src.map_view import render_map_panel
 
+# ============================================================
+# CONFIGURAÇÃO DA PÁGINA & CSS PROFISSIONAL (DARK GEOSPATIAL)
+# ============================================================
 st.set_page_config(page_title="Satellite Geospatial Intelligence", page_icon="🛰️", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    
     .stApp { background-color: #0a0f16; color: #e0e0e0; font-family: 'Inter', sans-serif; }
     [data-testid="stSidebar"] { background-color: #111827; border-right: 1px solid #1f2937; }
+    
+    /* Títulos com efeito Glow Neon */
     h1, h2, h3 { color: #ffffff !important; border-bottom: 1px solid #1f2937; padding-bottom: 10px; text-shadow: 0 0 10px rgba(0,212,255,0.3); }
+    
+    /* Abas (Tabs) estilo dashboard */
     .stTabs [data-baseweb="tab-list"] { background-color: #111827; border-radius: 8px; padding: 4px; border: 1px solid #1f2937; }
     .stTabs [data-baseweb="tab"] { color: #9ca3af; border-radius: 6px; }
     .stTabs [aria-selected="true"] { background-color: #1f2937; color: #00d4ff !important; }
+    
+    /* Métricas estilo Glassmorphism */
     [data-testid="stMetric"] { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(10px); border: 1px solid #1f2937; border-radius: 10px; padding: 15px; transition: all 0.3s; }
     [data-testid="stMetric"]:hover { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0, 212, 255, 0.2); transform: translateY(-2px); }
     [data-testid="stMetricLabel"] { color: #9ca3af; text-transform: uppercase; font-size: 0.8rem; }
     [data-testid="stMetricValue"] { color: #ffffff; font-weight: 700; font-size: 1.5rem; }
+    
+    /* Botões */
     .stButton > button { background-color: #1f2937; color: #e0e0e0; border: 1px solid #374151; border-radius: 6px; }
+    .stButton > button:hover { border-color: #00d4ff; color: #00d4ff; }
     .stButton > button[kind="primary"] { background: linear-gradient(90deg, #00b4d8, #0077b6); color: #fff; border: none; }
+    
+    /* Inputs e Alertas */
     div[data-baseweb="select"] > div, .stNumberInput input, .stDateInput input { background-color: #1f2937; border-color: #374151; color: white; }
     .stAlert { background-color: #1f2937; border-left: 4px solid #00d4ff; border-radius: 6px; }
     .stImage img, .stPlotlyChart, .stPydeckChart { border-radius: 10px; border: 1px solid #1f2937; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    
+    /* Expander (Menu retrátil) */
+    .streamlit-expanderHeader {
+        background-color: #1f2937;
+        color: #00d4ff !important;
+        border-radius: 8px;
+        border: 1px solid #1f2937;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# ============================================================
+# ESTADO DA SESSÃO
+# ============================================================
 DEFAULT_STATE = {"search_results": [], "satellite_data": None, "change_result": None, "object_detections": [], "map_state": {}}
 for key, value in DEFAULT_STATE.items():
     if key not in st.session_state: st.session_state[key] = value
@@ -54,6 +81,9 @@ def align_arrays_for_change(before, after):
     if h <= 0 or w <= 0: raise ValueError("Invalid array dimensions after alignment.")
     return before[:h, :w], after[:h, :w]
 
+# ============================================================
+# CABEÇALHO E SIDEBAR
+# ============================================================
 st.title("🛰️ Satellite Geospatial Intelligence")
 st.caption("Earth Observation • Computer Vision • Geospatial AI")
 
@@ -85,41 +115,48 @@ if st.sidebar.button("🔎 Search Satellite Data", type="primary", use_container
 items = st.session_state.search_results
 data = st.session_state.satellite_data
 
+# ============================================================
+# LISTA DE CENAS OCULTA (EXPANDER FECHADO)
+# ============================================================
 if items:
     st.success(f"🛰️ {len(items)} satellite scenes found.")
-    st.subheader("Available Sentinel‑2 Scenes")
-    for index, item in enumerate(items[:20]):
-        cloud = float(item.properties.get("eo:cloud_cover", 0))
-        acquisition_date = item.datetime.date() if item.datetime else "Unknown"
-        with st.expander(f"{acquisition_date} • {cloud:.2f}% clouds"):
-            st.write(f"**Scene ID:** `{item.id}`")
-            if st.button("⬇️ Download & Analyze", key=f"download_{index}", use_container_width=True):
-                bbox = create_bbox(latitude, longitude, area_size)
-                output_dir = RAW_DIR / item.id
-                with st.spinner("⬇️ Downloading satellite data..."):
-                    try:
-                        downloaded = download_required_bands(item, bbox, output_dir)
-                    except Exception as error:
-                        st.error("❌ Satellite download failed.")
-                        with st.expander("Technical details"): st.exception(error)
-                        st.stop()
-                st.session_state.satellite_data = {
-                    "scene_id": item.id, "date": str(acquisition_date), "cloud": cloud,
-                    "bands": downloaded, "latitude": latitude, "longitude": longitude, "area_size": area_size
-                }
-                st.session_state.change_result = None
-                st.session_state.object_detections = []
-                st.success("✅ Satellite scene downloaded.")
-                st.rerun()
+    
+    with st.expander("📡 Available Sentinel-2 Scenes", expanded=False):
+        st.caption("Selecione uma cena para fazer o download e iniciar a análise.")
+        for index, item in enumerate(items[:20]):
+            cloud = float(item.properties.get("eo:cloud_cover", 0))
+            acquisition_date = item.datetime.date() if item.datetime else "Unknown"
+            
+            with st.expander(f"{acquisition_date} • {cloud:.2f}% clouds"):
+                st.write(f"**Scene ID:** `{item.id}`")
+                if st.button("⬇️ Download & Analyze", key=f"download_{index}", use_container_width=True):
+                    bbox = create_bbox(latitude, longitude, area_size)
+                    output_dir = RAW_DIR / item.id
+                    with st.spinner("⬇️ Downloading satellite data..."):
+                        try:
+                            downloaded = download_required_bands(item, bbox, output_dir)
+                        except Exception as error:
+                            st.error("❌ Satellite download failed.")
+                            with st.expander("Technical details"): st.exception(error)
+                            st.stop()
+                            
+                    st.session_state.satellite_data = {
+                        "scene_id": item.id, "date": str(acquisition_date), "cloud": cloud,
+                        "bands": downloaded, "latitude": latitude, "longitude": longitude, "area_size": area_size
+                    }
+                    st.session_state.change_result = None
+                    st.session_state.object_detections = []
+                    st.success("✅ Satellite scene downloaded. Iniciando análise...")
+                    st.rerun()
 
 data = st.session_state.satellite_data
 detection_rgb = None
 
 # ============================================================
-# PROCESSAMENTO PRINCIPAL (Antes das Abas para alimentar o Mapa)
+# PROCESSAMENTO PRINCIPAL (ANTES DAS ABAS PARA ALIMENTAR O MAPA)
 # ============================================================
 if data:
-    # Carregamento das bandas (Movido para cá)
+    # Carregamento das bandas
     with st.spinner("📡 Loading spectral bands..."):
         try:
             b02, m02 = read_band(data["bands"]["B02"])
@@ -149,12 +186,10 @@ if data:
         validate_detection_image(detection_rgb)
         false_color = create_false_color(green=b03, red=b04, nir=b08)
         
-        # Cálculo dos Índices
         ndvi = calculate_ndvi(red=b04, nir=b08)
         ndwi = calculate_ndwi(green=b03, nir=b08)
         ndbi = calculate_ndbi(nir=b08, swir=b11)
         
-        # Classificação
         classification = classify_land_cover(ndvi=ndvi, ndwi=ndwi, ndbi=ndbi)
     except Exception as error:
         st.error("❌ Failed to create images.")
@@ -167,7 +202,7 @@ if data:
 if data:
     tab1, tab2, tab3, tab4 = st.tabs(["🛰️ Operations Center", "🔬 Spectral Analysis", "🌍 Change Detection", "🎯 Geospatial AI"])
 
-    # ---------------- TAB 1: OPERATIONS CENTER (MAPA INTEGRADO) ----------------
+    # ---------------- TAB 1: OPERATIONS CENTER ----------------
     with tab1:
         st.header("🛰️ Selected Satellite Scene")
         c1, c2, c3 = st.columns(3)
@@ -183,7 +218,6 @@ if data:
                 scene_bbox = create_bbox(data.get("latitude", latitude), data.get("longitude", longitude), data.get("area_size", area_size))
                 detections = st.session_state.object_detections
                 
-                # PASSA OS DADOS PARA O MAPA
                 render_map_panel(
                     latitude=data.get("latitude", latitude), longitude=data.get("longitude", longitude),
                     area_size=data.get("area_size", area_size), bbox=scene_bbox,
@@ -396,6 +430,9 @@ if data:
 else:
     st.info("🛰️ Procure e baixe uma cena de satélite para iniciar a análise.")
 
+# ============================================================
+# STATUS DO PROJETO (CORRIGIDO SEM TERNÁRIOS)
+# ============================================================
 st.divider()
 st.subheader("🚀 Project Pipeline")
 has_search = len(st.session_state.search_results) > 0
@@ -404,18 +441,23 @@ has_change = st.session_state.change_result is not None
 has_ai = len(st.session_state.object_detections) > 0
 
 cols = st.columns(5)
+
 with cols[0]:
     if has_search: st.success("✅ Search")
     else: st.info("⏳ Search")
+
 with cols[1]:
     if has_scene: st.success("✅ Download")
     else: st.info("⏳ Download")
+
 with cols[2]:
     if has_scene: st.success("✅ Spectral")
     else: st.info("⏳ Spectral")
+
 with cols[3]:
     if has_change: st.success("✅ Changes")
     else: st.info("⏳ Changes")
+
 with cols[4]:
     if has_ai: st.success("✅ AI")
     elif has_scene: st.info("🧠 AI Ready")
