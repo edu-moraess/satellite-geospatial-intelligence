@@ -1,14 +1,12 @@
 """
-Change Detection Visualization
+Change Detection Visualization (Plotly Version)
 ==============================
 """
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-
 import numpy as np
+import plotly.express as px
 
 
 # ============================================================
@@ -31,60 +29,43 @@ def create_change_figure(
         change_map
     )
 
-    cmap = ListedColormap(
-        [
-            "#D73027",  # decrease
-            "#F0F0F0",  # unchanged
-            "#1A9850",  # increase
-        ]
-    )
+    # Cores: Vermelho (Decrease), Cinza (Unchanged), Verde (Increase)
+    discrete_colorscale = [
+        [0.0, "#D73027"],   # decrease
+        [0.5, "#F0F0F0"],   # unchanged
+        [1.0, "#1A9850"],   # increase
+    ]
 
-    figure, axis = plt.subplots(
-        figsize=(10, 8)
-    )
-
-    image = axis.imshow(
+    fig = px.imshow(
         change_map,
-        cmap=cmap,
-        vmin=-1,
-        vmax=1,
-        interpolation="nearest",
+        zmin=-1,
+        zmax=1,
+        color_continuous_scale=discrete_colorscale,
+        labels=dict(x="Pixel X", y="Pixel Y", color="Change"),
+        aspect="auto"
     )
 
-    axis.set_title(
-        title,
-        fontsize=16,
+    fig.update_layout(
+        title=title,
+        title_font=dict(color="white", size=18),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="white"),
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        coloraxis_colorbar=dict(
+            tickvals=[-1, 0, 1],
+            ticktext=["Decrease", "No significant change", "Increase"],
+            title="Change",
+            title_font_color="white",
+            tickfont_color="white",
+            outlinewidth=1,
+            outlinecolor="white"
+        )
     )
 
-    axis.set_xlabel(
-        "Pixel X"
-    )
-
-    axis.set_ylabel(
-        "Pixel Y"
-    )
-
-    colorbar = figure.colorbar(
-        image,
-        ax=axis,
-        ticks=[
-            -1,
-            0,
-            1,
-        ],
-    )
-
-    colorbar.ax.set_yticklabels(
-        [
-            "Decrease",
-            "No significant change",
-            "Increase",
-        ]
-    )
-
-    figure.tight_layout()
-
-    return figure
+    return fig
 
 
 # ============================================================
@@ -103,35 +84,29 @@ def create_difference_figure(
         difference
     )
 
-    figure, axis = plt.subplots(
-        figsize=(10, 8)
-    )
-
-    image = axis.imshow(
+    fig = px.imshow(
         difference,
-        cmap="RdBu_r",
-        interpolation="nearest",
+        color_continuous_scale="RdBu_r",
+        labels=dict(x="Pixel X", y="Pixel Y", color="Difference"),
+        aspect="auto"
     )
 
-    axis.set_title(
-        title,
-        fontsize=16,
+    fig.update_layout(
+        title=title,
+        title_font=dict(color="white", size=18),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="white"),
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        coloraxis_colorbar=dict(
+            title="Difference",
+            title_font_color="white",
+            tickfont_color="white",
+            outlinewidth=1,
+            outlinecolor="white"
+        )
     )
 
-    axis.set_xlabel(
-        "Pixel X"
-    )
-
-    axis.set_ylabel(
-        "Pixel Y"
-    )
-
-    figure.colorbar(
-        image,
-        ax=axis,
-        label="Difference",
-    )
-
-    figure.tight_layout()
-
-    return figure
+    return fig
