@@ -1,20 +1,13 @@
 """
-ui/layout.py – Funções para renderizar as seções principais do aplicativo.
-Cada função recebe os dados necessários e desenha a UI correspondente.
+ui/layout.py – Funções de renderização das seções principais.
 """
 
 import streamlit as st
-from ui.components import (
-    metric_card,
-    pipeline_stage,
-    scene_row,
-    image_pair,
-    section_title
-)
-from ui.status import get_pipeline_status, update_pipeline_status
+from ui.components import metric_card, pipeline_stage
+from ui.status import get_pipeline_status
 
 def render_header():
-    """Cabeçalho global com título e status."""
+    """Cabeçalho global."""
     st.markdown("""
     <div class="sgi-header">
         <div class="sgi-brand">
@@ -30,70 +23,92 @@ def render_header():
     </div>
     """, unsafe_allow_html=True)
 
-def render_mission_summary(aoi_info, date_range, cloud_limit, scene_count):
-    """Resumo compacto da missão atual."""
-    cols = st.columns([1, 1, 1, 1])
+def render_mission_summary(items, drawn_aoi, latitude, longitude, area_size):
+    """KPIs compactos da missão."""
+    if items:
+        sorted_items = sorted(items, key=lambda x: float(x.properties.get("eo:cloud_cover", 100)))
+        best_cloud = float(sorted_items[0].properties.get("eo:cloud_cover", 0))
+        latest_dates = [item.datetime.date() for item in items if item.datetime]
+        latest_date = max(latest_dates) if latest_dates else "N/A"
+    else:
+        best_cloud = 0.0
+        latest_date = "N/A"
+
+    cols = st.columns(4)
     with cols[0]:
-        metric_card("AOI", aoi_info, icon="📍")
+        metric_card("Scenes", str(len(items)) if items else "0")
     with cols[1]:
-        metric_card("Date Range", date_range, icon="📅")
+        metric_card("Best Cloud", f"{best_cloud:.2f}%")
     with cols[2]:
-        metric_card("Cloud Limit", f"{cloud_limit}%", icon="☁️")
+        metric_card("Latest", str(latest_date))
     with cols[3]:
-        metric_card("Scenes", str(scene_count), icon="🛰️")
+        metric_card("AOI", "Drawn" if drawn_aoi else f"{latitude:.4f}° / {longitude:.4f}°")
 
-def render_geospatial_operations_center(map_func, aoi_type="polygon"):
-    """
-    Renderiza o mapa principal com seleção AOI.
-    map_func: função que retorna o objeto folium e aceita parâmetros de estado.
-    """
+def render_geospatial_operations_center(map_panel_func):
+    """Renderiza o mapa principal."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Geospatial Operations Center", "Interactive Earth observation · Sentinel-2 · AOI · Spatial analysis")
+    st.markdown('<div class="sgi-section-title">Geospatial Operations Center</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-description">Interactive Earth observation · Sentinel-2 · AOI · Spatial analysis</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-map-wrapper">', unsafe_allow_html=True)
-    # Chama a função do mapa; ela deve usar st.session_state para persistência
-    map_func()
+    map_panel_func()
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-def render_scene_catalog(scenes, download_callback):
-    """
-    Catálogo de cenas em formato de tabela compacta.
-    scenes: lista de dicionários com 'date', 'cloud', 'id', etc.
-    download_callback: função chamada ao clicar em download.
-    """
-    if not scenes:
-        st.info("Nenhuma cena encontrada. Use a barra lateral para pesquisar.")
-        return
+def render_scene_catalog(items, download_callback):
+    """Catálogo de cenas em tabela compacta."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Satellite Archive", f"{len(scenes)} scenes available")
+    st.markdown('<div class="sgi-section-title">Satellite Archive</div>', unsafe_allow_html=True)
+    if not items:
+        st.info("Search the Sentinel-2 catalog from the sidebar to populate the archive.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    st.markdown(f'<div class="sgi-section-description">{len(items)} scenes available</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-scene-catalog">', unsafe_allow_html=True)
-    for scene in scenes:
-        scene_row(scene, download_callback)
+    for idx, item in enumerate(items):
+        cloud = float(item.properties.get("eo:cloud_cover", 0))
+        date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+        quality = "Excellent" if cloud <= 1 else "Good" if cloud <= 5 else "Acceptable" if cloud <= 10 else "Cloudy"
+        cols = st.columns([2, 1, 1, 1])
+        with cols[0]:
+            st.markdown(f'<span class="date-col">{date_str}</span>', unsafe_allow_html=True)
+        with cols[1]:
+            st.markdown(f'<span class="cloud-col">{cloud:.2f}%</span>', unsafe_allow_html=True)
+        with cols[2]:
+            st.markdown(f'<span class="quality-col">{quality}</span>', unsafe_allow_html=True)
+        with cols[3]:
+            if st.button("Download", key=f"dl_{idx}_{item.id[:8]}"):
+                download_callback(item)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-def render_active_scene(scene_metadata, rgb_img, false_color_img):
-    """
-    Exibe metadados da cena ativa e as visualizações RGB e False Color.
-    """
-    if not scene_metadata:
+def render_active_scene(data, rgb, false_color):
+    """Exibe metadados e visualizações da cena ativa."""
+    if data is None:
+        st.info("Download a satellite scene to activate analysis.")
         return
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Active Scene", f"{scene_metadata.get('date', '')} · Cloud {scene_metadata.get('cloud', 0):.2f}% · ID {scene_metadata.get('id', '')[:8]}")
-    if rgb_img is not None and false_color_img is not None:
-        image_pair("RGB", rgb_img, "False Color", false_color_img)
-    elif rgb_img is not None:
-        st.image(rgb_img, caption="RGB", use_container_width=True)
-    elif false_color_img is not None:
-        st.image(false_color_img, caption="False Color", use_container_width=True)
+    st.markdown('<div class="sgi-section-title">Active Scene</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sgi-section-description">{data["date"]} · Cloud {data["cloud"]:.2f}% · ID {data["scene_id"][:16]}</div>', unsafe_allow_html=True)
+    if rgb is not None and false_color is not None:
+        st.markdown('<div class="sgi-image-pair">', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(rgb, caption="Natural Color", use_container_width=True)
+        with col2:
+            st.image(false_color, caption="False Color", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    elif rgb is not None:
+        st.image(rgb, caption="Natural Color", use_container_width=True)
+    elif false_color is not None:
+        st.image(false_color, caption="False Color", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-def render_spectral_intelligence(ndvi, ndwi, ndbi, spectral_map):
-    """
-    Exibe os índices espectrais e o mapa escolhido.
-    """
+def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure):
+    """Índices espectrais e mapa de índice."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Spectral Intelligence", "NDVI · NDWI · NDBI")
+    st.markdown('<div class="sgi-section-title">Spectral Intelligence</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-description">NDVI · NDWI · NDBI</div>', unsafe_allow_html=True)
     cols = st.columns(3)
     with cols[0]:
         metric_card("NDVI", f"{ndvi:.3f}" if ndvi is not None else "—")
@@ -101,113 +116,148 @@ def render_spectral_intelligence(ndvi, ndwi, ndbi, spectral_map):
         metric_card("NDWI", f"{ndwi:.3f}" if ndwi is not None else "—")
     with cols[2]:
         metric_card("NDBI", f"{ndbi:.3f}" if ndbi is not None else "—")
-    if spectral_map is not None:
-        st.markdown('<div class="sgi-map-wrapper">', unsafe_allow_html=True)
-        st.image(spectral_map, use_container_width=True)
+    if index_figure is not None:
+        st.pyplot(index_figure, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def render_land_cover(classification, percentages, area):
+    """Classificação e estatísticas de cobertura do solo."""
+    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-title">Land Cover</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-description">Rule‑based baseline</div>', unsafe_allow_html=True)
+    if classification is not None:
+        st.pyplot(classification, use_container_width=True)
+        if percentages:
+            cols = st.columns(5)
+            for i, (label, pct) in enumerate(percentages.items()):
+                with cols[i]:
+                    metric_card(label, f"{pct:.1f}%")
+        if area:
+            cols = st.columns(4)
+            for i, (label, val) in enumerate(area.items()):
+                with cols[i]:
+                    metric_card(f"{label} km²", f"{val:.3f}")
+    else:
+        st.info("No classification available.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area_size):
+    """Controles e execução de change detection, exibe resultados se disponíveis."""
+    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-title">Change Detection</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-description">Compare two observations</div>', unsafe_allow_html=True)
+
+    if len(items) < 2:
+        st.info("Search for at least two scenes to enable change detection.")
         st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        return
 
-def render_land_cover(classification_img, distribution_data, area_data):
-    """
-    Exibe classificação, distribuição e estimativa de área.
-    """
-    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Land Cover", "Classification · Distribution · Area")
-    if classification_img is not None:
-        st.image(classification_img, use_container_width=True)
-    if distribution_data:
-        cols = st.columns(len(distribution_data))
-        for col, (label, value) in zip(cols, distribution_data.items()):
-            with col:
-                metric_card(label, f"{value:.1f}%")
-    if area_data:
-        cols = st.columns(len(area_data))
-        for col, (label, value) in zip(cols, area_data.items()):
-            with col:
-                metric_card(f"{label} (km²)", f"{value:.2f}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    scene_options = {}
+    for item in items:
+        date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+        cloud = float(item.properties.get("eo:cloud_cover", 0))
+        label = f"{date_str} • {cloud:.2f}% clouds • {item.id[:8]}"
+        scene_options[label] = item
+    scene_names = list(scene_options.keys())
 
-def render_change_detection(before_img, after_img, change_index, sensitivity, change_stats, change_map):
-    """
-    Controles e visualização de detecção de mudanças.
-    """
-    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Change Detection", "Compare two observations")
-    # Controles em linha
-    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+    col1, col2 = st.columns(2)
     with col1:
-        st.selectbox("Before", options=["Scene A", "Scene B"], key="change_before")
+        before_name = st.selectbox("Data A — Before", scene_names, key="change_before")
     with col2:
-        st.selectbox("After", options=["Scene B", "Scene A"], key="change_after")
+        after_name = st.selectbox("Data B — After", scene_names, index=min(1, len(scene_names)-1), key="change_after")
+
+    col3, col4 = st.columns(2)
     with col3:
-        st.selectbox("Index", options=["NDVI", "NDWI", "NDBI"], key="change_index")
+        threshold = st.slider("Sensitivity", 0.01, 0.50, 0.10, 0.01, key="change_threshold")
     with col4:
-        st.slider("Sensitivity", 0.0, 1.0, 0.1, 0.05, key="change_sensitivity")
-    if st.button("Analyze Changes", key="analyze_changes_btn"):
-        # Chamada à função de detecção (deve ser definida em app.py)
+        index_choice = st.selectbox("Index", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built-up"], key="change_index")
+
+    if st.button("Analyze Changes", type="primary", key="run_change_detection"):
+        # A lógica de processamento será executada e o resultado será armazenado no session_state.
+        # Esta função apenas renderiza os controles; o processamento é feito no app.py.
+        # Mas chamamos uma função que será definida no app.py para processar.
         st.session_state['run_change_detection'] = True
-    # Resultados
-    if change_stats:
-        cols = st.columns(3)
-        with cols[0]:
-            metric_card("Decrease", f"{change_stats.get('decrease', 0):.2f}%")
-        with cols[1]:
-            metric_card("Increase", f"{change_stats.get('increase', 0):.2f}%")
-        with cols[2]:
-            metric_card("Total Changed", f"{change_stats.get('total', 0):.2f}%")
-    if change_map is not None:
-        st.image(change_map, use_container_width=True)
+
+    # Resultados (se existirem)
+    change_result = st.session_state.get('change_result')
+    if change_result:
+        stats = change_result['statistics']
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            metric_card("Decrease", f"{stats['decrease_km2']:.3f} km²")
+        with c2:
+            metric_card("Increase", f"{stats['increase_km2']:.3f} km²")
+        with c3:
+            metric_card("Total Changed", f"{stats['total_changed_km2']:.3f} km²")
+        if change_result.get('figure'):
+            st.pyplot(change_result['figure'], use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-def render_geospatial_ai(model_list, input_preview, config, detection_results, export_callback):
-    """
-    Módulo de IA geoespacial com configuração, execução e exportação.
-    """
+def render_geospatial_ai(data, detection_rgb, detections):
+    """Seção de IA geoespacial."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    section_title("Geospatial AI", "Object Detection · Classification · Export")
+    st.markdown('<div class="sgi-section-title">Geospatial AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-description">Object Detection · Classification · Export</div>', unsafe_allow_html=True)
+
+    if data is None or detection_rgb is None:
+        st.info("Download a scene to enable Geospatial AI.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
     with st.expander("Model & Configuration", expanded=False):
-        col1, col2 = st.columns([1, 2])
+        st.image(detection_rgb, caption="Input RGB", use_container_width=True)
+        col1, col2 = st.columns(2)
         with col1:
-            st.selectbox("Model", model_list, key="ai_model")
-            st.text("Checkpoint: latest")
+            tile_size = st.selectbox("Tile size", [256, 512, 768, 1024], index=1, key="ai_tile_size")
+            overlap = st.slider("Overlap", 0, 256, 64, 16, key="ai_overlap")
         with col2:
-            if input_preview is not None:
-                st.image(input_preview, caption="Input Preview", use_container_width=True)
-        col3, col4, col5 = st.columns(3)
-        with col3:
-            st.number_input("Tile Size", 256, 1024, 512, 64, key="ai_tile_size")
-        with col4:
-            st.slider("Overlap", 0.0, 0.5, 0.2, 0.05, key="ai_overlap")
-        with col5:
-            st.slider("Confidence", 0.0, 1.0, 0.5, 0.05, key="ai_confidence")
-        st.multiselect("Classes", options=["Vegetation", "Water", "Built-up", "Bare Soil", "Other"], key="ai_classes")
-        if st.button("Run Geospatial AI", key="run_ai_btn"):
+            confidence = st.slider("Confidence", 0.10, 0.95, 0.50, 0.05, key="ai_confidence")
+            # Model selection
+            try:
+                from src.model_registry import list_models
+                model_ids = list_models()
+                selected_model = st.selectbox("Model", model_ids, key="ai_model")
+            except:
+                selected_model = None
+            classes = st.multiselect("Classes", ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"], key="ai_classes")
+        if st.button("Run Geospatial AI", type="primary", key="run_ai"):
             st.session_state['run_ai'] = True
-    if detection_results:
-        st.metric("Objects Detected", detection_results.get('count', 0))
-        st.metric("Classes", ", ".join(detection_results.get('classes', [])))
-        if detection_results.get('image') is not None:
-            st.image(detection_results['image'], use_container_width=True)
-        if st.button("Export GeoJSON", key="export_geojson_btn"):
-            export_callback()
+
+    if detections:
+        summary = detection_summary(detections) if 'detection_summary' in globals() else {}
+        col1, col2 = st.columns(2)
+        with col1:
+            metric_card("Objects", str(len(detections)))
+        with col2:
+            metric_card("Classes", str(len(summary)))
+        # Exibir figura com detecções (se disponível)
+        detection_fig = st.session_state.get('detection_figure')
+        if detection_fig:
+            st.pyplot(detection_fig, use_container_width=True)
+        # Botão de exportação
+        if st.button("Export GeoJSON", key="export_geojson"):
+            st.session_state['export_geojson'] = True
+    else:
+        st.info("No detections available. Run inference to generate results.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_pipeline_status():
     """Barra horizontal de status do pipeline."""
     status = get_pipeline_status()
-    stages = ["Catalog", "Imagery", "Spectral", "Change Detection", "Geospatial AI"]
+    stages = ["Catalog", "Imagery", "Spectral", "Change", "AI"]
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
+    st.markdown('<div class="sgi-section-title">Processing Pipeline</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-pipeline">', unsafe_allow_html=True)
     for i, stage in enumerate(stages):
         state = status.get(stage, "pending")
         pipeline_stage(stage, state)
-        if i < len(stages) - 1:
+        if i < len(stages)-1:
             st.markdown('<span class="sgi-pipeline-arrow">→</span>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_footer():
-    """Rodapé compacto."""
+    """Rodapé."""
     st.markdown("""
     <div class="sgi-footer">
         SATELLITE GEOSPATIAL INTELLIGENCE · Earth Observation · Remote Sensing · Computer Vision · Geospatial AI<br>
