@@ -44,7 +44,6 @@ def _safe_float(
     value: Any,
     default: float = 0.0,
 ) -> float:
-
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -88,10 +87,16 @@ def resolve_slider_default(
     preferred_value: Any = None,
 ):
     """
-    Return a value that is guaranteed to exist in options.
+    Return a value guaranteed to exist in options.
 
     Prevents stale Streamlit session state from causing:
+
         ValueError: X is not in iterable
+
+    Priority:
+        1. stored_value
+        2. preferred_value
+        3. middle option
     """
 
     if not options:
@@ -135,20 +140,20 @@ def add_aoi(
     ]
 
     aoi_group = folium.FeatureGroup(
-        name="Analysis Area",
+        name="AOI",
         show=True,
     )
 
     folium.Rectangle(
         bounds=bounds,
-        color="#64748B",
+        color="#00D4FF",
         weight=2,
         fill=True,
-        fill_color="#64748B",
+        fill_color="#00D4FF",
         fill_opacity=0.08,
-        tooltip="Analysis Area",
+        tooltip="Area of Interest",
         popup=(
-            "<b>Analysis Area</b><br>"
+            "<b>Area of Interest</b><br>"
             f"Latitude: {lat:.6f}<br>"
             f"Longitude: {lon:.6f}<br>"
             f"Area size: {size:.3f}°"
@@ -160,13 +165,13 @@ def add_aoi(
             lat,
             lon,
         ],
-        radius=5,
+        radius=6,
         color="#FFFFFF",
         weight=2,
         fill=True,
-        fill_color="#475569",
+        fill_color="#00D4FF",
         fill_opacity=1,
-        tooltip="Selected location",
+        tooltip="AOI Center",
     ).add_to(aoi_group)
 
     aoi_group.add_to(fmap)
@@ -204,11 +209,11 @@ def add_scene_footprint(
             [min_lat, min_lon],
             [max_lat, max_lon],
         ],
-        color="#94A3B8",
+        color="#FFD166",
         weight=2,
         fill=True,
-        fill_color="#94A3B8",
-        fill_opacity=0.03,
+        fill_color="#FFD166",
+        fill_opacity=0.04,
         dash_array="6,6",
         tooltip=label,
     ).add_to(footprint)
@@ -256,13 +261,13 @@ def add_scene_marker(
             _safe_float(latitude),
             _safe_float(longitude),
         ],
-        tooltip="Selected Sentinel-2 scene",
+        tooltip="Selected Sentinel-2 Scene",
         popup=folium.Popup(
             popup_html,
             max_width=400,
         ),
         icon=folium.Icon(
-            color="gray",
+            color="blue",
             icon="satellite",
             prefix="fa",
         ),
@@ -306,17 +311,20 @@ def create_geospatial_map(
     # ========================================================
 
     for name, config in DEFAULT_TILES.items():
+
         folium.TileLayer(
             tiles=config["tiles"],
             attr=config["attr"],
             name=name,
             overlay=False,
             control=True,
-            show=name == map_style,
+            show=(
+                name == map_style
+            ),
         ).add_to(fmap)
 
     # ========================================================
-    # AOI
+    # DEFAULT AOI
     # ========================================================
 
     add_aoi(
@@ -331,6 +339,7 @@ def create_geospatial_map(
     # ========================================================
 
     if bbox is not None:
+
         add_scene_footprint(
             fmap=fmap,
             bbox=bbox,
@@ -345,6 +354,7 @@ def create_geospatial_map(
     # ========================================================
 
     if scene_id:
+
         add_scene_marker(
             fmap=fmap,
             latitude=lat,
@@ -427,6 +437,32 @@ def create_geospatial_map(
         position="topright",
     ).add_to(fmap)
 
+    # ========================================================
+    # MAP TITLE
+    # ========================================================
+
+    info = folium.Element(
+        """
+        <div style="
+            position: fixed;
+            top: 12px;
+            left: 52px;
+            z-index: 9999;
+            background: rgba(15, 23, 42, 0.92);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        ">
+            <b>GEOSPATIAL INTELLIGENCE</b>
+        </div>
+        """
+    )
+
+    fmap.get_root().html.add_child(info)
+
     return fmap
 
 
@@ -482,22 +518,34 @@ def render_geospatial_map(
 
 
 # ============================================================
-# MAP CLICK HANDLER
+# MAP CLICK STATE
 # ============================================================
 
 def _handle_map_click(
-    map_state: dict[str, Any],
+    map_state: dict[str, Any] | None,
     current_latitude: float,
     current_longitude: float,
 ) -> bool:
     """
-    Apply a new map click to the AOI session state.
+    Process a map click and synchronize AOI coordinates.
 
-    Returns True only when the AOI center changed.
+    Important:
+    This function intentionally does NOT call st.rerun().
 
-    A fingerprint is stored to prevent the same
-    streamlit-folium click event from causing a rerun loop.
+    streamlit-folium already participates in Streamlit's rerun
+    cycle when the map interaction changes. Forcing another
+    rerun immediately after the component event can cause
+    React/DOM lifecycle conflicts such as:
+
+        NotFoundError:
+        Failed to execute 'removeChild' on 'Node'
+
+    The AOI state is therefore updated in-place and the normal
+    Streamlit lifecycle is allowed to continue.
     """
+
+    if not map_state:
+        return False
 
     last_clicked = map_state.get("last_clicked")
 
@@ -507,53 +555,35 @@ def _handle_map_click(
     selected_lat = last_clicked.get("lat")
     selected_lon = last_clicked.get("lng")
 
-    if selected_lat is None or selected_lon is None:
-        return False
-
-    clicked_lat = _safe_float(selected_lat, default=float("nan"))
-    clicked_lon = _safe_float(selected_lon, default=float("nan"))
-
-    if not (
-        clicked_lat == clicked_lat
-        and clicked_lon == clicked_lon
+    if (
+        selected_lat is None
+        or selected_lon is None
     ):
         return False
 
-    click_fingerprint = (
-        round(clicked_lat, 7),
-        round(clicked_lon, 7),
+    selected_lat = _safe_float(
+        selected_lat,
+        current_latitude,
     )
 
-    previous_click = st.session_state.get(
-        "_last_processed_map_click"
+    selected_lon = _safe_float(
+        selected_lon,
+        current_longitude,
     )
 
-    if previous_click == click_fingerprint:
+    # Ignore malformed coordinates.
+    if not (
+        -90.0 <= selected_lat <= 90.0
+        and -180.0 <= selected_lon <= 180.0
+    ):
         return False
 
-    result = apply_map_click_to_center(
-        latitude=clicked_lat,
-        longitude=clicked_lon,
-        current_latitude=current_latitude,
-        current_longitude=current_longitude,
+    changed = apply_map_click_to_center(
+        latitude=selected_lat,
+        longitude=selected_lon,
     )
 
-    # Always record the click fingerprint, even if the
-    # coordinate was effectively unchanged.
-    st.session_state["_last_processed_map_click"] = (
-        click_fingerprint
-    )
-
-    if result is None:
-        return False
-
-    new_latitude, new_longitude = result
-
-    st.session_state["aoi_latitude"] = new_latitude
-    st.session_state["aoi_longitude"] = new_longitude
-    st.session_state["aoi_source"] = "map"
-
-    return True
+    return bool(changed)
 
 
 # ============================================================
@@ -571,20 +601,25 @@ def render_map_panel(
     key: str = "main_geospatial_map",
 ) -> dict[str, Any]:
 
-    st.subheader("Geospatial Operations Center")
+    st.subheader(
+        "Geospatial Operations Center"
+    )
 
     st.caption(
-        "Select a location directly on the map or use the "
-        "AOI controls in the sidebar."
+        "Interactive Earth observation map · "
+        "Sentinel-2 · AOI · spatial analysis"
     )
 
     # ========================================================
     # MAP CONTROLS
     # ========================================================
 
-    control_col1, control_col2, control_col3 = st.columns(3)
+    control_col1, control_col2, control_col3 = (
+        st.columns(3)
+    )
 
     with control_col1:
+
         map_style = st.selectbox(
             "Basemap",
             list(DEFAULT_TILES.keys()),
@@ -593,6 +628,7 @@ def render_map_panel(
         )
 
     with control_col2:
+
         zoom_start = st.slider(
             "Zoom",
             min_value=3,
@@ -603,6 +639,7 @@ def render_map_panel(
         )
 
     with control_col3:
+
         height_options = [
             500,
             600,
@@ -611,7 +648,9 @@ def render_map_panel(
             800,
         ]
 
-        height_state_key = f"{key}_height"
+        height_state_key = (
+            f"{key}_height"
+        )
 
         default_height = resolve_slider_default(
             height_options,
@@ -628,10 +667,14 @@ def render_map_panel(
             key=height_state_key,
         )
 
-    st.caption(
-        "Click the map to move the analysis area. "
-        "Use the drawing tools when you need a custom polygon "
-        "or rectangle."
+    # ========================================================
+    # DRAWING INSTRUCTIONS
+    # ========================================================
+
+    st.info(
+        "**AOI selection:** use the polygon "
+        "or rectangle tool on the map to draw "
+        "the area you want to analyze."
     )
 
     # ========================================================
@@ -653,21 +696,13 @@ def render_map_panel(
     )
 
     # ========================================================
-    # MAP CLICK
+    # INTERACTION
     # ========================================================
 
     if map_state:
-        changed = _handle_map_click(
-            map_state=map_state,
-            current_latitude=latitude,
-            current_longitude=longitude,
-        )
-
-        if changed:
-            st.rerun()
 
         # ====================================================
-        # SELECTED COORDINATE
+        # CLICKED COORDINATE
         # ====================================================
 
         last_clicked = map_state.get(
@@ -675,43 +710,74 @@ def render_map_panel(
         )
 
         if isinstance(last_clicked, dict):
-            selected_lat = last_clicked.get("lat")
-            selected_lon = last_clicked.get("lng")
+
+            selected_lat = last_clicked.get(
+                "lat"
+            )
+
+            selected_lon = last_clicked.get(
+                "lng"
+            )
 
             if (
                 selected_lat is not None
                 and selected_lon is not None
             ):
+
+                changed = _handle_map_click(
+                    map_state=map_state,
+                    current_latitude=latitude,
+                    current_longitude=longitude,
+                )
+
                 st.caption(
-                    "Selected location · "
+                    "Selected coordinate: "
                     f"{float(selected_lat):.6f}, "
                     f"{float(selected_lon):.6f}"
                 )
+
+                if changed:
+                    st.caption(
+                        "AOI center updated. "
+                        "Run Sentinel-2 search when ready."
+                    )
 
         # ====================================================
         # CURRENT MAP CENTER
         # ====================================================
 
-        center = map_state.get("center")
-        zoom = map_state.get("zoom")
+        center = map_state.get(
+            "center"
+        )
+
+        zoom = map_state.get(
+            "zoom"
+        )
 
         if isinstance(center, dict):
-            center_lat = center.get("lat")
-            center_lon = center.get("lng")
+
+            center_lat = center.get(
+                "lat"
+            )
+
+            center_lon = center.get(
+                "lng"
+            )
 
             if (
                 center_lat is not None
                 and center_lon is not None
             ):
+
                 center_text = (
-                    f"Map center · "
+                    "Map center: "
                     f"{float(center_lat):.6f}, "
                     f"{float(center_lon):.6f}"
                 )
 
                 if zoom is not None:
                     center_text += (
-                        f" · Zoom {int(zoom)}"
+                        f" · Zoom: {int(zoom)}"
                     )
 
                 st.caption(center_text)
@@ -725,28 +791,44 @@ def render_map_panel(
         )
 
         if drawings:
-            if isinstance(drawings, dict):
+
+            st.success(
+                "AOI drawn on map."
+            )
+
+            if isinstance(
+                drawings,
+                dict,
+            ):
+
                 features = drawings.get(
                     "features",
                     [],
                 )
 
-                count = (
-                    len(features)
-                    if isinstance(features, list)
-                    else 0
-                )
+                if isinstance(
+                    features,
+                    list,
+                ):
 
-            elif isinstance(drawings, list):
-                count = len(drawings)
+                    st.caption(
+                        "Selected geometries: "
+                        f"{len(features)}"
+                    )
 
-            else:
-                count = 0
+            elif isinstance(
+                drawings,
+                list,
+            ):
 
-            if count:
                 st.caption(
-                    f"Custom AOI · {count} geometry"
-                    + ("ies" if count != 1 else "")
+                    "Selected geometries: "
+                    f"{len(drawings)}"
                 )
+
+            st.info(
+                "The drawn geometry will be used "
+                "as the Sentinel-2 search AOI."
+            )
 
     return map_state
