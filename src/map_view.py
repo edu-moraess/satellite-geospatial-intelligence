@@ -214,7 +214,7 @@ def add_scene_footprint(
     ) = normalized
 
     footprint = folium.FeatureGroup(
-        name="🛰️ Scene Footprint",
+        name="Scene Footprint",
         show=True,
     )
 
@@ -272,7 +272,7 @@ def add_scene_marker(
     )
 
     marker_group = folium.FeatureGroup(
-        name="🛰️ Selected Scene",
+        name="Selected Scene",
         show=True,
     )
 
@@ -771,9 +771,7 @@ def render_map_panel(
                 )
 
             st.info(
-                "🛰️ A próxima etapa utilizará "
-                "essa geometria como área de busca "
-                "do Sentinel-2."
+                "Drawn geometry will be used as the Sentinel-2 search AOI."
             )
 
     return map_state
