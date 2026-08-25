@@ -2,7 +2,7 @@
 app.py – Aplicação principal do Satellite Geospatial Intelligence.
 Reorganizado com layout profissional, alta densidade de informação
 e preservação total de todas as funcionalidades científicas.
-Corrigido: remoção de flags de session_state conflitantes.
+Corrigido: separação de controles e resultados para evitar conflitos de session_state.
 """
 
 from __future__ import annotations
@@ -50,7 +50,9 @@ from ui.layout import (
     render_spectral_intelligence,
     render_land_cover,
     render_change_detection_controls,
-    render_geospatial_ai,
+    render_change_detection_results,
+    render_geospatial_ai_controls,
+    render_geospatial_ai_results,
     render_pipeline_status,
     render_footer,
 )
@@ -298,10 +300,15 @@ render_land_cover(
 )
 
 # ============================================================
-# DETECÇÃO DE MUDANÇAS (CONTROLES + PROCESSAMENTO + RESULTADOS)
+# DETECÇÃO DE MUDANÇAS (CONTROLES E RESULTADOS SEPARADOS)
 # ============================================================
-def run_change_detection(before_name, after_name, threshold, index_choice, bbox):
-    """Executa a detecção de mudanças e armazena o resultado."""
+def run_change_detection(params, bbox):
+    """Executa a detecção de mudanças com os parâmetros fornecidos."""
+    before_name = params["before_name"]
+    after_name = params["after_name"]
+    threshold = params["threshold"]
+    index_choice = params["index_choice"]
+
     scene_options = {}
     for it in items:
         date_str = str(it.datetime.date()) if it.datetime else "Unknown"
@@ -371,22 +378,26 @@ def run_change_detection(before_name, after_name, threshold, index_choice, bbox)
         st.error("❌ Change detection failed.")
         st.exception(e)
 
-# Renderiza controles e, se clicado, executa a detecção
-if render_change_detection_controls(items, drawn_aoi, latitude, longitude, area_size):
+# Renderiza controles e, se retornar parâmetros, executa a detecção
+change_params = render_change_detection_controls(items)
+if change_params is not None:
     bbox = st.session_state.drawn_aoi["bbox"] if st.session_state.drawn_aoi else create_bbox(latitude, longitude, area_size)
-    run_change_detection(
-        before_name=st.session_state.get('change_before_name', ''),
-        after_name=st.session_state.get('change_after_name', ''),
-        threshold=st.session_state.get('change_threshold_val', 0.1),
-        index_choice=st.session_state.get('change_index_choice', 'NDVI — Vegetation'),
-        bbox=bbox,
-    )
+    run_change_detection(change_params, bbox)
     st.rerun()
 
+# Exibe resultados (se houver)
+render_change_detection_results()
+
 # ============================================================
-# GEOSPATIAL AI (MODELO + INFERÊNCIA + EXPORTAÇÃO)
+# GEOSPATIAL AI (CONTROLES E RESULTADOS SEPARADOS)
 # ============================================================
-def run_ai_inference(detection_rgb, model_id, tile_size, overlap, confidence, classes):
+def run_ai_inference(params, detection_rgb):
+    model_id = params["model_id"]
+    tile_size = params["tile_size"]
+    overlap = params["overlap"]
+    confidence = params["confidence"]
+    classes = params["classes"]
+
     if detection_rgb is None:
         st.warning("⚠️ RGB image for AI is not available.")
         return
@@ -407,25 +418,20 @@ def run_ai_inference(detection_rgb, model_id, tile_size, overlap, confidence, cl
         st.error("❌ AI inference failed.")
         st.exception(e)
 
-# Renderiza AI e, se o botão for clicado, executa
-if render_geospatial_ai(
+# Renderiza controles da IA
+ai_params = render_geospatial_ai_controls(
     st.session_state.satellite_data,
     st.session_state.detection_rgb,
-    st.session_state.object_detections,
-):
-    # O botão "Run Geospatial AI" foi clicado – pega parâmetros do session_state
-    detection_rgb = st.session_state.detection_rgb
-    if detection_rgb is not None:
-        model_id = st.session_state.get("ai_model", "")
-        tile_size = st.session_state.get("ai_tile_size", 512)
-        overlap = st.session_state.get("ai_overlap", 64)
-        confidence = st.session_state.get("ai_confidence", 0.5)
-        classes = st.session_state.get("ai_classes", [])
-        if model_id and classes:
-            run_ai_inference(detection_rgb, model_id, tile_size, overlap, confidence, classes)
-        else:
-            st.warning("⚠️ Select a model and at least one class.")
+)
+if ai_params is not None:
+    run_ai_inference(ai_params, st.session_state.detection_rgb)
     st.rerun()
+
+# Exibe resultados da IA (se houver)
+render_geospatial_ai_results(
+    st.session_state.object_detections,
+    st.session_state.detection_rgb,
+)
 
 # Exportação GeoJSON (acionada por botão no layout)
 if st.session_state.get('export_geojson', False):
