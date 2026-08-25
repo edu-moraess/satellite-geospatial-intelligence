@@ -1,5 +1,6 @@
 """
 ui/layout.py – Funções de renderização das seções principais.
+Ajustado para criar colunas dinamicamente e evitar IndexError.
 """
 
 import streamlit as st
@@ -121,19 +122,21 @@ def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_land_cover(classification, percentages, area):
-    """Classificação e estatísticas de cobertura do solo."""
+    """Classificação e estatísticas de cobertura do solo – CORRIGIDO: colunas dinâmicas."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Land Cover</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Rule‑based baseline</div>', unsafe_allow_html=True)
     if classification is not None:
         st.pyplot(classification, use_container_width=True)
+        # Percentagens – colunas dinâmicas
         if percentages:
-            cols = st.columns(5)
+            cols = st.columns(len(percentages))
             for i, (label, pct) in enumerate(percentages.items()):
                 with cols[i]:
                     metric_card(label, f"{pct:.1f}%")
+        # Áreas – colunas dinâmicas
         if area:
-            cols = st.columns(4)
+            cols = st.columns(len(area))
             for i, (label, val) in enumerate(area.items()):
                 with cols[i]:
                     metric_card(f"{label} km²", f"{val:.3f}")
@@ -173,9 +176,6 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
         index_choice = st.selectbox("Index", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built-up"], key="change_index")
 
     if st.button("Analyze Changes", type="primary", key="run_change_detection"):
-        # A lógica de processamento será executada e o resultado será armazenado no session_state.
-        # Esta função apenas renderiza os controles; o processamento é feito no app.py.
-        # Mas chamamos uma função que será definida no app.py para processar.
         st.session_state['run_change_detection'] = True
 
     # Resultados (se existirem)
@@ -212,7 +212,6 @@ def render_geospatial_ai(data, detection_rgb, detections):
             overlap = st.slider("Overlap", 0, 256, 64, 16, key="ai_overlap")
         with col2:
             confidence = st.slider("Confidence", 0.10, 0.95, 0.50, 0.05, key="ai_confidence")
-            # Model selection
             try:
                 from src.model_registry import list_models
                 model_ids = list_models()
@@ -224,17 +223,19 @@ def render_geospatial_ai(data, detection_rgb, detections):
             st.session_state['run_ai'] = True
 
     if detections:
-        summary = detection_summary(detections) if 'detection_summary' in globals() else {}
+        try:
+            from src.object_detection import detection_summary
+            summary = detection_summary(detections)
+        except:
+            summary = {}
         col1, col2 = st.columns(2)
         with col1:
             metric_card("Objects", str(len(detections)))
         with col2:
             metric_card("Classes", str(len(summary)))
-        # Exibir figura com detecções (se disponível)
         detection_fig = st.session_state.get('detection_figure')
         if detection_fig:
             st.pyplot(detection_fig, use_container_width=True)
-        # Botão de exportação
         if st.button("Export GeoJSON", key="export_geojson"):
             st.session_state['export_geojson'] = True
     else:
