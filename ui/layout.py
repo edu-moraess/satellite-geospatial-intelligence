@@ -55,7 +55,7 @@ def render_section(
     icon: str | None = None,
 ) -> None:
     """
-    Render a consistent section heading.
+    Render a compact section heading.
     """
 
     icon_html = (
@@ -85,6 +85,32 @@ def render_section(
             </span>
 
             {description_html}
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_operations_header(
+    title: str = "Geospatial Operations Center",
+    meta: str = "Interactive Earth observation • Sentinel-2 • AOI • Spatial analysis",
+) -> None:
+    """
+    Render the compact header above the main geospatial map.
+    """
+
+    st.markdown(
+        f"""
+        <div class="sgi-operations-title">
+
+            <div class="sgi-operations-name">
+                {title}
+            </div>
+
+            <div class="sgi-operations-meta">
+                {meta}
+            </div>
 
         </div>
         """,
