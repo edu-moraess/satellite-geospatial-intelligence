@@ -11,12 +11,8 @@ def render_pipeline_status(
     ai_available: bool = False,
 ) -> None:
     """
-    Render the current state of the geospatial pipeline.
+    Render a compact horizontal geospatial processing pipeline.
     """
-
-    st.markdown(
-        "### Processing Pipeline"
-    )
 
     stages = [
         ("Catalog", scene_available),
@@ -26,26 +22,42 @@ def render_pipeline_status(
         ("Geospatial AI", ai_available),
     ]
 
-    columns = st.columns(
-        len(stages)
+    parts: list[str] = []
+
+    for index, (name, available) in enumerate(stages):
+
+        active_class = (
+            "active"
+            if available
+            else ""
+        )
+
+        symbol = "✓" if available else "○"
+
+        parts.append(
+            f"""
+            <div class="sgi-pipeline-stage {active_class}">
+                <span>{symbol}</span>
+                <span>{name}</span>
+            </div>
+            """
+        )
+
+        if index < len(stages) - 1:
+
+            parts.append(
+                """
+                <span class="sgi-pipeline-arrow">
+                    →
+                </span>
+                """
+            )
+
+    st.markdown(
+        f"""
+        <div class="sgi-pipeline">
+            {''.join(parts)}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-
-    for column, (name, available) in zip(
-        columns,
-        stages,
-    ):
-
-        with column:
-
-            if available:
-
-                st.success(
-                    f"● {name}",
-                    icon="✓",
-                )
-
-            else:
-
-                st.info(
-                    f"○ {name}",
-                )
