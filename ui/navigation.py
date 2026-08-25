@@ -1,6 +1,6 @@
 """
-ui/navigation.py — Optional Mission Control sidebar helper.
-app.py currently inlines Mission Control; this module remains available
+ui/navigation.py — Optional Analysis Control sidebar helper.
+app.py currently inlines Analysis Control; this module remains available
 for alternate entry points without changing scientific behavior.
 """
 
@@ -13,7 +13,7 @@ import streamlit as st
 
 def render_mission_control_sidebar() -> dict:
     """Render AOI / temporal / filter controls. Returns control values."""
-    st.markdown("**Mission Control**")
+    st.markdown("**Analysis Control**")
     st.caption("AOI · temporal window · scene filter")
 
     st.markdown("AOI")
