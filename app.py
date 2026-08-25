@@ -2,6 +2,7 @@
 app.py – Aplicação principal do Satellite Geospatial Intelligence.
 Reorganizado com layout profissional, alta densidade de informação
 e preservação total de todas as funcionalidades científicas.
+Corrigido: remoção de flags de session_state conflitantes.
 """
 
 from __future__ import annotations
@@ -89,6 +90,7 @@ DEFAULT_STATE = {
     "detection_figure": None,
     "transform": None,
     "crs": None,
+    "export_geojson": False,
 }
 for key, value in DEFAULT_STATE.items():
     if key not in st.session_state:
@@ -425,11 +427,23 @@ if render_geospatial_ai(
             st.warning("⚠️ Select a model and at least one class.")
     st.rerun()
 
-# Exportação GeoJSON (agora tratada como botão de download dentro do layout)
-# O botão "Export GeoJSON" no layout define st.session_state['export_geojson'] = True
-# Mas vamos substituir por st.download_button diretamente no layout,
-# então removemos a lógica de exportação daqui.
-# O layout já contém o botão de download quando há detecções.
+# Exportação GeoJSON (acionada por botão no layout)
+if st.session_state.get('export_geojson', False):
+    detections = st.session_state.object_detections
+    if detections and st.session_state.transform is not None:
+        gdf = georeference_detections(
+            detections,
+            transform=st.session_state.transform,
+            crs=st.session_state.crs,
+        )
+        geojson_bytes = to_geojson_bytes(gdf)
+        st.download_button(
+            "⬇️ Download GeoJSON",
+            data=geojson_bytes,
+            file_name="detections.geojson",
+            mime="application/geo+json",
+        )
+    st.session_state['export_geojson'] = False
 
 # ============================================================
 # PIPELINE STATUS
