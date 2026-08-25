@@ -1,35 +1,37 @@
 """
-ui/status.py – Gerenciamento do estado do pipeline.
-Utiliza st.session_state para persistência.
+ui/status.py — Pipeline stage status in session_state.
 """
+
+from __future__ import annotations
 
 import streamlit as st
 
-PIPELINE_STAGES = ["Catalog", "Imagery", "Spectral", "Change Detection", "Geospatial AI"]
+PIPELINE_STAGES = ("Catalog", "Imagery", "Spectral", "Change", "AI")
 
-def init_pipeline_status():
-    """Inicializa o status do pipeline no session_state."""
+
+def init_pipeline_status() -> None:
     if "pipeline_status" not in st.session_state:
-        st.session_state["pipeline_status"] = {stage: "pending" for stage in PIPELINE_STAGES}
+        st.session_state["pipeline_status"] = {
+            stage: "pending" for stage in PIPELINE_STAGES
+        }
 
-def get_pipeline_status():
-    """Retorna o dicionário de status atual."""
+
+def get_pipeline_status() -> dict:
     init_pipeline_status()
     return st.session_state["pipeline_status"]
 
-def update_pipeline_status(stage, state):
+
+def update_pipeline_status(stage: str, state: str) -> None:
     """
-    Atualiza o status de um estágio.
-    state: 'pending', 'active', 'done'
+    Update one pipeline stage.
+    state: pending | active | done | error
     """
     init_pipeline_status()
     if stage in st.session_state["pipeline_status"]:
         st.session_state["pipeline_status"][stage] = state
-    else:
-        st.warning(f"Estágio '{stage}' não reconhecido.")
 
-def reset_pipeline():
-    """Reinicia todos os estágios para 'pending'."""
+
+def reset_pipeline() -> None:
     init_pipeline_status()
     for stage in PIPELINE_STAGES:
         st.session_state["pipeline_status"][stage] = "pending"

@@ -1,10 +1,12 @@
-# ui/__init__.py
-# Exporta os símbolos principais usados pelo app.py
-
-from .components import metric_card, pipeline_stage
-from .status import init_pipeline_status, update_pipeline_status, get_pipeline_status
+# ui package — presentation layer
+from .components import metric_card, pipeline_stage, section_header
+from .status import (
+    init_pipeline_status,
+    update_pipeline_status,
+    get_pipeline_status,
+    reset_pipeline,
+)
 from .theme import apply_theme
-
 from .layout import (
     render_header,
     render_mission_summary,
