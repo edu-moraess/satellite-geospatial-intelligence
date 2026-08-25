@@ -1,6 +1,6 @@
 """
 ui/layout.py – Funções de renderização das seções principais.
-Ajustado para criar colunas dinamicamente e evitar IndexError.
+Corrigido: colunas dinâmicas e botões com chaves únicas.
 """
 
 import streamlit as st
@@ -8,7 +8,6 @@ from ui.components import metric_card, pipeline_stage
 from ui.status import get_pipeline_status
 
 def render_header():
-    """Cabeçalho global."""
     st.markdown("""
     <div class="sgi-header">
         <div class="sgi-brand">
@@ -25,7 +24,6 @@ def render_header():
     """, unsafe_allow_html=True)
 
 def render_mission_summary(items, drawn_aoi, latitude, longitude, area_size):
-    """KPIs compactos da missão."""
     if items:
         sorted_items = sorted(items, key=lambda x: float(x.properties.get("eo:cloud_cover", 100)))
         best_cloud = float(sorted_items[0].properties.get("eo:cloud_cover", 0))
@@ -34,7 +32,6 @@ def render_mission_summary(items, drawn_aoi, latitude, longitude, area_size):
     else:
         best_cloud = 0.0
         latest_date = "N/A"
-
     cols = st.columns(4)
     with cols[0]:
         metric_card("Scenes", str(len(items)) if items else "0")
@@ -46,7 +43,6 @@ def render_mission_summary(items, drawn_aoi, latitude, longitude, area_size):
         metric_card("AOI", "Drawn" if drawn_aoi else f"{latitude:.4f}° / {longitude:.4f}°")
 
 def render_geospatial_operations_center(map_panel_func):
-    """Renderiza o mapa principal."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Geospatial Operations Center</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Interactive Earth observation · Sentinel-2 · AOI · Spatial analysis</div>', unsafe_allow_html=True)
@@ -56,14 +52,12 @@ def render_geospatial_operations_center(map_panel_func):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_scene_catalog(items, download_callback):
-    """Catálogo de cenas em tabela compacta."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Satellite Archive</div>', unsafe_allow_html=True)
     if not items:
         st.info("Search the Sentinel-2 catalog from the sidebar to populate the archive.")
         st.markdown('</div>', unsafe_allow_html=True)
         return
-
     st.markdown(f'<div class="sgi-section-description">{len(items)} scenes available</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-scene-catalog">', unsafe_allow_html=True)
     for idx, item in enumerate(items):
@@ -84,7 +78,6 @@ def render_scene_catalog(items, download_callback):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_active_scene(data, rgb, false_color):
-    """Exibe metadados e visualizações da cena ativa."""
     if data is None:
         st.info("Download a satellite scene to activate analysis.")
         return
@@ -106,7 +99,6 @@ def render_active_scene(data, rgb, false_color):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure):
-    """Índices espectrais e mapa de índice."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Spectral Intelligence</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">NDVI · NDWI · NDBI</div>', unsafe_allow_html=True)
@@ -122,19 +114,16 @@ def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_land_cover(classification, percentages, area):
-    """Classificação e estatísticas de cobertura do solo – CORRIGIDO: colunas dinâmicas."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Land Cover</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Rule‑based baseline</div>', unsafe_allow_html=True)
     if classification is not None:
         st.pyplot(classification, use_container_width=True)
-        # Percentagens – colunas dinâmicas
         if percentages:
             cols = st.columns(len(percentages))
             for i, (label, pct) in enumerate(percentages.items()):
                 with cols[i]:
                     metric_card(label, f"{pct:.1f}%")
-        # Áreas – colunas dinâmicas
         if area:
             cols = st.columns(len(area))
             for i, (label, val) in enumerate(area.items()):
@@ -145,7 +134,7 @@ def render_land_cover(classification, percentages, area):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area_size):
-    """Controles e execução de change detection, exibe resultados se disponíveis."""
+    """Exibe controles e resultados. Retorna True se o botão 'Analyze Changes' foi clicado."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Change Detection</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Compare two observations</div>', unsafe_allow_html=True)
@@ -153,7 +142,7 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
     if len(items) < 2:
         st.info("Search for at least two scenes to enable change detection.")
         st.markdown('</div>', unsafe_allow_html=True)
-        return
+        return False
 
     scene_options = {}
     for item in items:
@@ -175,10 +164,16 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
     with col4:
         index_choice = st.selectbox("Index", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built-up"], key="change_index")
 
-    if st.button("Analyze Changes", type="primary", key="run_change_detection"):
-        st.session_state['run_change_detection'] = True
+    # Botão com chave única (não conflita com session_state)
+    clicked = st.button("Analyze Changes", type="primary", key="change_detect_btn")
+    if clicked:
+        # Armazena parâmetros para uso na lógica
+        st.session_state['change_before_name'] = before_name
+        st.session_state['change_after_name'] = after_name
+        st.session_state['change_threshold_val'] = threshold
+        st.session_state['change_index_choice'] = index_choice
 
-    # Resultados (se existirem)
+    # Resultados
     change_result = st.session_state.get('change_result')
     if change_result:
         stats = change_result['statistics']
@@ -192,9 +187,10 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
         if change_result.get('figure'):
             st.pyplot(change_result['figure'], use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
+    return clicked
 
 def render_geospatial_ai(data, detection_rgb, detections):
-    """Seção de IA geoespacial."""
+    """Exibe controles e resultados da IA. Retorna True se o botão 'Run Geospatial AI' foi clicado."""
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Geospatial AI</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Object Detection · Classification · Export</div>', unsafe_allow_html=True)
@@ -202,7 +198,7 @@ def render_geospatial_ai(data, detection_rgb, detections):
     if data is None or detection_rgb is None:
         st.info("Download a scene to enable Geospatial AI.")
         st.markdown('</div>', unsafe_allow_html=True)
-        return
+        return False
 
     with st.expander("Model & Configuration", expanded=False):
         st.image(detection_rgb, caption="Input RGB", use_container_width=True)
@@ -219,9 +215,18 @@ def render_geospatial_ai(data, detection_rgb, detections):
             except:
                 selected_model = None
             classes = st.multiselect("Classes", ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"], key="ai_classes")
-        if st.button("Run Geospatial AI", type="primary", key="run_ai"):
-            st.session_state['run_ai'] = True
 
+        # Botão com chave única
+        run_clicked = st.button("Run Geospatial AI", type="primary", key="run_ai_btn")
+        if run_clicked:
+            # Armazena parâmetros para uso na lógica
+            st.session_state['ai_model'] = selected_model if 'selected_model' in locals() else ''
+            st.session_state['ai_tile_size'] = tile_size
+            st.session_state['ai_overlap'] = overlap
+            st.session_state['ai_confidence'] = confidence
+            st.session_state['ai_classes'] = classes
+
+    # Resultados
     if detections:
         try:
             from src.object_detection import detection_summary
@@ -236,14 +241,16 @@ def render_geospatial_ai(data, detection_rgb, detections):
         detection_fig = st.session_state.get('detection_figure')
         if detection_fig:
             st.pyplot(detection_fig, use_container_width=True)
-        if st.button("Export GeoJSON", key="export_geojson"):
+        # Botão de exportação direto
+        if st.button("Export GeoJSON", key="export_geojson_btn"):
+            # A exportação é tratada no app.py via session_state
             st.session_state['export_geojson'] = True
     else:
         st.info("No detections available. Run inference to generate results.")
     st.markdown('</div>', unsafe_allow_html=True)
+    return run_clicked if 'run_clicked' in locals() else False
 
 def render_pipeline_status():
-    """Barra horizontal de status do pipeline."""
     status = get_pipeline_status()
     stages = ["Catalog", "Imagery", "Spectral", "Change", "AI"]
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
@@ -258,7 +265,6 @@ def render_pipeline_status():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_footer():
-    """Rodapé."""
     st.markdown("""
     <div class="sgi-footer">
         SATELLITE GEOSPATIAL INTELLIGENCE · Earth Observation · Remote Sensing · Computer Vision · Geospatial AI<br>
