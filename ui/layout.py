@@ -1,6 +1,6 @@
 """
 ui/layout.py – Funções de renderização das seções principais.
-Corrigido: colunas dinâmicas e botões com chaves únicas.
+Controles e resultados são separados para evitar conflitos de session_state.
 """
 
 import streamlit as st
@@ -133,8 +133,12 @@ def render_land_cover(classification, percentages, area):
         st.info("No classification available.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area_size):
-    """Exibe controles e resultados. Retorna True se o botão 'Analyze Changes' foi clicado."""
+def render_change_detection_controls(items):
+    """
+    Renderiza apenas os controles da detecção de mudanças.
+    Retorna um dicionário com os valores selecionados se o botão for clicado,
+    caso contrário retorna None.
+    """
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Change Detection</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Compare two observations</div>', unsafe_allow_html=True)
@@ -142,7 +146,7 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
     if len(items) < 2:
         st.info("Search for at least two scenes to enable change detection.")
         st.markdown('</div>', unsafe_allow_html=True)
-        return False
+        return None
 
     scene_options = {}
     for item in items:
@@ -164,33 +168,41 @@ def render_change_detection_controls(items, drawn_aoi, latitude, longitude, area
     with col4:
         index_choice = st.selectbox("Index", ["NDVI — Vegetation", "NDWI — Water", "NDBI — Built-up"], key="change_index")
 
-    # Botão com chave única (não conflita com session_state)
     clicked = st.button("Analyze Changes", type="primary", key="change_detect_btn")
     if clicked:
-        # Armazena parâmetros para uso na lógica
-        st.session_state['change_before_name'] = before_name
-        st.session_state['change_after_name'] = after_name
-        st.session_state['change_threshold_val'] = threshold
-        st.session_state['change_index_choice'] = index_choice
-
-    # Resultados
-    change_result = st.session_state.get('change_result')
-    if change_result:
-        stats = change_result['statistics']
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            metric_card("Decrease", f"{stats['decrease_km2']:.3f} km²")
-        with c2:
-            metric_card("Increase", f"{stats['increase_km2']:.3f} km²")
-        with c3:
-            metric_card("Total Changed", f"{stats['total_changed_km2']:.3f} km²")
-        if change_result.get('figure'):
-            st.pyplot(change_result['figure'], use_container_width=True)
+        return {
+            "before_name": before_name,
+            "after_name": after_name,
+            "threshold": threshold,
+            "index_choice": index_choice,
+        }
     st.markdown('</div>', unsafe_allow_html=True)
-    return clicked
+    return None
 
-def render_geospatial_ai(data, detection_rgb, detections):
-    """Exibe controles e resultados da IA. Retorna True se o botão 'Run Geospatial AI' foi clicado."""
+def render_change_detection_results():
+    """Exibe os resultados da detecção de mudanças, se disponíveis."""
+    change_result = st.session_state.get('change_result')
+    if not change_result:
+        return
+    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
+    stats = change_result['statistics']
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        metric_card("Decrease", f"{stats['decrease_km2']:.3f} km²")
+    with c2:
+        metric_card("Increase", f"{stats['increase_km2']:.3f} km²")
+    with c3:
+        metric_card("Total Changed", f"{stats['total_changed_km2']:.3f} km²")
+    if change_result.get('figure'):
+        st.pyplot(change_result['figure'], use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def render_geospatial_ai_controls(data, detection_rgb):
+    """
+    Renderiza os controles da IA geoespacial.
+    Retorna um dicionário com as configurações se o botão for clicado,
+    caso contrário retorna None.
+    """
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-title">Geospatial AI</div>', unsafe_allow_html=True)
     st.markdown('<div class="sgi-section-description">Object Detection · Classification · Export</div>', unsafe_allow_html=True)
@@ -198,7 +210,7 @@ def render_geospatial_ai(data, detection_rgb, detections):
     if data is None or detection_rgb is None:
         st.info("Download a scene to enable Geospatial AI.")
         st.markdown('</div>', unsafe_allow_html=True)
-        return False
+        return None
 
     with st.expander("Model & Configuration", expanded=False):
         st.image(detection_rgb, caption="Input RGB", use_container_width=True)
@@ -216,39 +228,39 @@ def render_geospatial_ai(data, detection_rgb, detections):
                 selected_model = None
             classes = st.multiselect("Classes", ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"], key="ai_classes")
 
-        # Botão com chave única
         run_clicked = st.button("Run Geospatial AI", type="primary", key="run_ai_btn")
         if run_clicked:
-            # Armazena parâmetros para uso na lógica
-            st.session_state['ai_model'] = selected_model if 'selected_model' in locals() else ''
-            st.session_state['ai_tile_size'] = tile_size
-            st.session_state['ai_overlap'] = overlap
-            st.session_state['ai_confidence'] = confidence
-            st.session_state['ai_classes'] = classes
-
-    # Resultados
-    if detections:
-        try:
-            from src.object_detection import detection_summary
-            summary = detection_summary(detections)
-        except:
-            summary = {}
-        col1, col2 = st.columns(2)
-        with col1:
-            metric_card("Objects", str(len(detections)))
-        with col2:
-            metric_card("Classes", str(len(summary)))
-        detection_fig = st.session_state.get('detection_figure')
-        if detection_fig:
-            st.pyplot(detection_fig, use_container_width=True)
-        # Botão de exportação direto
-        if st.button("Export GeoJSON", key="export_geojson_btn"):
-            # A exportação é tratada no app.py via session_state
-            st.session_state['export_geojson'] = True
-    else:
-        st.info("No detections available. Run inference to generate results.")
+            return {
+                "model_id": selected_model if 'selected_model' in locals() else '',
+                "tile_size": tile_size,
+                "overlap": overlap,
+                "confidence": confidence,
+                "classes": classes,
+            }
     st.markdown('</div>', unsafe_allow_html=True)
-    return run_clicked if 'run_clicked' in locals() else False
+    return None
+
+def render_geospatial_ai_results(detections, detection_rgb):
+    """Exibe os resultados da IA geoespacial e o botão de exportação."""
+    if not detections:
+        st.info("No detections available. Run inference to generate results.")
+        return
+    try:
+        from src.object_detection import detection_summary
+        summary = detection_summary(detections)
+    except:
+        summary = {}
+    col1, col2 = st.columns(2)
+    with col1:
+        metric_card("Objects", str(len(detections)))
+    with col2:
+        metric_card("Classes", str(len(summary)))
+    detection_fig = st.session_state.get('detection_figure')
+    if detection_fig:
+        st.pyplot(detection_fig, use_container_width=True)
+    # Botão de exportação
+    if st.button("Export GeoJSON", key="export_geojson_btn"):
+        st.session_state['export_geojson'] = True
 
 def render_pipeline_status():
     status = get_pipeline_status()
