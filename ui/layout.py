@@ -1,6 +1,6 @@
 """
 ui/layout.py – Funções de renderização das seções principais.
-Controles e resultados são separados para evitar conflitos de session_state.
+Agora com expanders para compactar a página.
 """
 
 import streamlit as st
@@ -52,51 +52,54 @@ def render_geospatial_operations_center(map_panel_func):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_scene_catalog(items, download_callback):
-    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    st.markdown('<div class="sgi-section-title">Satellite Archive</div>', unsafe_allow_html=True)
+    """
+    Catálogo de cenas em um expander recolhido por padrão.
+    """
     if not items:
         st.info("Search the Sentinel-2 catalog from the sidebar to populate the archive.")
-        st.markdown('</div>', unsafe_allow_html=True)
         return
-    st.markdown(f'<div class="sgi-section-description">{len(items)} scenes available</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sgi-scene-catalog">', unsafe_allow_html=True)
-    for idx, item in enumerate(items):
-        cloud = float(item.properties.get("eo:cloud_cover", 0))
-        date_str = str(item.datetime.date()) if item.datetime else "Unknown"
-        quality = "Excellent" if cloud <= 1 else "Good" if cloud <= 5 else "Acceptable" if cloud <= 10 else "Cloudy"
-        cols = st.columns([2, 1, 1, 1])
-        with cols[0]:
-            st.markdown(f'<span class="date-col">{date_str}</span>', unsafe_allow_html=True)
-        with cols[1]:
-            st.markdown(f'<span class="cloud-col">{cloud:.2f}%</span>', unsafe_allow_html=True)
-        with cols[2]:
-            st.markdown(f'<span class="quality-col">{quality}</span>', unsafe_allow_html=True)
-        with cols[3]:
-            if st.button("Download", key=f"dl_{idx}_{item.id[:8]}"):
-                download_callback(item)
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Expander com título mostrando a quantidade de cenas
+    with st.expander(f"🛰️ Satellite Archive ({len(items)} scenes)", expanded=False):
+        st.markdown('<div class="sgi-scene-catalog">', unsafe_allow_html=True)
+        for idx, item in enumerate(items):
+            cloud = float(item.properties.get("eo:cloud_cover", 0))
+            date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+            quality = "Excellent" if cloud <= 1 else "Good" if cloud <= 5 else "Acceptable" if cloud <= 10 else "Cloudy"
+            cols = st.columns([2, 1, 1, 1])
+            with cols[0]:
+                st.markdown(f'<span class="date-col">{date_str}</span>', unsafe_allow_html=True)
+            with cols[1]:
+                st.markdown(f'<span class="cloud-col">{cloud:.2f}%</span>', unsafe_allow_html=True)
+            with cols[2]:
+                st.markdown(f'<span class="quality-col">{quality}</span>', unsafe_allow_html=True)
+            with cols[3]:
+                if st.button("Download", key=f"dl_{idx}_{item.id[:8]}"):
+                    download_callback(item)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def render_active_scene(data, rgb, false_color):
+    """
+    Exibe a cena ativa dentro de um expander (recolhido se não houver dados).
+    """
     if data is None:
         st.info("Download a satellite scene to activate analysis.")
         return
-    st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
-    st.markdown('<div class="sgi-section-title">Active Scene</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sgi-section-description">{data["date"]} · Cloud {data["cloud"]:.2f}% · ID {data["scene_id"][:16]}</div>', unsafe_allow_html=True)
-    if rgb is not None and false_color is not None:
-        st.markdown('<div class="sgi-image-pair">', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
+
+    with st.expander(f"🛰️ Active Scene · {data['date']} · Cloud {data['cloud']:.2f}%", expanded=True if data else False):
+        st.markdown(f'<div class="sgi-section-description">ID {data["scene_id"][:16]}</div>', unsafe_allow_html=True)
+        if rgb is not None and false_color is not None:
+            st.markdown('<div class="sgi-image-pair">', unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(rgb, caption="Natural Color", use_container_width=True)
+            with col2:
+                st.image(false_color, caption="False Color", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        elif rgb is not None:
             st.image(rgb, caption="Natural Color", use_container_width=True)
-        with col2:
+        elif false_color is not None:
             st.image(false_color, caption="False Color", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    elif rgb is not None:
-        st.image(rgb, caption="Natural Color", use_container_width=True)
-    elif false_color is not None:
-        st.image(false_color, caption="False Color", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure):
     st.markdown('<div class="sgi-section">', unsafe_allow_html=True)
