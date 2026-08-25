@@ -164,15 +164,27 @@ drawn_aoi = st.session_state.drawn_aoi
 # Mission summary + map
 # ------------------------------------------------------------
 render_mission_summary(items, drawn_aoi, latitude, longitude, area_size)
-render_geospatial_operations_center(lambda: render_map_panel())
 
-# Capture AOI drawn on the map (if any)
-try:
-    aoi = get_selected_aoi()
-    if aoi is not None:
+
+def map_panel_wrapper():
+    state = render_map_panel(
+        latitude=latitude,
+        longitude=longitude,
+        area_size=area_size,
+        key="aoi_map",
+    )
+
+    aoi = get_selected_aoi(state)
+
+    if aoi:
         st.session_state.drawn_aoi = aoi
-except Exception:
-    pass
+    else:
+        st.session_state.drawn_aoi = None
+
+    return state
+
+
+render_geospatial_operations_center(map_panel_wrapper)
 
 
 def _index_stats(arr: np.ndarray) -> dict | None:
