@@ -106,10 +106,10 @@ for key, value in _DEFAULTS.items():
 render_header()
 
 # ------------------------------------------------------------
-# Mission Control (sidebar)
+# Analysis Control (sidebar)
 # ------------------------------------------------------------
 with st.sidebar:
-    st.markdown("**Mission Control**")
+    st.markdown("**Analysis Control**")
     st.caption("AOI · temporal window · scene filter")
 
     st.markdown("AOI")
