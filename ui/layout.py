@@ -14,15 +14,15 @@ from ui.status import get_pipeline_status
 def render_header() -> None:
     st.markdown(
         """
-<div class=\"sgi-header\">
-  <div class=\"sgi-brand\">
-    <div class=\"sgi-mark\">SGI</div>
+<div class="sgi-header">
+  <div class="sgi-brand">
+    <div class="sgi-mark">SGI</div>
     <div>
-      <div class=\"sgi-title\">Satellite Geospatial Intelligence</div>
-      <div class=\"sgi-subtitle\">Earth Observation / Remote Sensing / Geospatial Analytics</div>
+      <div class="sgi-title">Satellite Geospatial Intelligence</div>
+      <div class="sgi-subtitle">Earth Observation / Remote Sensing / Geospatial Analytics</div>
     </div>
   </div>
-  <div class=\"sgi-system\"><span class=\"dot\"></span>SYSTEM  ONLINE</div>
+  <div class="sgi-system"><span class="dot"></span>SYSTEM  ONLINE</div>
 </div>
         """,
         unsafe_allow_html=True,
@@ -100,12 +100,12 @@ def render_scene_catalog(items, download_callback) -> None:
             cols = st.columns([1.2, 0.8, 0.9, 2.2, 0.9])
             cols[0].write(date_str)
             cols[1].markdown(
-                f'<span class=\"sgi-mono\">{cloud:.2f}%</span>',
+                f'<span class="sgi-mono">{cloud:.2f}%</span>',
                 unsafe_allow_html=True,
             )
             cols[2].write(quality)
             cols[3].markdown(
-                f'<span class=\"sgi-mono\">{item.id}</span>',
+                f'<span class="sgi-mono">{item.id}</span>',
                 unsafe_allow_html=True,
             )
             if cols[4].button("Download", key=f"dl_{idx}_{item.id[:12]}"):
@@ -120,24 +120,24 @@ def render_active_scene(data, rgb, false_color) -> None:
 
     meta = st.columns(4)
     meta[0].markdown(
-        f'<div class=\"sgi-metric\"><div class=\"label\">Scene ID</div>'
-        f'<div class=\"value\" style=\"font-size:0.78rem\">{data["scene_id"]}</div></div>',
+        f'<div class="sgi-metric"><div class="label">Scene ID</div>'
+        f'<div class="value" style="font-size:0.78rem">{data["scene_id"]}</div></div>',
         unsafe_allow_html=True,
     )
     meta[1].markdown(
-        f'<div class=\"sgi-metric\"><div class=\"label\">Date</div>'
-        f'<div class=\"value\">{data["date"]}</div></div>',
+        f'<div class="sgi-metric"><div class="label">Date</div>'
+        f'<div class="value">{data["date"]}</div></div>',
         unsafe_allow_html=True,
     )
     meta[2].markdown(
-        f'<div class=\"sgi-metric\"><div class=\"label\">Cloud</div>'
-        f'<div class=\"value\">{data["cloud"]:.2f}%</div></div>',
+        f'<div class="sgi-metric"><div class="label">Cloud</div>'
+        f'<div class="value">{data["cloud"]:.2f}%</div></div>',
         unsafe_allow_html=True,
     )
     aoi = f'{data.get("latitude", "—")}, {data.get("longitude", "—")}'
     meta[3].markdown(
-        f'<div class=\"sgi-metric\"><div class=\"label\">AOI center</div>'
-        f'<div class=\"value\" style=\"font-size:0.85rem\">{aoi}</div></div>',
+        f'<div class="sgi-metric"><div class="label">AOI center</div>'
+        f'<div class="value" style="font-size:0.85rem">{aoi}</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -386,7 +386,7 @@ def render_pipeline_status() -> None:
             f"{stage.upper()}  {label}</span>"
         )
     st.markdown(
-        f'<div class="sgi-pipe">{("".join(parts))}</div>',
+        f'<div class="sgi-pipe">{"".join(parts)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -394,7 +394,7 @@ def render_pipeline_status() -> None:
 def render_footer() -> None:
     st.markdown(
         """
-<div class=\"sgi-footer\">
+<div class="sgi-footer">
   Satellite Geospatial Intelligence · Earth Observation · Remote Sensing · Geospatial Analytics<br>
   Spectral values are analytical measurements; interpret with sensor, resolution and preprocessing context.
 </div>
