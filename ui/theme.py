@@ -7,8 +7,9 @@ def apply_theme() -> None:
     """
     Apply the global visual identity of the platform.
 
-    The design follows a dark geospatial / aerospace
-    analytics interface.
+    Dark geospatial / aerospace analytics interface.
+    Focused on compact information hierarchy and
+    operational dashboard presentation.
     """
 
     st.markdown(
@@ -22,11 +23,16 @@ def apply_theme() -> None:
         .stApp {
             background:
                 radial-gradient(
-                    circle at 80% 0%,
-                    rgba(30, 90, 120, 0.12),
-                    transparent 35%
+                    circle at 85% 0%,
+                    rgba(30, 90, 120, 0.13),
+                    transparent 32%
                 ),
-                #071014;
+                linear-gradient(
+                    180deg,
+                    #071014 0%,
+                    #081216 100%
+                );
+
             color: #E8EEF2;
         }
 
@@ -36,8 +42,12 @@ def apply_theme() -> None:
 
         .block-container {
             max-width: 1500px;
-            padding-top: 1.5rem;
-            padding-bottom: 3rem;
+            padding-top: 1.15rem;
+            padding-bottom: 2.5rem;
+        }
+
+        hr {
+            border-color: rgba(255,255,255,0.055) !important;
         }
 
 
@@ -58,7 +68,12 @@ def apply_theme() -> None:
         }
 
         section[data-testid="stSidebar"] > div {
-            padding-top: 1.5rem;
+            padding-top: 1.2rem;
+        }
+
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            margin-top: 0.7rem;
         }
 
 
@@ -67,19 +82,20 @@ def apply_theme() -> None:
         ===================================================== */
 
         h1 {
-            font-size: 2.1rem !important;
-            font-weight: 700 !important;
-            letter-spacing: -0.03em;
+            font-size: 2rem !important;
+            font-weight: 720 !important;
+            letter-spacing: -0.035em;
         }
 
         h2 {
-            font-size: 1.45rem !important;
-            font-weight: 650 !important;
+            font-size: 1.35rem !important;
+            font-weight: 680 !important;
+            letter-spacing: -0.02em;
         }
 
         h3 {
-            font-size: 1.05rem !important;
-            font-weight: 600 !important;
+            font-size: 1rem !important;
+            font-weight: 620 !important;
         }
 
         p {
@@ -96,10 +112,8 @@ def apply_theme() -> None:
             align-items: center;
             justify-content: space-between;
 
-            padding:
-                1rem 1.25rem;
-
-            margin-bottom: 1.5rem;
+            padding: 0.9rem 1.15rem;
+            margin-bottom: 0.9rem;
 
             border:
                 1px solid rgba(255,255,255,0.07);
@@ -115,18 +129,18 @@ def apply_theme() -> None:
         .sgi-brand {
             display: flex;
             align-items: center;
-            gap: 0.85rem;
+            gap: 0.8rem;
         }
 
         .sgi-logo {
-            width: 42px;
-            height: 42px;
+            width: 40px;
+            height: 40px;
 
             display: flex;
             align-items: center;
             justify-content: center;
 
-            border-radius: 11px;
+            border-radius: 10px;
 
             background:
                 rgba(70, 160, 190, 0.12);
@@ -134,35 +148,29 @@ def apply_theme() -> None:
             border:
                 1px solid rgba(90, 180, 210, 0.25);
 
-            font-size: 1.25rem;
+            font-size: 1.2rem;
         }
 
         .sgi-title {
-            font-size: 1.05rem;
-            font-weight: 700;
+            font-size: 1.02rem;
+            font-weight: 720;
             letter-spacing: 0.02em;
         }
 
         .sgi-subtitle {
-            font-size: 0.72rem;
+            font-size: 0.69rem;
             color: #7F929B;
-            margin-top: 0.15rem;
-            letter-spacing: 0.08em;
+            margin-top: 0.12rem;
+            letter-spacing: 0.075em;
             text-transform: uppercase;
         }
-
-
-        /* =====================================================
-           STATUS
-        ===================================================== */
 
         .sgi-status {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.45rem;
 
-            padding:
-                0.45rem 0.75rem;
+            padding: 0.4rem 0.7rem;
 
             border-radius: 999px;
 
@@ -174,20 +182,61 @@ def apply_theme() -> None:
 
             color: #8BD4AD;
 
-            font-size: 0.72rem;
-            font-weight: 600;
+            font-size: 0.68rem;
+            font-weight: 650;
         }
 
         .sgi-status-dot {
             width: 7px;
             height: 7px;
-
             border-radius: 50%;
-
             background: #6FD39A;
 
             box-shadow:
                 0 0 10px rgba(111,211,154,0.65);
+        }
+
+
+        /* =====================================================
+           KPI GRID
+        ===================================================== */
+
+        .sgi-kpi {
+            background:
+                rgba(13, 24, 29, 0.76);
+
+            border:
+                1px solid rgba(255,255,255,0.06);
+
+            border-radius: 12px;
+
+            padding: 0.75rem 0.9rem;
+
+            min-height: 78px;
+
+            box-shadow:
+                0 8px 24px rgba(0,0,0,0.11);
+        }
+
+        .sgi-kpi-label {
+            color: #71838C;
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.4rem;
+        }
+
+        .sgi-kpi-value {
+            color: #EDF4F7;
+            font-size: 1.18rem;
+            font-weight: 720;
+            line-height: 1.05;
+        }
+
+        .sgi-kpi-sub {
+            color: #687A82;
+            font-size: 0.65rem;
+            margin-top: 0.28rem;
         }
 
 
@@ -202,44 +251,35 @@ def apply_theme() -> None:
             border:
                 1px solid rgba(255,255,255,0.065);
 
-            border-radius: 14px;
+            border-radius: 13px;
 
-            padding: 1rem;
+            padding: 0.9rem;
 
-            min-height: 100px;
+            min-height: 88px;
 
             box-shadow:
-                0 12px 30px rgba(0,0,0,0.14);
+                0 10px 26px rgba(0,0,0,0.12);
         }
 
         .sgi-card-label {
             color: #7F929B;
-
-            font-size: 0.72rem;
-
+            font-size: 0.69rem;
             text-transform: uppercase;
-
             letter-spacing: 0.08em;
-
-            margin-bottom: 0.55rem;
+            margin-bottom: 0.48rem;
         }
 
         .sgi-card-value {
             color: #EDF4F7;
-
-            font-size: 1.45rem;
-
-            font-weight: 700;
-
+            font-size: 1.32rem;
+            font-weight: 720;
             line-height: 1.1;
         }
 
         .sgi-card-description {
             color: #73858E;
-
-            font-size: 0.72rem;
-
-            margin-top: 0.45rem;
+            font-size: 0.68rem;
+            margin-top: 0.4rem;
         }
 
 
@@ -249,38 +289,81 @@ def apply_theme() -> None:
 
         .sgi-section {
             display: flex;
-            align-items: center;
-            gap: 0.65rem;
+            align-items: baseline;
+            gap: 0.55rem;
 
-            margin-top: 1.8rem;
-            margin-bottom: 0.8rem;
+            margin-top: 1.15rem;
+            margin-bottom: 0.65rem;
 
-            padding-bottom: 0.55rem;
+            padding-bottom: 0.45rem;
 
             border-bottom:
                 1px solid rgba(255,255,255,0.055);
         }
 
         .sgi-section-title {
-            font-size: 1rem;
-            font-weight: 650;
+            font-size: 0.94rem;
+            font-weight: 680;
+            color: #E7EFF2;
         }
 
         .sgi-section-description {
-            font-size: 0.72rem;
+            font-size: 0.67rem;
             color: #71838C;
         }
 
 
         /* =====================================================
-           MAP CONTAINER
+           OPERATIONS CENTER
+        ===================================================== */
+
+        .sgi-operations {
+            background:
+                rgba(8, 16, 20, 0.72);
+
+            border:
+                1px solid rgba(255,255,255,0.07);
+
+            border-radius: 15px;
+
+            padding: 0.75rem;
+
+            margin-bottom: 0.75rem;
+
+            box-shadow:
+                0 12px 35px rgba(0,0,0,0.15);
+        }
+
+        .sgi-operations-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            padding: 0.15rem 0.35rem 0.65rem;
+        }
+
+        .sgi-operations-name {
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .sgi-operations-meta {
+            color: #657780;
+            font-size: 0.66rem;
+        }
+
+
+        /* =====================================================
+           MAP
         ===================================================== */
 
         .sgi-map-wrapper {
             border:
                 1px solid rgba(255,255,255,0.07);
 
-            border-radius: 14px;
+            border-radius: 13px;
 
             overflow: hidden;
 
@@ -289,11 +372,30 @@ def apply_theme() -> None:
 
 
         /* =====================================================
+           TABS
+        ===================================================== */
+
+        button[data-baseweb="tab"] {
+            color: #81939B !important;
+            font-weight: 650 !important;
+            font-size: 0.76rem !important;
+        }
+
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #DCE9ED !important;
+        }
+
+        div[data-baseweb="tab-list"] {
+            gap: 0.35rem;
+        }
+
+
+        /* =====================================================
            BUTTONS
         ===================================================== */
 
         .stButton > button {
-            border-radius: 9px;
+            border-radius: 8px;
 
             border:
                 1px solid rgba(255,255,255,0.09);
@@ -303,10 +405,9 @@ def apply_theme() -> None:
 
             color: #E7EFF2;
 
-            font-weight: 600;
+            font-weight: 620;
 
-            transition:
-                all 0.15s ease;
+            transition: all 0.15s ease;
         }
 
         .stButton > button:hover {
@@ -340,9 +441,24 @@ def apply_theme() -> None:
             border:
                 1px solid rgba(255,255,255,0.07);
 
-            border-radius: 12px;
+            border-radius: 11px;
 
             overflow: hidden;
+        }
+
+
+        /* =====================================================
+           EXPANDERS
+        ===================================================== */
+
+        div[data-testid="stExpander"] {
+            border:
+                1px solid rgba(255,255,255,0.055);
+
+            border-radius: 10px;
+
+            background:
+                rgba(255,255,255,0.018);
         }
 
 
@@ -351,7 +467,56 @@ def apply_theme() -> None:
         ===================================================== */
 
         div[data-testid="stAlert"] {
-            border-radius: 10px;
+            border-radius: 9px;
+        }
+
+
+        /* =====================================================
+           PIPELINE
+        ===================================================== */
+
+        .sgi-pipeline {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            width: 100%;
+            overflow-x: auto;
+            padding: 0.25rem 0;
+        }
+
+        .sgi-pipeline-stage {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+
+            padding: 0.45rem 0.65rem;
+
+            border-radius: 8px;
+
+            background:
+                rgba(255,255,255,0.025);
+
+            border:
+                1px solid rgba(255,255,255,0.055);
+
+            color: #778991;
+
+            font-size: 0.65rem;
+            white-space: nowrap;
+        }
+
+        .sgi-pipeline-stage.active {
+            color: #B9E2CE;
+            border-color:
+                rgba(111,211,154,0.18);
+
+            background:
+                rgba(70,170,120,0.055);
+        }
+
+        .sgi-pipeline-arrow {
+            color: #44545B;
+            font-size: 0.65rem;
         }
 
 
@@ -360,18 +525,41 @@ def apply_theme() -> None:
         ===================================================== */
 
         .sgi-footer {
-            margin-top: 3rem;
-
-            padding-top: 1rem;
+            margin-top: 2rem;
+            padding-top: 0.9rem;
 
             border-top:
                 1px solid rgba(255,255,255,0.06);
 
             color: #596B73;
 
-            font-size: 0.7rem;
-
+            font-size: 0.66rem;
             text-align: center;
+        }
+
+
+        /* =====================================================
+           MOBILE
+        ===================================================== */
+
+        @media (max-width: 900px) {
+
+            .block-container {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            .sgi-header {
+                padding: 0.75rem;
+            }
+
+            .sgi-status {
+                display: none;
+            }
+
+            h1 {
+                font-size: 1.65rem !important;
+            }
         }
 
         </style>
