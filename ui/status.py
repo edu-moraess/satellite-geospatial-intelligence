@@ -1,63 +1,35 @@
-from __future__ import annotations
+"""
+ui/status.py – Gerenciamento do estado do pipeline.
+Utiliza st.session_state para persistência.
+"""
 
 import streamlit as st
 
+PIPELINE_STAGES = ["Catalog", "Imagery", "Spectral", "Change Detection", "Geospatial AI"]
 
-def render_pipeline_status(
-    scene_available: bool = False,
-    imagery_available: bool = False,
-    spectral_available: bool = False,
-    change_available: bool = False,
-    ai_available: bool = False,
-) -> None:
+def init_pipeline_status():
+    """Inicializa o status do pipeline no session_state."""
+    if "pipeline_status" not in st.session_state:
+        st.session_state["pipeline_status"] = {stage: "pending" for stage in PIPELINE_STAGES}
+
+def get_pipeline_status():
+    """Retorna o dicionário de status atual."""
+    init_pipeline_status()
+    return st.session_state["pipeline_status"]
+
+def update_pipeline_status(stage, state):
     """
-    Render a compact horizontal geospatial processing pipeline.
+    Atualiza o status de um estágio.
+    state: 'pending', 'active', 'done'
     """
+    init_pipeline_status()
+    if stage in st.session_state["pipeline_status"]:
+        st.session_state["pipeline_status"][stage] = state
+    else:
+        st.warning(f"Estágio '{stage}' não reconhecido.")
 
-    stages = [
-        ("Catalog", scene_available),
-        ("Imagery", imagery_available),
-        ("Spectral", spectral_available),
-        ("Change Detection", change_available),
-        ("Geospatial AI", ai_available),
-    ]
-
-    parts: list[str] = []
-
-    for index, (name, available) in enumerate(stages):
-
-        active_class = (
-            "active"
-            if available
-            else ""
-        )
-
-        symbol = "✓" if available else "○"
-
-        parts.append(
-            f"""
-            <div class="sgi-pipeline-stage {active_class}">
-                <span>{symbol}</span>
-                <span>{name}</span>
-            </div>
-            """
-        )
-
-        if index < len(stages) - 1:
-
-            parts.append(
-                """
-                <span class="sgi-pipeline-arrow">
-                    →
-                </span>
-                """
-            )
-
-    st.markdown(
-        f"""
-        <div class="sgi-pipeline">
-            {''.join(parts)}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def reset_pipeline():
+    """Reinicia todos os estágios para 'pending'."""
+    init_pipeline_status()
+    for stage in PIPELINE_STAGES:
+        st.session_state["pipeline_status"][stage] = "pending"
