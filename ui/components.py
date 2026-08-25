@@ -42,6 +42,45 @@ def metric_card(
     )
 
 
+def kpi_card(
+    label: str,
+    value: str,
+    description: str | None = None,
+) -> None:
+    """
+    Compact KPI card used in the dashboard header.
+    """
+
+    description_html = (
+        f"""
+        <div class="sgi-kpi-sub">
+            {description}
+        </div>
+        """
+        if description
+        else ""
+    )
+
+    st.markdown(
+        f"""
+        <div class="sgi-kpi">
+
+            <div class="sgi-kpi-label">
+                {label}
+            </div>
+
+            <div class="sgi-kpi-value">
+                {value}
+            </div>
+
+            {description_html}
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def status_badge(
     label: str,
     status: str = "online",
@@ -101,9 +140,15 @@ def info_card(
     """
 
     description_html = (
-        f"<div style='color:#71838C;font-size:0.72rem;margin-top:0.35rem;'>"
-        f"{description}"
-        f"</div>"
+        f"""
+        <div style="
+            color:#71838C;
+            font-size:0.68rem;
+            margin-top:0.35rem;
+        ">
+            {description}
+        </div>
+        """
         if description
         else ""
     )
