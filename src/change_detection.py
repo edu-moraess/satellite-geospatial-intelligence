@@ -2,66 +2,26 @@
 Satellite Change Detection
 ===========================
 
-Robust multi-temporal change detection
-for Sentinel-2 spectral indices.
+Compare two Sentinel-2 observations of the
+same geographic area.
+
+The module operates on spectral indices
+rather than raw RGB imagery.
 
 Supported:
 - NDVI
 - NDWI
 - NDBI
-
-The module is intentionally strict about
-array compatibility. Spatial alignment
-should be performed before comparison.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-
-# ============================================================
-# VALIDATION
-# ============================================================
-
-def validate_arrays(
-    before,
-    after,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Convert inputs to float32 arrays and validate
-    their spatial compatibility.
-    """
-
-    before_array = np.asarray(
-        before,
-        dtype=np.float32,
-    )
-
-    after_array = np.asarray(
-        after,
-        dtype=np.float32,
-    )
-
-    if before_array.ndim != 2:
-        raise ValueError(
-            "Before array must be a 2D raster."
-        )
-
-    if after_array.ndim != 2:
-        raise ValueError(
-            "After array must be a 2D raster."
-        )
-
-    if before_array.shape != after_array.shape:
-        raise ValueError(
-            "Before and after arrays must have "
-            "identical shapes. "
-            "Align both rasters to the same "
-            "spatial reference before comparison."
-        )
-
-    return before_array, after_array
+from src.raster_validation import (
+    RasterValidationError,
+    validate_raster_pair,
+)
 
 
 # ============================================================
@@ -71,11 +31,11 @@ def validate_arrays(
 def calculate_difference(
     before,
     after,
+    before_metadata=None,
+    after_metadata=None,
 ):
     """
-    Calculate:
-
-        after - before
+    Calculate after - before.
 
     Positive values:
         index increased.
@@ -83,27 +43,47 @@ def calculate_difference(
     Negative values:
         index decreased.
 
-    Both arrays must already represent the
-    same spatial grid.
+    If `before_metadata` / `after_metadata` are provided
+    (dicts with at least "crs" and "transform", as returned
+    by geospatial.read_band), the rasters are validated for
+    CRS and spatial-grid compatibility before the subtraction.
+    Without metadata, only the array shape is validated -
+    this keeps the function backward compatible with callers
+    that only have bare arrays.
+
+    Raises:
+        RasterValidationError if the two rasters cannot be
+        safely compared (incompatible shape, CRS, or grid).
     """
 
-    before_array, after_array = validate_arrays(
+    before = np.asarray(
+        before,
+        dtype=np.float32,
+    )
+
+    after = np.asarray(
+        after,
+        dtype=np.float32,
+    )
+
+    validate_raster_pair(
         before,
         after,
+        before_metadata,
+        after_metadata,
+        label_a="before scene",
+        label_b="after scene",
     )
 
     difference = (
-        after_array
-        - before_array
+        after - before
     )
 
-    invalid = (
-        ~np.isfinite(before_array)
-        | ~np.isfinite(after_array)
-        | ~np.isfinite(difference)
-    )
-
-    difference[invalid] = np.nan
+    difference[
+        ~np.isfinite(
+            difference
+        )
+    ] = np.nan
 
     return difference
 
@@ -117,34 +97,19 @@ def detect_change(
     threshold=0.10,
 ):
     """
-    Detect significant spectral change.
+    Detect significant change.
 
     Returns:
 
-        -1 = significant decrease
+        -1 = decrease
          0 = no significant change
-        +1 = significant increase
+        +1 = increase
     """
 
     difference = np.asarray(
         difference,
         dtype=np.float32,
     )
-
-    if difference.ndim != 2:
-        raise ValueError(
-            "Difference raster must be 2D."
-        )
-
-    if not np.isfinite(threshold):
-        raise ValueError(
-            "Threshold must be finite."
-        )
-
-    if threshold <= 0:
-        raise ValueError(
-            "Threshold must be greater than zero."
-        )
 
     result = np.zeros(
         difference.shape,
@@ -179,66 +144,61 @@ def calculate_change_statistics(
     """
     Calculate changed area.
 
-    Default:
-        Sentinel-2 10 m pixel.
-
-    Returns pixel counts and area in km².
+    Default Sentinel-2 pixel:
+        10 m × 10 m
     """
 
     change_map = np.asarray(
         change_map
     )
 
-    if change_map.ndim != 2:
-        raise ValueError(
-            "Change map must be a 2D raster."
-        )
-
-    if pixel_size_meters <= 0:
-        raise ValueError(
-            "Pixel size must be greater than zero."
-        )
-
     pixel_area_km2 = (
         pixel_size_meters ** 2
     ) / 1_000_000.0
 
-    decrease_pixels = int(
-        np.sum(change_map == -1)
+    decrease_pixels = np.sum(
+        change_map == -1
     )
 
-    increase_pixels = int(
-        np.sum(change_map == 1)
+    increase_pixels = np.sum(
+        change_map == 1
     )
 
-    unchanged_pixels = int(
-        np.sum(change_map == 0)
-    )
-
-    total_changed_pixels = (
-        decrease_pixels
-        + increase_pixels
+    unchanged_pixels = np.sum(
+        change_map == 0
     )
 
     return {
-        "decrease_pixels": decrease_pixels,
-        "increase_pixels": increase_pixels,
-        "unchanged_pixels": unchanged_pixels,
 
-        "decrease_km2": float(
-            decrease_pixels
-            * pixel_area_km2
-        ),
+        "decrease_pixels":
+            int(decrease_pixels),
 
-        "increase_km2": float(
-            increase_pixels
-            * pixel_area_km2
-        ),
+        "increase_pixels":
+            int(increase_pixels),
 
-        "total_changed_km2": float(
-            total_changed_pixels
-            * pixel_area_km2
-        ),
+        "unchanged_pixels":
+            int(unchanged_pixels),
+
+        "decrease_km2":
+            float(
+                decrease_pixels
+                * pixel_area_km2
+            ),
+
+        "increase_km2":
+            float(
+                increase_pixels
+                * pixel_area_km2
+            ),
+
+        "total_changed_km2":
+            float(
+                (
+                    decrease_pixels
+                    + increase_pixels
+                )
+                * pixel_area_km2
+            ),
     }
 
 
@@ -251,36 +211,38 @@ def normalized_change(
     after,
 ):
     """
-    Calculate relative spectral change:
+    Calculate relative change:
 
         (after - before)
         ----------------
-        abs(before) + epsilon
+        abs(before) + eps
 
-    Both rasters must have identical shapes.
+    Useful for detecting relative
+    changes in spectral indices.
     """
 
-    before_array, after_array = validate_arrays(
+    before = np.asarray(
         before,
+        dtype=np.float32,
+    )
+
+    after = np.asarray(
         after,
+        dtype=np.float32,
     )
 
     epsilon = 1e-6
 
     result = (
-        after_array
-        - before_array
-    ) / (
-        np.abs(before_array)
-        + epsilon
+        (after - before)
+        / (
+            np.abs(before)
+            + epsilon
+        )
     )
 
-    invalid = (
-        ~np.isfinite(before_array)
-        | ~np.isfinite(after_array)
-        | ~np.isfinite(result)
-    )
-
-    result[invalid] = np.nan
+    result[
+        ~np.isfinite(result)
+    ] = np.nan
 
     return result

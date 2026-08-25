@@ -1,13 +1,29 @@
+# ============================================================
+# Satellite Geospatial Intelligence — requirements.txt
+# Reviewed: removed torch / torchvision / torchgeo / pandas /
+# Pillow / pyproj — none of them are imported anywhere in the
+# codebase. torch alone adds hundreds of MB and was a real
+# risk of breaking Streamlit Cloud builds. When a real
+# detection model checkpoint is added, its inference
+# dependency (torch or otherwise) should be added back at
+# that point, alongside the checkpoint itself.
+# ============================================================
+
 streamlit
 numpy
+
+# ---- raster / geospatial core ----
 rasterio
 geopandas
 shapely
-pyproj
+
+# ---- Sentinel-2 / STAC ----
 pystac-client
 planetary-computer
+
+# ---- map ----
 folium
 streamlit-folium
+
+# ---- figures (spectral indices, land cover, change maps) ----
 matplotlib
-plotly
-pydeck==0.8.0

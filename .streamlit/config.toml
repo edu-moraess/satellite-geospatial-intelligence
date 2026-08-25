@@ -1,10 +1,22 @@
+# Satellite Geospatial Intelligence — Streamlit configuration
+# Dark GIS/Earth-Observation theme + sane server defaults for
+# Streamlit Cloud deployment.
+
 [theme]
 base = "dark"
-primaryColor = "#00d4ff"  # Ciano neon igual das imagens
-backgroundColor = "#0f0f16"  # Grafite muito escuro
-secondaryBackgroundColor = "#1a1a24"  # Cor dos painéis laterais
-textColor = "#e0e0e0"
+primaryColor = "#2DD4BF"
+backgroundColor = "#0B1220"
+secondaryBackgroundColor = "#111C2E"
+textColor = "#E5EEF7"
 font = "sans serif"
 
 [server]
-headless = true
+maxUploadSize = 25
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true

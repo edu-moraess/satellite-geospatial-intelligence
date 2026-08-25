@@ -73,18 +73,28 @@ def search_sentinel(
     start_date: str,
     end_date: str,
     max_cloud_cover: float,
+    bbox=None,
 ):
     """
     Search Sentinel-2 Level-2A scenes.
+
+    If `bbox` is provided (e.g. a polygon/rectangle drawn by
+    the user on the map, via src.aoi.get_selected_aoi), it is
+    used directly as the search area and `latitude`/
+    `longitude`/`area_size` are ignored for the bbox
+    computation. Otherwise the bbox falls back to the
+    lat/lon/area_size fields, exactly as before.
     """
 
     catalog = connect_catalog()
 
-    bbox = create_bbox(
-        latitude=latitude,
-        longitude=longitude,
-        area_size=area_size,
-    )
+    if bbox is None:
+
+        bbox = create_bbox(
+            latitude=latitude,
+            longitude=longitude,
+            area_size=area_size,
+        )
 
     search = catalog.search(
         collections=[
