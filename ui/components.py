@@ -1,177 +1,68 @@
-from __future__ import annotations
+"""
+ui/components.py – Componentes reutilizáveis da UI.
+"""
 
 import streamlit as st
 
+def section_title(title, description=""):
+    """Título de seção com descrição opcional."""
+    st.markdown(f'<div class="sgi-section-title">{title}</div>', unsafe_allow_html=True)
+    if description:
+        st.markdown(f'<div class="sgi-section-description">{description}</div>', unsafe_allow_html=True)
 
-def metric_card(
-    label: str,
-    value: str,
-    description: str | None = None,
-) -> None:
+def metric_card(label, value, change=None, icon=""):
+    """Card de métrica compacto."""
+    change_html = f'<span class="sgi-metric-change">{change}</span>' if change else ''
+    icon_html = f'<span style="margin-right:4px;">{icon}</span>' if icon else ''
+    st.markdown(f"""
+    <div class="sgi-metric-card">
+        <div class="sgi-metric-label">{icon_html}{label}</div>
+        <div class="sgi-metric-value">{value}{change_html}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def pipeline_stage(name, state="pending"):
     """
-    Render a professional metric card.
+    Exibe um estágio do pipeline.
+    state: 'pending', 'active', 'done'
     """
+    icons = {"pending": "○", "active": "●", "done": "✓"}
+    colors = {"pending": "#5a667a", "active": "#e8edf5", "done": "#4caf50"}
+    icon = icons.get(state, "○")
+    color = colors.get(state, "#5a667a")
+    st.markdown(f"""
+    <span class="sgi-pipeline-stage {state}" style="color:{color};">
+        <span class="status-icon">{icon}</span> {name}
+    </span>
+    """, unsafe_allow_html=True)
 
-    description_html = (
-        f"""
-        <div class="sgi-card-description">
-            {description}
-        </div>
-        """
-        if description
-        else ""
-    )
-
-    st.markdown(
-        f"""
-        <div class="sgi-card">
-
-            <div class="sgi-card-label">
-                {label}
-            </div>
-
-            <div class="sgi-card-value">
-                {value}
-            </div>
-
-            {description_html}
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def kpi_card(
-    label: str,
-    value: str,
-    description: str | None = None,
-) -> None:
+def scene_row(scene, download_callback):
     """
-    Compact KPI card used in the dashboard header.
+    Linha do catálogo de cenas.
+    scene: dict com 'date', 'cloud', 'id', etc.
+    download_callback: função chamada ao clicar no botão.
     """
+    date = scene.get('date', '')
+    cloud = scene.get('cloud', 0.0)
+    scene_id = scene.get('id', '')[:8]
+    cols = st.columns([2, 1, 1])
+    with cols[0]:
+        st.markdown(f'<span class="date">{date}</span>', unsafe_allow_html=True)
+    with cols[1]:
+        st.markdown(f'<span class="cloud">{cloud:.2f}%</span>', unsafe_allow_html=True)
+    with cols[2]:
+        # Botão discreto
+        if st.button("Download", key=f"dl_{scene_id}"):
+            download_callback(scene)
 
-    description_html = (
-        f"""
-        <div class="sgi-kpi-sub">
-            {description}
-        </div>
-        """
-        if description
-        else ""
-    )
-
-    st.markdown(
-        f"""
-        <div class="sgi-kpi">
-
-            <div class="sgi-kpi-label">
-                {label}
-            </div>
-
-            <div class="sgi-kpi-value">
-                {value}
-            </div>
-
-            {description_html}
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def status_badge(
-    label: str,
-    status: str = "online",
-) -> None:
+def image_pair(label1, img1, label2, img2):
     """
-    Render a small system status badge.
+    Exibe duas imagens lado a lado.
     """
-
-    status_map = {
-        "online": ("#6FD39A", "ONLINE"),
-        "warning": ("#D6B86A", "WARNING"),
-        "error": ("#D97979", "ERROR"),
-        "offline": ("#7C8A90", "OFFLINE"),
-    }
-
-    dot_color, text = status_map.get(
-        status,
-        status_map["offline"],
-    )
-
-    st.markdown(
-        f"""
-        <div style="
-            display:inline-flex;
-            align-items:center;
-            gap:0.45rem;
-            padding:0.35rem 0.65rem;
-            border-radius:999px;
-            border:1px solid rgba(255,255,255,0.08);
-            background:rgba(255,255,255,0.025);
-            font-size:0.68rem;
-            color:#AAB8C0;
-        ">
-
-            <span style="
-                width:6px;
-                height:6px;
-                border-radius:50%;
-                background:{dot_color};
-            "></span>
-
-            {label.upper()} · {text}
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def info_card(
-    title: str,
-    value: str,
-    description: str | None = None,
-) -> None:
-    """
-    Render a generic information card.
-    """
-
-    description_html = (
-        f"""
-        <div style="
-            color:#71838C;
-            font-size:0.68rem;
-            margin-top:0.35rem;
-        ">
-            {description}
-        </div>
-        """
-        if description
-        else ""
-    )
-
-    st.markdown(
-        f"""
-        <div class="sgi-card">
-
-            <div class="sgi-card-label">
-                {title}
-            </div>
-
-            <div style="
-                font-size:0.95rem;
-                font-weight:600;
-                color:#E8EEF2;
-            ">
-                {value}
-            </div>
-
-            {description_html}
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="sgi-image-pair">', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(img1, caption=label1, use_container_width=True)
+    with col2:
+        st.image(img2, caption=label2, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
