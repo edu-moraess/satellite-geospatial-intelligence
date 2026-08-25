@@ -1,568 +1,351 @@
-from __future__ import annotations
+"""
+ui/theme.py – Tema e estilos CSS para o Satellite Geospatial Intelligence.
+Estilo dark, aerospace, minimalista e com alta densidade de informação.
+"""
 
 import streamlit as st
 
-
-def apply_theme() -> None:
+def apply_theme():
     """
-    Apply the global visual identity of the platform.
-
-    Dark geospatial / aerospace analytics interface.
-    Focused on compact information hierarchy and
-    operational dashboard presentation.
+    Aplica o CSS global ao aplicativo.
     """
+    st.markdown("""
+    <style>
+    /* Reset e base */
+    .main > div {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    .stApp {
+        background-color: #0b0e14;
+    }
+    .stSidebar {
+        background-color: #0f131a;
+        border-right: 1px solid #1e2630;
+    }
+    .stSidebar .stMarkdown, .stSidebar .stTextInput, .stSidebar .stSelectbox, .stSidebar .stDateInput {
+        font-size: 0.85rem;
+    }
+    .stSidebar .stButton button {
+        width: 100%;
+        background: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        transition: background 0.2s;
+    }
+    .stSidebar .stButton button:hover {
+        background: #2b7ff0;
+    }
 
-    st.markdown(
-        """
-        <style>
+    /* Cabeçalho global */
+    .sgi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0 0.25rem 0;
+        border-bottom: 1px solid #1e2630;
+        margin-bottom: 0.75rem;
+    }
+    .sgi-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .sgi-logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #c8d0dc;
+        letter-spacing: 1px;
+    }
+    .sgi-logo span {
+        color: #4caf50;
+    }
+    .sgi-title {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #e8edf5;
+        letter-spacing: 0.5px;
+    }
+    .sgi-subtitle {
+        font-size: 0.75rem;
+        color: #7a869a;
+        margin-top: -0.1rem;
+    }
+    .sgi-status {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: #4caf50;
+        background: #1a2a1a;
+        padding: 0.2rem 0.7rem;
+        border-radius: 12px;
+        border: 1px solid #2a4a2a;
+        letter-spacing: 0.5px;
+    }
+    .sgi-status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #4caf50;
+        border-radius: 50%;
+        animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1); }
+    }
 
-        /* =====================================================
-           GLOBAL
-        ===================================================== */
+    /* Seções */
+    .sgi-section {
+        margin-bottom: 0.5rem;
+        padding: 0.25rem 0;
+    }
+    .sgi-section-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #7a869a;
+        margin-bottom: 0.2rem;
+        padding-bottom: 0.1rem;
+        border-bottom: 1px solid #1e2630;
+    }
+    .sgi-section-description {
+        font-size: 0.7rem;
+        color: #5a667a;
+        margin-bottom: 0.5rem;
+    }
 
-        .stApp {
-            background:
-                radial-gradient(
-                    circle at 85% 0%,
-                    rgba(30, 90, 120, 0.13),
-                    transparent 32%
-                ),
-                linear-gradient(
-                    180deg,
-                    #071014 0%,
-                    #081216 100%
-                );
+    /* Cards e métricas */
+    .sgi-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        margin: 0.25rem 0;
+    }
+    .sgi-metric-card {
+        background: #131a22;
+        border-radius: 4px;
+        padding: 0.4rem 0.6rem;
+        border-left: 2px solid #1a73e8;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .sgi-metric-label {
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        color: #7a869a;
+        letter-spacing: 0.5px;
+    }
+    .sgi-metric-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #e8edf5;
+        line-height: 1.2;
+    }
+    .sgi-metric-change {
+        font-size: 0.65rem;
+        color: #4caf50;
+        margin-left: 0.3rem;
+    }
 
-            color: #E8EEF2;
+    /* Pipeline */
+    .sgi-pipeline {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        background: #0f131a;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #1e2630;
+        margin: 0.25rem 0;
+    }
+    .sgi-pipeline-stage {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.7rem;
+        color: #7a869a;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        background: transparent;
+        transition: background 0.2s;
+    }
+    .sgi-pipeline-stage.active {
+        color: #e8edf5;
+        background: #1a2630;
+    }
+    .sgi-pipeline-stage.done {
+        color: #4caf50;
+    }
+    .sgi-pipeline-stage .status-icon {
+        font-size: 0.6rem;
+    }
+    .sgi-pipeline-arrow {
+        color: #3a4a5a;
+        font-size: 0.7rem;
+        margin: 0 0.1rem;
+    }
+
+    /* Catálogo de cenas */
+    .sgi-scene-catalog {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #1e2630;
+        border-radius: 4px;
+        background: #0b0e14;
+        padding: 0.2rem;
+    }
+    .sgi-scene-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.15rem 0.4rem;
+        border-bottom: 1px solid #1a222a;
+        font-size: 0.75rem;
+        color: #c8d0dc;
+    }
+    .sgi-scene-row:hover {
+        background: #131a22;
+    }
+    .sgi-scene-row .date {
+        width: 80px;
+    }
+    .sgi-scene-row .cloud {
+        width: 60px;
+        text-align: right;
+        color: #7a869a;
+    }
+    .sgi-scene-row .action {
+        width: 90px;
+        text-align: right;
+    }
+    .sgi-scene-row .action button {
+        background: transparent;
+        border: 1px solid #2a3a4a;
+        color: #c8d0dc;
+        padding: 0.1rem 0.5rem;
+        font-size: 0.65rem;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .sgi-scene-row .action button:hover {
+        background: #1a73e8;
+        border-color: #1a73e8;
+        color: white;
+    }
+
+    /* Imagens lado a lado */
+    .sgi-image-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin: 0.25rem 0;
+    }
+    .sgi-image-pair .image-container {
+        background: #0b0e14;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #1e2630;
+    }
+    .sgi-image-pair .image-container img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    /* Mapa */
+    .sgi-map-wrapper {
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #1e2630;
+        margin: 0.25rem 0;
+        background: #0b0e14;
+    }
+    .sgi-map-wrapper .stFolium {
+        border-radius: 4px;
+    }
+
+    /* Rodapé */
+    .sgi-footer {
+        border-top: 1px solid #1e2630;
+        padding: 0.4rem 0 0.2rem 0;
+        margin-top: 0.5rem;
+        font-size: 0.6rem;
+        color: #5a667a;
+        text-align: center;
+        letter-spacing: 0.3px;
+    }
+
+    /* Ajustes responsivos */
+    @media (max-width: 768px) {
+        .sgi-image-pair {
+            grid-template-columns: 1fr;
         }
-
-        .main {
-            background: transparent;
+        .sgi-metric-grid {
+            grid-template-columns: repeat(2, 1fr);
         }
-
-        .block-container {
-            max-width: 1500px;
-            padding-top: 1.15rem;
-            padding-bottom: 2.5rem;
-        }
-
-        hr {
-            border-color: rgba(255,255,255,0.055) !important;
-        }
-
-
-        /* =====================================================
-           SIDEBAR
-        ===================================================== */
-
-        section[data-testid="stSidebar"] {
-            background:
-                linear-gradient(
-                    180deg,
-                    #081216 0%,
-                    #050A0D 100%
-                );
-
-            border-right:
-                1px solid rgba(255,255,255,0.07);
-        }
-
-        section[data-testid="stSidebar"] > div {
-            padding-top: 1.2rem;
-        }
-
-        section[data-testid="stSidebar"] h2,
-        section[data-testid="stSidebar"] h3 {
-            margin-top: 0.7rem;
-        }
-
-
-        /* =====================================================
-           TYPOGRAPHY
-        ===================================================== */
-
-        h1 {
-            font-size: 2rem !important;
-            font-weight: 720 !important;
-            letter-spacing: -0.035em;
-        }
-
-        h2 {
-            font-size: 1.35rem !important;
-            font-weight: 680 !important;
-            letter-spacing: -0.02em;
-        }
-
-        h3 {
-            font-size: 1rem !important;
-            font-weight: 620 !important;
-        }
-
-        p {
-            color: #AAB8C0;
-        }
-
-
-        /* =====================================================
-           HEADER
-        ===================================================== */
-
         .sgi-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            padding: 0.9rem 1.15rem;
-            margin-bottom: 0.9rem;
-
-            border:
-                1px solid rgba(255,255,255,0.07);
-
-            border-radius: 14px;
-
-            background:
-                rgba(10, 20, 25, 0.78);
-
-            backdrop-filter: blur(14px);
+            flex-wrap: wrap;
         }
-
-        .sgi-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        }
-
-        .sgi-logo {
-            width: 40px;
-            height: 40px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 10px;
-
-            background:
-                rgba(70, 160, 190, 0.12);
-
-            border:
-                1px solid rgba(90, 180, 210, 0.25);
-
-            font-size: 1.2rem;
-        }
-
-        .sgi-title {
-            font-size: 1.02rem;
-            font-weight: 720;
-            letter-spacing: 0.02em;
-        }
-
-        .sgi-subtitle {
-            font-size: 0.69rem;
-            color: #7F929B;
-            margin-top: 0.12rem;
-            letter-spacing: 0.075em;
-            text-transform: uppercase;
-        }
-
         .sgi-status {
-            display: flex;
-            align-items: center;
-            gap: 0.45rem;
-
-            padding: 0.4rem 0.7rem;
-
-            border-radius: 999px;
-
-            background:
-                rgba(70, 170, 120, 0.08);
-
-            border:
-                1px solid rgba(70, 170, 120, 0.18);
-
-            color: #8BD4AD;
-
-            font-size: 0.68rem;
-            font-weight: 650;
+            margin-top: 0.3rem;
         }
-
-        .sgi-status-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #6FD39A;
-
-            box-shadow:
-                0 0 10px rgba(111,211,154,0.65);
-        }
-
-
-        /* =====================================================
-           KPI GRID
-        ===================================================== */
-
-        .sgi-kpi {
-            background:
-                rgba(13, 24, 29, 0.76);
-
-            border:
-                1px solid rgba(255,255,255,0.06);
-
-            border-radius: 12px;
-
-            padding: 0.75rem 0.9rem;
-
-            min-height: 78px;
-
-            box-shadow:
-                0 8px 24px rgba(0,0,0,0.11);
-        }
-
-        .sgi-kpi-label {
-            color: #71838C;
-            font-size: 0.64rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 0.4rem;
-        }
-
-        .sgi-kpi-value {
-            color: #EDF4F7;
-            font-size: 1.18rem;
-            font-weight: 720;
-            line-height: 1.05;
-        }
-
-        .sgi-kpi-sub {
-            color: #687A82;
-            font-size: 0.65rem;
-            margin-top: 0.28rem;
-        }
-
-
-        /* =====================================================
-           CARDS
-        ===================================================== */
-
-        .sgi-card {
-            background:
-                rgba(13, 24, 29, 0.82);
-
-            border:
-                1px solid rgba(255,255,255,0.065);
-
-            border-radius: 13px;
-
-            padding: 0.9rem;
-
-            min-height: 88px;
-
-            box-shadow:
-                0 10px 26px rgba(0,0,0,0.12);
-        }
-
-        .sgi-card-label {
-            color: #7F929B;
-            font-size: 0.69rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 0.48rem;
-        }
-
-        .sgi-card-value {
-            color: #EDF4F7;
-            font-size: 1.32rem;
-            font-weight: 720;
-            line-height: 1.1;
-        }
-
-        .sgi-card-description {
-            color: #73858E;
-            font-size: 0.68rem;
-            margin-top: 0.4rem;
-        }
-
-
-        /* =====================================================
-           SECTION
-        ===================================================== */
-
-        .sgi-section {
-            display: flex;
-            align-items: baseline;
-            gap: 0.55rem;
-
-            margin-top: 1.15rem;
-            margin-bottom: 0.65rem;
-
-            padding-bottom: 0.45rem;
-
-            border-bottom:
-                1px solid rgba(255,255,255,0.055);
-        }
-
-        .sgi-section-title {
-            font-size: 0.94rem;
-            font-weight: 680;
-            color: #E7EFF2;
-        }
-
-        .sgi-section-description {
-            font-size: 0.67rem;
-            color: #71838C;
-        }
-
-
-        /* =====================================================
-           OPERATIONS CENTER
-        ===================================================== */
-
-        .sgi-operations {
-            background:
-                rgba(8, 16, 20, 0.72);
-
-            border:
-                1px solid rgba(255,255,255,0.07);
-
-            border-radius: 15px;
-
-            padding: 0.75rem;
-
-            margin-bottom: 0.75rem;
-
-            box-shadow:
-                0 12px 35px rgba(0,0,0,0.15);
-        }
-
-        .sgi-operations-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-
-            padding: 0.15rem 0.35rem 0.65rem;
-        }
-
-        .sgi-operations-name {
-            font-size: 0.88rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .sgi-operations-meta {
-            color: #657780;
-            font-size: 0.66rem;
-        }
-
-
-        /* =====================================================
-           MAP
-        ===================================================== */
-
-        .sgi-map-wrapper {
-            border:
-                1px solid rgba(255,255,255,0.07);
-
-            border-radius: 13px;
-
-            overflow: hidden;
-
-            background: #081014;
-        }
-
-
-        /* =====================================================
-           TABS
-        ===================================================== */
-
-        button[data-baseweb="tab"] {
-            color: #81939B !important;
-            font-weight: 650 !important;
-            font-size: 0.76rem !important;
-        }
-
-        button[data-baseweb="tab"][aria-selected="true"] {
-            color: #DCE9ED !important;
-        }
-
-        div[data-baseweb="tab-list"] {
-            gap: 0.35rem;
-        }
-
-
-        /* =====================================================
-           BUTTONS
-        ===================================================== */
-
-        .stButton > button {
-            border-radius: 8px;
-
-            border:
-                1px solid rgba(255,255,255,0.09);
-
-            background:
-                rgba(255,255,255,0.035);
-
-            color: #E7EFF2;
-
-            font-weight: 620;
-
-            transition: all 0.15s ease;
-        }
-
-        .stButton > button:hover {
-            border-color:
-                rgba(100,180,210,0.35);
-
-            background:
-                rgba(100,180,210,0.08);
-        }
-
-
-        /* =====================================================
-           INPUTS
-        ===================================================== */
-
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="select"] > div {
-            background:
-                rgba(255,255,255,0.035);
-
-            border-color:
-                rgba(255,255,255,0.08);
-        }
-
-
-        /* =====================================================
-           DATAFRAME
-        ===================================================== */
-
-        div[data-testid="stDataFrame"] {
-            border:
-                1px solid rgba(255,255,255,0.07);
-
-            border-radius: 11px;
-
-            overflow: hidden;
-        }
-
-
-        /* =====================================================
-           EXPANDERS
-        ===================================================== */
-
-        div[data-testid="stExpander"] {
-            border:
-                1px solid rgba(255,255,255,0.055);
-
-            border-radius: 10px;
-
-            background:
-                rgba(255,255,255,0.018);
-        }
-
-
-        /* =====================================================
-           ALERTS
-        ===================================================== */
-
-        div[data-testid="stAlert"] {
-            border-radius: 9px;
-        }
-
-
-        /* =====================================================
-           PIPELINE
-        ===================================================== */
-
-        .sgi-pipeline {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-            width: 100%;
-            overflow-x: auto;
-            padding: 0.25rem 0;
-        }
-
-        .sgi-pipeline-stage {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-
-            padding: 0.45rem 0.65rem;
-
-            border-radius: 8px;
-
-            background:
-                rgba(255,255,255,0.025);
-
-            border:
-                1px solid rgba(255,255,255,0.055);
-
-            color: #778991;
-
-            font-size: 0.65rem;
-            white-space: nowrap;
-        }
-
-        .sgi-pipeline-stage.active {
-            color: #B9E2CE;
-            border-color:
-                rgba(111,211,154,0.18);
-
-            background:
-                rgba(70,170,120,0.055);
-        }
-
-        .sgi-pipeline-arrow {
-            color: #44545B;
-            font-size: 0.65rem;
-        }
-
-
-        /* =====================================================
-           FOOTER
-        ===================================================== */
-
-        .sgi-footer {
-            margin-top: 2rem;
-            padding-top: 0.9rem;
-
-            border-top:
-                1px solid rgba(255,255,255,0.06);
-
-            color: #596B73;
-
-            font-size: 0.66rem;
-            text-align: center;
-        }
-
-
-        /* =====================================================
-           MOBILE
-        ===================================================== */
-
-        @media (max-width: 900px) {
-
-            .block-container {
-                padding-left: 0.75rem;
-                padding-right: 0.75rem;
-            }
-
-            .sgi-header {
-                padding: 0.75rem;
-            }
-
-            .sgi-status {
-                display: none;
-            }
-
-            h1 {
-                font-size: 1.65rem !important;
-            }
-        }
-
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    }
+
+    /* Ocultar alguns elementos padrão do Streamlit */
+    .stAlert {
+        padding: 0.3rem 0.8rem;
+        font-size: 0.75rem;
+        margin: 0.2rem 0;
+        border-radius: 3px;
+    }
+    .stAlert .stMarkdown {
+        margin: 0;
+    }
+    .stSubheader {
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        color: #c8d0dc !important;
+        margin: 0.2rem 0 0.1rem 0 !important;
+        padding: 0 !important;
+        border-bottom: none !important;
+    }
+    .stHeader {
+        display: none;
+    }
+    /* Ajuste de botões */
+    .stButton button {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 4px;
+    }
+    /* Expander mais compacto */
+    .streamlit-expanderHeader {
+        font-size: 0.8rem;
+        padding: 0.2rem 0.5rem;
+        background: #0f131a;
+        border-radius: 3px;
+        border: 1px solid #1e2630;
+    }
+    .streamlit-expanderContent {
+        padding: 0.2rem 0.5rem;
+    }
+    /* Dataframe */
+    .dataframe {
+        font-size: 0.7rem !important;
+    }
+    .dataframe td, .dataframe th {
+        padding: 0.1rem 0.3rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
