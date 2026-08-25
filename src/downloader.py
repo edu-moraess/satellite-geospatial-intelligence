@@ -107,3 +107,123 @@ def ensure_output_directory(
     )
 
     return output_directory
+
+
+# ============================================================
+# VALIDATE GEOTIFF
+# ============================================================
+
+def is_valid_geotiff(
+    path: Path,
+):
+    """
+    Check if an existing GeoTIFF is readable.
+    """
+
+    if not path.exists():
+        return False
+
+    if not path.is_file():
+        return False
+
+    try:
+
+        with rasterio.open(
+            path
+        ) as src:
+
+            return (
+                src.width > 0
+                and src.height > 0
+            )
+
+    except Exception:
+
+        return False
+
+
+# ============================================================
+# SAFE REMOTE READ
+# ============================================================
+
+def read_remote_window(
+    href,
+    window,
+):
+    """
+    Read a raster window from a remote asset.
+
+    Uses retries because remote cloud-hosted
+    rasters can occasionally fail during HTTP
+    range requests.
+    """
+
+    last_error = None
+
+    for attempt in range(
+        1,
+        MAX_RETRIES + 1,
+    ):
+
+        try:
+
+            with rasterio.Env(
+                GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
+                CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif,.TIF",
+                GDAL_HTTP_MULTIRANGE="YES",
+                GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES",
+                GDAL_HTTP_MAX_RETRY=3,
+                GDAL_HTTP_RETRY_DELAY=1,
+            ):
+
+                with rasterio.open(
+                    href
+                ) as src:
+
+                    data = src.read(
+                        1,
+                        window=window,
+                    )
+
+                    transform = (
+                        src.window_transform(
+                            window
+                        )
+                    )
+
+                    profile = (
+                        src.profile.copy()
+                    )
+
+                    profile.update(
+                        {
+                            "height": data.shape[0],
+                            "width": data.shape[1],
+                            "transform": transform,
+                            "count": 1,
+                            "compress": "deflate",
+                        }
+                    )
+
+                    return (
+                        data,
+                        transform,
+                        profile,
+                    )
+
+        except Exception as error:
+
+            last_error = error
+
+            if attempt < MAX_RETRIES:
+
+                time.sleep(
+                    RETRY_DELAY_SECONDS
+                    * attempt
+                )
+
+    raise RuntimeError(
+        "Unable to read the remote Sentinel-2 "
+        "asset after multiple attempts.\n\n"
+        f"Last error: {last_error}"
+    )
