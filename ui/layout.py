@@ -74,7 +74,7 @@ def render_geospatial_operations_center(map_panel_func) -> None:
 def render_scene_catalog(items, download_callback) -> None:
     section_header("Satellite Archive", "Sentinel-2 catalog results")
     if not items:
-        st.caption("Search the Sentinel-2 catalog from Mission Control to populate the archive.")
+        st.caption("Search the Sentinel-2 catalog from Analysis Control to populate the archive.")
         return
 
     with st.expander(f"Archive · {len(items)} scenes", expanded=False):
