@@ -23,7 +23,6 @@ from src.downloader import download_required_bands
 from src.geospatial import (
     read_band,
     align_band_to_reference,
-    align_array_with_metadata,
 )
 
 from src.raster_validation import (
@@ -1256,72 +1255,63 @@ def run_change_detection(
         #
         # ALIGN AFTER INDEX TO BEFORE GRID
         #
-        # We do NOT simply compare array shapes.
-        # The spatial transform and CRS must also match.
+        # Usamos align_band_to_reference com os metadados
+        # da cena Before como referência.
         # ====================================================
 
         with st.spinner(
             "Aligning Before / After spatial grids..."
         ):
 
-            after_idx_aligned, after_idx_metadata = (
-                align_array_with_metadata(
-                    source_array=after_idx,
-                    source_metadata=m04_a,
-                    reference_array=before_idx,
-                    reference_metadata=m04_b,
-                )
+            after_idx_aligned = align_band_to_reference(
+                band_array=after_idx,
+                band_metadata=m04_a,          # metadados After (origem)
+                reference_array=before_idx,
+                reference_metadata=m04_b,     # metadados Before (destino)
             )
 
         # ====================================================
-        # BEFORE INDEX METADATA
-        #
-        # The index itself is calculated on the B04 reference
-        # grid, so its spatial metadata is inherited from B04.
+        # METADADOS DA CENA BEFORE (ÍNDICE)
         # ====================================================
 
-        before_idx_metadata = dict(
-            m04_b
-        )
+        before_idx_metadata = m04_b.copy()
+        before_idx_metadata.update({
+            "height": before_idx.shape[0],
+            "width": before_idx.shape[1],
+            "transform": m04_b["transform"],
+            "crs": m04_b["crs"],
+            "nodata": np.nan,
+            "dtype": str(before_idx.dtype),
+        })
 
-        before_idx_metadata.update(
-            {
-                "height": int(
-                    before_idx.shape[0]
-                ),
-                "width": int(
-                    before_idx.shape[1]
-                ),
-                "transform": m04_b[
-                    "transform"
-                ],
-                "crs": m04_b[
-                    "crs"
-                ],
-                "nodata": np.nan,
-                "dtype": str(
-                    before_idx.dtype
-                ),
-            }
-        )
+        # ====================================================
+        # METADADOS DA CENA AFTER (JÁ ALINHADA)
+        # ====================================================
+
+        after_idx_metadata = m04_b.copy()
+        after_idx_metadata.update({
+            "height": after_idx_aligned.shape[0],
+            "width": after_idx_aligned.shape[1],
+            "transform": m04_b["transform"],
+            "crs": m04_b["crs"],
+            "nodata": np.nan,
+            "dtype": str(after_idx_aligned.dtype),
+        })
 
         # ====================================================
         # FINAL PAIR VALIDATION
         #
-        # NO SUBTRACTION BEFORE THIS POINT.
+        # Apenas parâmetros suportados pela função real.
         # ====================================================
 
         validation = validate_raster_pair(
             before_idx,
             after_idx_aligned,
-            before_idx_metadata,
-            after_idx_metadata,
+            metadata_a=before_idx_metadata,
+            metadata_b=after_idx_metadata,
             label_a=f"Before {index_name}",
             label_b=f"After {index_name}",
             require_same_dtype=False,
-            require_same_crs=True,
-            require_same_transform=True,
-            require_overlap=True,
         )
 
         # ====================================================
