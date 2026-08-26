@@ -16,11 +16,19 @@ This is a baseline classifier.
 
 It intentionally does NOT claim to be
 a trained machine-learning model.
+
+Raster integrity is delegated to
+src.raster_validation.
 """
 
 from __future__ import annotations
 
 import numpy as np
+
+from src.raster_validation import (
+    RasterValidationError,
+    validate_raster,
+)
 
 
 # ============================================================
@@ -43,17 +51,118 @@ BARE_SOIL = 4
 # ============================================================
 
 CLASS_NAMES = {
-
     OTHER: "Other",
-
     VEGETATION: "Vegetation",
-
     WATER: "Water",
-
     BUILT_UP: "Built-up",
-
     BARE_SOIL: "Bare Soil",
 }
+
+
+# ============================================================
+# INTERNAL VALIDATION
+# ============================================================
+
+def _validate_index(
+    index,
+    label: str,
+):
+    """
+    Validate one spectral-index raster.
+
+    Classification requires each input to be:
+        - present;
+        - non-empty;
+        - 2D;
+        - containing finite pixels.
+    """
+
+    return validate_raster(
+        index,
+        label=label,
+    )
+
+
+def _validate_index_stack(
+    ndvi,
+    ndwi,
+    ndbi,
+):
+    """
+    Validate the three spectral-index rasters before
+    classification.
+
+    In addition to validating each raster independently,
+    this function guarantees that all three arrays have
+    identical spatial dimensions and at least one pixel
+    is simultaneously valid across all three indices.
+
+    No resampling, cropping or broadcasting is performed.
+    """
+
+    _validate_index(
+        ndvi,
+        "NDVI",
+    )
+
+    _validate_index(
+        ndwi,
+        "NDWI",
+    )
+
+    _validate_index(
+        ndbi,
+        "NDBI",
+    )
+
+    ndvi = np.asarray(
+        ndvi,
+        dtype=np.float32,
+    )
+
+    ndwi = np.asarray(
+        ndwi,
+        dtype=np.float32,
+    )
+
+    ndbi = np.asarray(
+        ndbi,
+        dtype=np.float32,
+    )
+
+    if not (
+        ndvi.shape
+        == ndwi.shape
+        == ndbi.shape
+    ):
+        raise RasterValidationError(
+            "Spectral index shape mismatch.\n\n"
+            f"NDVI: {ndvi.shape}\n"
+            f"NDWI: {ndwi.shape}\n"
+            f"NDBI: {ndbi.shape}\n\n"
+            "All spectral indices must share the same "
+            "spatial grid before land-cover classification."
+        )
+
+    common_valid = (
+        np.isfinite(ndvi)
+        & np.isfinite(ndwi)
+        & np.isfinite(ndbi)
+    )
+
+    if not np.any(common_valid):
+        raise RasterValidationError(
+            "NDVI, NDWI and NDBI have no common valid pixels.\n\n"
+            "The land-cover classifier cannot produce a valid "
+            "classification from these inputs."
+        )
+
+    return (
+        ndvi,
+        ndwi,
+        ndbi,
+        common_valid,
+    )
 
 
 # ============================================================
@@ -78,46 +187,51 @@ def classify_land_cover(
     4. Bare soil
     5. Other
 
+    Parameters:
+        ndvi:
+            Normalized Difference Vegetation Index.
+
+        ndwi:
+            Normalized Difference Water Index.
+
+        ndbi:
+            Normalized Difference Built-up Index.
+
+        red:
+            Optional red band reserved for future refinement.
+
+        nir:
+            Optional NIR band reserved for future refinement.
+
     Returns:
-        uint8 classification map
+        uint8 classification map.
+
+    Notes:
+        Pixels where one or more indices are invalid remain
+        classified as OTHER. They are never used in the
+        spectral decision rules.
+
+    Raises:
+        RasterValidationError:
+            If the input indices are missing, malformed,
+            empty or spatially incompatible.
     """
 
-    ndvi = np.asarray(
+    (
         ndvi,
-        dtype=np.float32,
-    )
-
-    ndwi = np.asarray(
         ndwi,
-        dtype=np.float32,
-    )
-
-    ndbi = np.asarray(
         ndbi,
-        dtype=np.float32,
+        valid,
+    ) = _validate_index_stack(
+        ndvi,
+        ndwi,
+        ndbi,
     )
-
-    if not (
-        ndvi.shape
-        == ndwi.shape
-        == ndbi.shape
-    ):
-
-        raise ValueError(
-            "NDVI, NDWI and NDBI must "
-            "have identical dimensions."
-        )
 
     classification = np.full(
         ndvi.shape,
         OTHER,
         dtype=np.uint8,
-    )
-
-    valid = (
-        np.isfinite(ndvi)
-        & np.isfinite(ndwi)
-        & np.isfinite(ndbi)
     )
 
     # --------------------------------------------------------
@@ -187,6 +301,29 @@ def classify_land_cover(
 
 
 # ============================================================
+# CLASSIFICATION VALIDATION
+# ============================================================
+
+def validate_classification(
+    classification,
+):
+    """
+    Validate a generated classification map.
+
+    Classification maps are categorical rasters, therefore
+    the expected structure is a non-empty 2D array.
+
+    Returns:
+        Diagnostic dictionary.
+    """
+
+    return validate_raster(
+        classification,
+        label="land-cover classification",
+    )
+
+
+# ============================================================
 # CLASS MASK
 # ============================================================
 
@@ -197,6 +334,16 @@ def get_class_mask(
     """
     Return a boolean mask for a specific class.
     """
+
+    validate_classification(
+        classification
+    )
+
+    if class_id not in CLASS_NAMES:
+        raise ValueError(
+            f"Unknown class id: {class_id}. "
+            f"Expected one of: {list(CLASS_NAMES)}."
+        )
 
     classification = np.asarray(
         classification
@@ -218,6 +365,10 @@ def calculate_class_counts(
     """
     Count pixels belonging to each class.
     """
+
+    validate_classification(
+        classification
+    )
 
     classification = np.asarray(
         classification
@@ -259,9 +410,13 @@ def calculate_class_percentages(
     """
     Calculate percentage of each class.
 
-    Percentages are calculated over all
-    classified pixels, including Other.
+    Percentages are calculated over all classified pixels,
+    including Other.
     """
+
+    validate_classification(
+        classification
+    )
 
     classification = np.asarray(
         classification
