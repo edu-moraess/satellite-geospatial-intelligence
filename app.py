@@ -19,40 +19,52 @@ import streamlit as st
 from src.catalog import search_sentinel, create_bbox
 from src.config import RAW_DIR
 from src.downloader import download_required_bands
+
 from src.geospatial import (
     read_band,
     align_band_to_reference,
+    align_array_with_metadata,
 )
+
 from src.raster_validation import (
     validate_raster,
+    validate_raster_pair,
     RasterValidationError,
 )
+
 from src.visualization import (
     create_rgb,
     create_false_color,
 )
+
 from src.spectral import (
     calculate_ndvi,
     calculate_ndwi,
     calculate_ndbi,
 )
+
 from src.index_visualization import create_index_figure
+
 from src.classification import (
     classify_land_cover,
     calculate_class_percentages,
 )
+
 from src.land_cover import (
     create_land_cover_figure,
     calculate_area_km2,
 )
+
 from src.change_detection import (
     calculate_difference,
     detect_change,
     calculate_change_statistics,
 )
+
 from src.change_visualization import (
     create_change_figure,
 )
+
 from src.object_detection import (
     normalize_rgb,
     validate_detection_image,
@@ -60,16 +72,20 @@ from src.object_detection import (
     filter_classes,
     draw_detections,
 )
+
 from src.tiling import create_tiles
 from src.detector_model import SatelliteDetector
+
 from src.geospatial_detections import (
     georeference_detections,
     to_geojson_bytes,
 )
+
 from src.map_view import render_map_panel
 from src.aoi import get_selected_aoi
 
 from ui.theme import apply_theme
+
 from ui.layout import (
     render_header,
     render_mission_summary,
@@ -85,6 +101,7 @@ from ui.layout import (
     render_pipeline_status,
     render_footer,
 )
+
 from ui.status import (
     init_pipeline_status,
     update_pipeline_status,
@@ -155,8 +172,11 @@ _DEFAULTS = {
     "export_geojson": False,
 }
 
+
 for key, value in _DEFAULTS.items():
+
     if key not in st.session_state:
+
         st.session_state[key] = value
 
 
@@ -165,13 +185,19 @@ for key, value in _DEFAULTS.items():
 # ============================================================
 
 def _current_aoi_center() -> tuple[float, float]:
+
     return (
-        float(st.session_state["aoi_latitude"]),
-        float(st.session_state["aoi_longitude"]),
+        float(
+            st.session_state["aoi_latitude"]
+        ),
+        float(
+            st.session_state["aoi_longitude"]
+        ),
     )
 
 
 def _current_area_size() -> float:
+
     return float(
         st.session_state["aoi_area_size"]
     )
@@ -191,7 +217,10 @@ render_header()
 with st.sidebar:
 
     st.markdown("**Analysis Control**")
-    st.caption("AOI · temporal window · scene filter")
+
+    st.caption(
+        "AOI · temporal window · scene filter"
+    )
 
     st.markdown("AOI")
 
@@ -342,13 +371,13 @@ if search_clicked:
 
             st.rerun()
 
-        except Exception as e:
+        except Exception as error:
 
             st.error(
                 "Satellite catalog search failed."
             )
 
-            st.exception(e)
+            st.exception(error)
 
 
 # ============================================================
@@ -456,6 +485,7 @@ def _process_bands() -> None:
     )
 
     if data is None:
+
         return
 
     try:
@@ -677,23 +707,23 @@ def _process_bands() -> None:
             m04["crs"]
         )
 
-    except RasterValidationError as e:
+    except RasterValidationError as error:
 
         st.error(
             "Raster validation failed."
         )
 
         st.warning(
-            str(e)
+            str(error)
         )
 
-    except Exception as e:
+    except Exception as error:
 
         st.error(
             "Failed to process satellite bands."
         )
 
-        st.exception(e)
+        st.exception(error)
 
 
 # ============================================================
@@ -797,13 +827,23 @@ def download_callback(
 
             st.rerun()
 
-        except Exception as e:
+        except RasterValidationError as error:
+
+            st.error(
+                "Downloaded imagery failed raster validation."
+            )
+
+            st.warning(
+                str(error)
+            )
+
+        except Exception as error:
 
             st.error(
                 "Download failed."
             )
 
-            st.exception(e)
+            st.exception(error)
 
 
 # ============================================================
@@ -875,194 +915,51 @@ with tab_land:
 # CHANGE DETECTION
 # ============================================================
 
-def _build_scene_options(
-    scene_items,
-):
-    """
-    Build stable UI labels for scene selection.
-    """
-
-    scene_options = {}
-
-    for item in scene_items:
-
-        date_str = (
-            str(
-                item.datetime.date()
-            )
-            if item.datetime
-            else "Unknown"
-        )
-
-        cloud = float(
-            item.properties.get(
-                "eo:cloud_cover",
-                0,
-            )
-        )
-
-        label = (
-            f"{date_str} · "
-            f"{cloud:.2f}% · "
-            f"{item.id[:12]}"
-        )
-
-        scene_options[label] = item
-
-    return scene_options
-
-
-def _read_and_align_scene_bands(
-    bands,
-    reference_array,
-    reference_metadata,
-):
-    """
-    Read the required bands and force every band onto
-    exactly the same spatial grid.
-
-    The reference grid is always B04 from the BEFORE scene.
-
-    This is the critical alignment step for temporal
-    change detection.
-    """
-
-    b03, m03 = read_band(
-        bands["B03"]
-    )
-
-    b04, m04 = read_band(
-        bands["B04"]
-    )
-
-    b08, m08 = read_band(
-        bands["B08"]
-    )
-
-    b11, m11 = read_band(
-        bands["B11"]
-    )
-
-    # --------------------------------------------------------
-    # B04 itself
-    # --------------------------------------------------------
-
-    b04 = align_band_to_reference(
-        b04,
-        m04,
-        reference_array,
-        reference_metadata,
-    )
-
-    # --------------------------------------------------------
-    # Remaining bands
-    # --------------------------------------------------------
-
-    b03 = align_band_to_reference(
-        b03,
-        m03,
-        reference_array,
-        reference_metadata,
-    )
-
-    b08 = align_band_to_reference(
-        b08,
-        m08,
-        reference_array,
-        reference_metadata,
-    )
-
-    b11 = align_band_to_reference(
-        b11,
-        m11,
-        reference_array,
-        reference_metadata,
-    )
-
-    # --------------------------------------------------------
-    # Validate every aligned band
-    # --------------------------------------------------------
-
-    validate_raster(
-        b03,
-        label="B03",
-    )
-
-    validate_raster(
-        b04,
-        label="B04",
-    )
-
-    validate_raster(
-        b08,
-        label="B08",
-    )
-
-    validate_raster(
-        b11,
-        label="B11",
-    )
-
-    return (
-        b03,
-        b04,
-        b08,
-        b11,
-    )
-
-
-def _calculate_change_index(
-    index_choice,
-    b03,
-    b04,
-    b08,
-    b11,
-):
-    """
-    Calculate the selected spectral index after all
-    input bands have been aligned to the same grid.
-    """
-
-    if "NDVI" in index_choice:
-
-        return calculate_ndvi(
-            red=b04,
-            nir=b08,
-        )
-
-    if "NDWI" in index_choice:
-
-        return calculate_ndwi(
-            green=b03,
-            nir=b08,
-        )
-
-    return calculate_ndbi(
-        nir=b08,
-        swir=b11,
-    )
-
-
 def run_change_detection(
     params,
     bbox,
 ) -> None:
+    """
+    Execute robust Before / After change detection.
 
-    before_name = (
-        params["before_name"]
-    )
+    Important:
+        The After scene is explicitly aligned to the Before
+        scene grid before any pixel-wise difference.
 
-    after_name = (
-        params["after_name"]
-    )
+    Pipeline:
+
+        download
+            ↓
+        read
+            ↓
+        calculate index
+            ↓
+        align After → Before grid
+            ↓
+        validate pair
+            ↓
+        AFTER - BEFORE
+            ↓
+        threshold
+            ↓
+        statistics
+    """
+
+    before_name = params[
+        "before_name"
+    ]
+
+    after_name = params[
+        "after_name"
+    ]
 
     threshold = float(
         params["threshold"]
     )
 
-    index_choice = (
-        params["index_choice"]
-    )
+    index_choice = params[
+        "index_choice"
+    ]
 
     scene_options = (
         params.get(
@@ -1071,24 +968,43 @@ def run_change_detection(
         or {}
     )
 
+    # --------------------------------------------------------
+    # BUILD SCENE OPTIONS IF NEEDED
+    # --------------------------------------------------------
+
     if not scene_options:
 
-        scene_options = (
-            _build_scene_options(
-                items
-            )
-        )
+        for item in items:
 
-    before_item = (
-        scene_options.get(
-            before_name
-        )
+            date_str = (
+                str(
+                    item.datetime.date()
+                )
+                if item.datetime
+                else "Unknown"
+            )
+
+            cloud = float(
+                item.properties.get(
+                    "eo:cloud_cover",
+                    0,
+                )
+            )
+
+            label = (
+                f"{date_str} · "
+                f"{cloud:.2f}% · "
+                f"{item.id[:12]}"
+            )
+
+            scene_options[label] = item
+
+    before_item = scene_options.get(
+        before_name
     )
 
-    after_item = (
-        scene_options.get(
-            after_name
-        )
+    after_item = scene_options.get(
+        after_name
     )
 
     # --------------------------------------------------------
@@ -1101,15 +1017,13 @@ def run_change_detection(
     ):
 
         st.warning(
-            "Choose two valid scenes."
+            "The selected scenes could not be resolved "
+            "from the current catalog."
         )
 
         return
 
-    if (
-        before_item.id
-        == after_item.id
-    ):
+    if before_item.id == after_item.id:
 
         st.warning(
             "Choose two different scenes."
@@ -1117,11 +1031,11 @@ def run_change_detection(
 
         return
 
-    # --------------------------------------------------------
-    # DOWNLOAD BEFORE
-    # --------------------------------------------------------
-
     try:
+
+        # ====================================================
+        # DOWNLOAD BEFORE
+        # ====================================================
 
         with st.spinner(
             "Downloading Before scene..."
@@ -1132,15 +1046,14 @@ def run_change_detection(
                     item=before_item,
                     bbox=bbox,
                     output_directory=(
-                        RAW_DIR
-                        / before_item.id
+                        RAW_DIR / before_item.id
                     ),
                 )
             )
 
-        # ----------------------------------------------------
+        # ====================================================
         # DOWNLOAD AFTER
-        # ----------------------------------------------------
+        # ====================================================
 
         with st.spinner(
             "Downloading After scene..."
@@ -1151,164 +1064,290 @@ def run_change_detection(
                     item=after_item,
                     bbox=bbox,
                     output_directory=(
-                        RAW_DIR
-                        / after_item.id
+                        RAW_DIR / after_item.id
                     ),
                 )
             )
 
         # ====================================================
-        # BEFORE REFERENCE GRID
+        # READ BEFORE
         # ====================================================
 
-        before_b04, before_m04 = read_band(
+        b04_b, m04_b = read_band(
             before_bands["B04"]
         )
 
+        b03_b, m03_b = read_band(
+            before_bands["B03"]
+        )
+
+        b08_b, m08_b = read_band(
+            before_bands["B08"]
+        )
+
+        b11_b, m11_b = read_band(
+            before_bands["B11"]
+        )
+
+        # ====================================================
+        # READ AFTER
+        # ====================================================
+
+        b04_a, m04_a = read_band(
+            after_bands["B04"]
+        )
+
+        b03_a, m03_a = read_band(
+            after_bands["B03"]
+        )
+
+        b08_a, m08_a = read_band(
+            after_bands["B08"]
+        )
+
+        b11_a, m11_a = read_band(
+            after_bands["B11"]
+        )
+
+        # ====================================================
+        # VALIDATE BASE REFERENCE RASTERS
+        # ====================================================
+
         validate_raster(
-            before_b04,
-            metadata=before_m04,
+            b04_b,
+            m04_b,
             label="Before B04",
         )
 
-        # ====================================================
-        # BEFORE SCENE
-        # ====================================================
-
-        (
-            before_b03,
-            before_b04,
-            before_b08,
-            before_b11,
-        ) = _read_and_align_scene_bands(
-            bands=before_bands,
-            reference_array=before_b04,
-            reference_metadata=before_m04,
+        validate_raster(
+            b04_a,
+            m04_a,
+            label="After B04",
         )
 
         # ====================================================
-        # AFTER SCENE
+        # ALIGN BANDS WITHIN EACH SCENE
         #
-        # IMPORTANT:
-        # The AFTER scene is explicitly projected onto
-        # the BEFORE B04 grid.
+        # B04 is the 10 m reference grid.
         # ====================================================
 
-        (
-            after_b03,
-            after_b04,
-            after_b08,
-            after_b11,
-        ) = _read_and_align_scene_bands(
-            bands=after_bands,
-            reference_array=before_b04,
-            reference_metadata=before_m04,
+        b03_b = align_band_to_reference(
+            b03_b,
+            m03_b,
+            b04_b,
+            m04_b,
         )
 
-        # ====================================================
-        # EXPLICIT PAIR VALIDATION
-        # ====================================================
-
-        from src.raster_validation import (
-            validate_raster_pair,
+        b08_b = align_band_to_reference(
+            b08_b,
+            m08_b,
+            b04_b,
+            m04_b,
         )
 
-        validate_raster_pair(
-            before_b04,
-            after_b04,
-            before_m04,
-            before_m04,
-            label_a="Before B04",
-            label_b="After B04",
+        b11_b = align_band_to_reference(
+            b11_b,
+            m11_b,
+            b04_b,
+            m04_b,
         )
 
-        validate_raster_pair(
-            before_b03,
-            after_b03,
-            before_m04,
-            before_m04,
-            label_a="Before B03",
-            label_b="After B03",
+        b03_a = align_band_to_reference(
+            b03_a,
+            m03_a,
+            b04_a,
+            m04_a,
         )
 
-        validate_raster_pair(
-            before_b08,
-            after_b08,
-            before_m04,
-            before_m04,
-            label_a="Before B08",
-            label_b="After B08",
+        b08_a = align_band_to_reference(
+            b08_a,
+            m08_a,
+            b04_a,
+            m04_a,
         )
 
-        validate_raster_pair(
-            before_b11,
-            after_b11,
-            before_m04,
-            before_m04,
-            label_a="Before B11",
-            label_b="After B11",
+        b11_a = align_band_to_reference(
+            b11_a,
+            m11_a,
+            b04_a,
+            m04_a,
         )
 
         # ====================================================
-        # INDEX CALCULATION
+        # VALIDATE INTRA-SCENE BANDS
         # ====================================================
 
-        before_idx = (
-            _calculate_change_index(
-                index_choice=index_choice,
-                b03=before_b03,
-                b04=before_b04,
-                b08=before_b08,
-                b11=before_b11,
+        for band, label in [
+            (b03_b, "Before B03"),
+            (b08_b, "Before B08"),
+            (b11_b, "Before B11"),
+            (b03_a, "After B03"),
+            (b08_a, "After B08"),
+            (b11_a, "After B11"),
+        ]:
+
+            validate_raster(
+                band,
+                label=label,
             )
-        )
-
-        after_idx = (
-            _calculate_change_index(
-                index_choice=index_choice,
-                b03=after_b03,
-                b04=after_b04,
-                b08=after_b08,
-                b11=after_b11,
-            )
-        )
 
         # ====================================================
-        # INDEX VALIDATION
+        # CALCULATE SPECTRAL INDICES
+        # ====================================================
+
+        if "NDVI" in index_choice:
+
+            before_idx = calculate_ndvi(
+                red=b04_b,
+                nir=b08_b,
+            )
+
+            after_idx = calculate_ndvi(
+                red=b04_a,
+                nir=b08_a,
+            )
+
+            index_name = "NDVI"
+
+        elif "NDWI" in index_choice:
+
+            before_idx = calculate_ndwi(
+                green=b03_b,
+                nir=b08_b,
+            )
+
+            after_idx = calculate_ndwi(
+                green=b03_a,
+                nir=b08_a,
+            )
+
+            index_name = "NDWI"
+
+        else:
+
+            before_idx = calculate_ndbi(
+                nir=b08_b,
+                swir=b11_b,
+            )
+
+            after_idx = calculate_ndbi(
+                nir=b08_a,
+                swir=b11_a,
+            )
+
+            index_name = "NDBI"
+
+        # ====================================================
+        # VALIDATE INDEX OUTPUTS
         # ====================================================
 
         validate_raster(
             before_idx,
-            label="Before spectral index",
+            label=f"Before {index_name}",
         )
 
         validate_raster(
             after_idx,
-            label="After spectral index",
+            label=f"After {index_name}",
         )
 
-        validate_raster_pair(
+        # ====================================================
+        # CRITICAL STEP:
+        #
+        # ALIGN AFTER INDEX TO BEFORE GRID
+        #
+        # We do NOT simply compare array shapes.
+        # The spatial transform and CRS must also match.
+        # ====================================================
+
+        with st.spinner(
+            "Aligning Before / After spatial grids..."
+        ):
+
+            after_idx_aligned, after_idx_metadata = (
+                align_array_with_metadata(
+                    source_array=after_idx,
+                    source_metadata=m04_a,
+                    reference_array=before_idx,
+                    reference_metadata=m04_b,
+                )
+            )
+
+        # ====================================================
+        # BEFORE INDEX METADATA
+        #
+        # The index itself is calculated on the B04 reference
+        # grid, so its spatial metadata is inherited from B04.
+        # ====================================================
+
+        before_idx_metadata = dict(
+            m04_b
+        )
+
+        before_idx_metadata.update(
+            {
+                "height": int(
+                    before_idx.shape[0]
+                ),
+                "width": int(
+                    before_idx.shape[1]
+                ),
+                "transform": m04_b[
+                    "transform"
+                ],
+                "crs": m04_b[
+                    "crs"
+                ],
+                "nodata": np.nan,
+                "dtype": str(
+                    before_idx.dtype
+                ),
+            }
+        )
+
+        # ====================================================
+        # FINAL PAIR VALIDATION
+        #
+        # NO SUBTRACTION BEFORE THIS POINT.
+        # ====================================================
+
+        validation = validate_raster_pair(
             before_idx,
-            after_idx,
-            before_m04,
-            before_m04,
-            label_a="Before spectral index",
-            label_b="After spectral index",
+            after_idx_aligned,
+            before_idx_metadata,
+            after_idx_metadata,
+            label_a=f"Before {index_name}",
+            label_b=f"After {index_name}",
+            require_same_dtype=False,
+            require_same_crs=True,
+            require_same_transform=True,
+            require_overlap=True,
         )
 
         # ====================================================
         # DIFFERENCE
+        #
+        # AFTER - BEFORE
         # ====================================================
 
         diff = calculate_difference(
-            before_idx,
-            after_idx,
-            before_metadata=before_m04,
-            after_metadata=before_m04,
+            before=before_idx,
+            after=after_idx_aligned,
+            before_metadata=before_idx_metadata,
+            after_metadata=after_idx_metadata,
         )
 
         # ====================================================
-        # CHANGE MASK
+        # VALIDATE DIFFERENCE
+        # ====================================================
+
+        validate_raster(
+            diff,
+            label=f"{index_name} difference",
+        )
+
+        # ====================================================
+        # CHANGE CLASSIFICATION
         # ====================================================
 
         change_map = detect_change(
@@ -1317,84 +1356,12 @@ def run_change_detection(
         )
 
         # ====================================================
-        # STATISTICS
+        # CHANGE STATISTICS
         # ====================================================
 
-        stats = (
-            calculate_change_statistics(
-                change_map,
-                pixel_size_meters=10.0,
-            )
-        )
-
-        # ----------------------------------------------------
-        # ADD ANALYTICAL METRICS
-        # ----------------------------------------------------
-
-        total_pixels = (
-            change_map.size
-        )
-
-        valid_pixels = np.isfinite(
-            diff
-        )
-
-        valid_pixel_count = int(
-            np.sum(valid_pixels)
-        )
-
-        if valid_pixel_count > 0:
-
-            changed_pixels = (
-                stats["decrease_pixels"]
-                + stats["increase_pixels"]
-            )
-
-            changed_percentage = (
-                changed_pixels
-                / valid_pixel_count
-                * 100.0
-            )
-
-            mean_difference = float(
-                np.nanmean(diff)
-            )
-
-            median_difference = float(
-                np.nanmedian(diff)
-            )
-
-            std_difference = float(
-                np.nanstd(diff)
-            )
-
-        else:
-
-            changed_percentage = 0.0
-            mean_difference = np.nan
-            median_difference = np.nan
-            std_difference = np.nan
-
-        stats.update(
-            {
-                "valid_pixels": valid_pixel_count,
-                "total_pixels": int(
-                    total_pixels
-                ),
-                "changed_percentage": float(
-                    changed_percentage
-                ),
-                "mean_difference": (
-                    mean_difference
-                ),
-                "median_difference": (
-                    median_difference
-                ),
-                "std_difference": (
-                    std_difference
-                ),
-                "threshold": threshold,
-            }
+        stats = calculate_change_statistics(
+            change_map,
+            pixel_size_meters=10.0,
         )
 
         # ====================================================
@@ -1410,15 +1377,22 @@ def run_change_detection(
         )
 
         # ====================================================
-        # SESSION RESULT
+        # STORE RESULT
         # ====================================================
 
         st.session_state.change_result = {
             "statistics": stats,
             "figure": fig,
             "index_name": index_choice,
-            "before_scene_id": before_item.id,
-            "after_scene_id": after_item.id,
+
+            "before_scene_id": (
+                before_item.id
+            ),
+
+            "after_scene_id": (
+                after_item.id
+            ),
+
             "before_date": (
                 str(
                     before_item.datetime.date()
@@ -1426,6 +1400,7 @@ def run_change_detection(
                 if before_item.datetime
                 else "Unknown"
             ),
+
             "after_date": (
                 str(
                     after_item.datetime.date()
@@ -1433,7 +1408,23 @@ def run_change_detection(
                 if after_item.datetime
                 else "Unknown"
             ),
+
             "threshold": threshold,
+
+            "validation": validation,
+
+            "alignment": {
+                "reference": "Before",
+                "target": "After",
+                "shape": (
+                    before_idx.shape
+                ),
+                "overlap_fraction": (
+                    validation[
+                        "overlap_fraction"
+                    ]
+                ),
+            },
         }
 
         update_pipeline_status(
@@ -1445,7 +1436,9 @@ def run_change_detection(
             "Change detection completed successfully."
         )
 
-    except RasterValidationError as e:
+    except RasterValidationError as error:
+
+        st.session_state.change_result = None
 
         update_pipeline_status(
             "Change",
@@ -1453,15 +1446,16 @@ def run_change_detection(
         )
 
         st.error(
-            "Change detection stopped: "
-            "raster alignment validation failed."
+            "Change detection stopped by raster validation."
         )
 
         st.warning(
-            str(e)
+            str(error)
         )
 
-    except Exception as e:
+    except Exception as error:
+
+        st.session_state.change_result = None
 
         update_pipeline_status(
             "Change",
@@ -1472,7 +1466,7 @@ def run_change_detection(
             "Change detection failed."
         )
 
-        st.exception(e)
+        st.exception(error)
 
 
 with tab_change:
@@ -1545,21 +1539,13 @@ def run_ai_inference(
 
         tiles = create_tiles(
             detection_rgb,
-            tile_size=params[
-                "tile_size"
-            ],
-            overlap=params[
-                "overlap"
-            ],
+            tile_size=params["tile_size"],
+            overlap=params["overlap"],
         )
 
-        detections = (
-            detector.predict_tiles(
-                tiles,
-                confidence=params[
-                    "confidence"
-                ],
-            )
+        detections = detector.predict_tiles(
+            tiles,
+            confidence=params["confidence"],
         )
 
         detections = filter_detections(
@@ -1601,7 +1587,7 @@ def run_ai_inference(
             f"{len(detections)} objects detected."
         )
 
-    except Exception as e:
+    except Exception as error:
 
         update_pipeline_status(
             "AI",
@@ -1612,7 +1598,7 @@ def run_ai_inference(
             "AI inference failed."
         )
 
-        st.exception(e)
+        st.exception(error)
 
 
 with tab_ai:
@@ -1666,10 +1652,8 @@ if st.session_state.get(
             crs=st.session_state.crs,
         )
 
-        geojson_bytes = (
-            to_geojson_bytes(
-                gdf
-            )
+        geojson_bytes = to_geojson_bytes(
+            gdf
         )
 
         st.download_button(
@@ -1689,5 +1673,4 @@ if st.session_state.get(
 # ============================================================
 
 render_pipeline_status()
-
 render_footer()
