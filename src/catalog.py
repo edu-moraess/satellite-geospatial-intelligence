@@ -2,7 +2,7 @@
 Satellite catalog search.
 
 Responsible for:
-- Connecting to Planetary Computer
+- Connecting to STAC catalog (AWS Earth Search)
 - Creating AOI
 - Searching Sentinel-2 L2A
 - Filtering by date
@@ -10,7 +10,6 @@ Responsible for:
 """
 
 import time
-import planetary_computer
 import pystac_client
 from pystac_client.stac_api_io import StacApiIO
 
@@ -24,14 +23,22 @@ from .config import (
 # CATALOG CONNECTION
 # ============================================================
 
-def connect_catalog(timeout: int = 120):
+def connect_catalog(timeout: int = 180):
     """
     Open STAC client with increased timeout.
+    AWS endpoint não requer assinatura.
     """
     stac_io = StacApiIO(timeout=timeout)
+
+    # Mantém compatibilidade com Planetary Computer se quiser voltar
+    modifier = None
+    if "planetarycomputer" in PLANETARY_COMPUTER_STAC:
+        import planetary_computer
+        modifier = planetary_computer.sign_inplace
+
     return pystac_client.Client.open(
         PLANETARY_COMPUTER_STAC,
-        modifier=planetary_computer.sign_inplace,
+        modifier=modifier,
         stac_io=stac_io,
     )
 
@@ -71,7 +78,7 @@ def search_sentinel(
     end_date: str,
     max_cloud_cover: float,
     bbox=None,
-    max_items: int = 50,
+    max_items: int = 30,
     max_retries: int = 3,
 ):
     """
@@ -88,7 +95,7 @@ def search_sentinel(
         max_items: limit number of results to reduce server load.
         max_retries: number of attempts before giving up.
     """
-    catalog = connect_catalog(timeout=120)
+    catalog = connect_catalog(timeout=180)
 
     if bbox is None:
         bbox = create_bbox(
