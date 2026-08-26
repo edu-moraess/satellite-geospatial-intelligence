@@ -58,4 +58,4 @@ def download_landsat_bands(item, bbox, output_dir):
                 f"Assets disponíveis na cena: {available_assets}"
             )
 
-    return bands
+    return bands 
