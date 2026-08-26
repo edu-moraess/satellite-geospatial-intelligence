@@ -8,6 +8,7 @@ from src.catalog_landsat import search_landsat
 from src.sensor_registry import get_sensor
 from typing import Optional
 
+
 def search_sensor_catalog(
     sensor_id: str,
     latitude: float,
@@ -16,10 +17,16 @@ def search_sensor_catalog(
     start_date: str,
     end_date: str,
     max_cloud_cover: int,
-    bbox: Optional[list] = None
+    bbox: Optional[list] = None,
+    max_retries: int = 3,
+    max_items: int = 50,
 ):
     """
     Função unificada para busca de cenas no catálogo.
+
+    Parâmetros adicionais:
+        max_retries: número de tentativas em caso de timeout/erro.
+        max_items: limite de resultados retornados (reduz carga no servidor).
     """
     sensor = get_sensor(sensor_id)
     if sensor is None:
@@ -33,7 +40,9 @@ def search_sensor_catalog(
             start_date=start_date,
             end_date=end_date,
             max_cloud_cover=max_cloud_cover,
-            bbox=bbox
+            bbox=bbox,
+            max_retries=max_retries,
+            max_items=max_items,
         )
     elif sensor_id == "landsat":
         return search_landsat(
@@ -43,7 +52,11 @@ def search_sensor_catalog(
             start_date=start_date,
             end_date=end_date,
             max_cloud_cover=max_cloud_cover,
-            bbox=bbox
+            bbox=bbox,
+            max_retries=max_retries,
+            max_items=max_items,
         )
     else:
-        raise NotImplementedError(f"Busca para '{sensor_id}' ainda não implementada.") 
+        raise NotImplementedError(
+            f"Busca para '{sensor_id}' ainda não implementada."
+        )
