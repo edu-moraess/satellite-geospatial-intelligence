@@ -60,7 +60,7 @@ def render_mission_control_sidebar() -> dict:
     search_clicked = st.button(
         "Search Sentinel-2",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         key="ui_search",
     )
 
