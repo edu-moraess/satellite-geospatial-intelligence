@@ -59,4 +59,4 @@ def search_sensor_catalog(
     else:
         raise NotImplementedError(
             f"Busca para '{sensor_id}' ainda não implementada."
-        )
+        ) 
