@@ -15,6 +15,7 @@ from datetime import date
 
 import numpy as np
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 
 # ============================================================
 # INTERFACES DE SENSOR
@@ -27,7 +28,7 @@ from src.sensor_registry import get_sensor, list_sensors, SENSORS
 # MÓDULOS EXISTENTES
 # ============================================================
 from src.config import RAW_DIR
-from src.catalog import create_bbox  # <-- IMPORT CORRETA
+from src.catalog import create_bbox
 
 from src.geospatial import (
     read_band,
@@ -179,10 +180,15 @@ _DEFAULTS = {
     "export_geojson": False,
 }
 
-
 for key, value in _DEFAULTS.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+# Initialize map click coordinates
+if "_map_click_lat" not in st.session_state:
+    st.session_state["_map_click_lat"] = None
+if "_map_click_lon" not in st.session_state:
+    st.session_state["_map_click_lon"] = None
 
 
 # ============================================================
@@ -212,6 +218,11 @@ with st.sidebar:
 
     st.markdown("AOI")
 
+    # Callbacks to clear map click when manual input changes
+    def clear_map_click():
+        st.session_state["_map_click_lat"] = None
+        st.session_state["_map_click_lon"] = None
+
     latitude = st.number_input(
         "Latitude",
         min_value=-90.0,
@@ -219,6 +230,7 @@ with st.sidebar:
         key="aoi_latitude",
         format="%.6f",
         help="Analysis area center latitude.",
+        on_change=clear_map_click,
     )
 
     longitude = st.number_input(
@@ -228,6 +240,7 @@ with st.sidebar:
         key="aoi_longitude",
         format="%.6f",
         help="Analysis area center longitude.",
+        on_change=clear_map_click,
     )
 
     area_size = st.slider(
@@ -277,9 +290,17 @@ with st.sidebar:
 # ============================================================
 # AOI VALUES AFTER WIDGET STATE UPDATE
 # ============================================================
+# Use map click coordinates if available, else widget values
+if st.session_state.get("_map_click_lat") is not None:
+    latitude = float(st.session_state["_map_click_lat"])
+else:
+    latitude = float(st.session_state["aoi_latitude"])
 
-latitude = float(st.session_state["aoi_latitude"])
-longitude = float(st.session_state["aoi_longitude"])
+if st.session_state.get("_map_click_lon") is not None:
+    longitude = float(st.session_state["_map_click_lon"])
+else:
+    longitude = float(st.session_state["aoi_longitude"])
+
 area_size = float(st.session_state["aoi_area_size"])
 
 
@@ -310,8 +331,8 @@ if search_clicked or st.session_state.get("retry_search", False):
                     if drawn_aoi_for_search
                     else None
                 ),
-                max_retries=3,   # tenta 3 vezes internamente
-                max_items=30,     # reduz carga no servidor
+                max_retries=3,
+                max_items=30,
             )
 
             st.session_state.search_results = results
@@ -332,11 +353,9 @@ if search_clicked or st.session_state.get("retry_search", False):
                 "O serviço pode estar sobrecarregado. "
                 "Tente novamente ou ajuste os filtros (ex.: aumentar cobertura de nuvens)."
             )
-            # Botão para tentar novamente sem recarregar a página
             if st.button("Tentar novamente", key="retry_button"):
                 st.session_state["retry_search"] = True
                 st.rerun()
-            # Opcional: mostrar detalhes em expander
             with st.expander("Detalhes do erro"):
                 st.exception(error)
 
@@ -363,22 +382,35 @@ render_mission_summary(
 
 
 def map_panel_wrapper():
+    """
+    Wrapper seguro para renderizar o mapa.
+    Captura StreamlitAPIException causada pela tentativa
+    de modificar estado de widget já instanciado.
+    """
+    try:
+        state = render_map_panel(
+            latitude=latitude,
+            longitude=longitude,
+            area_size=area_size,
+            key="aoi_map",
+        )
 
-    state = render_map_panel(
-        latitude=latitude,
-        longitude=longitude,
-        area_size=area_size,
-        key="aoi_map",
-    )
+        aoi = get_selected_aoi(state)
 
-    aoi = get_selected_aoi(state)
+        if aoi:
+            st.session_state.drawn_aoi = aoi
+        else:
+            st.session_state.drawn_aoi = None
 
-    if aoi:
-        st.session_state.drawn_aoi = aoi
-    else:
-        st.session_state.drawn_aoi = None
+        return state
 
-    return state
+    except StreamlitAPIException:
+        st.warning(
+            "A interação com o mapa está temporariamente indisponível "
+            "devido a um conflito de estado do Streamlit. "
+            "Você ainda pode usar as coordenadas manuais."
+        )
+        return None
 
 
 render_geospatial_operations_center(map_panel_wrapper)
