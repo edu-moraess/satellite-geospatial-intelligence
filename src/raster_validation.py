@@ -1,14 +1,15 @@
-from __future__ import annotations
-
-# Raster Alignment / Validation Layer
-
 """
+Raster Alignment / Validation Layer
+
 Single source of truth for deciding whether one raster or
 two rasters are safe to use in mathematical operations.
 
 This module NEVER invents data. It only inspects arrays and
 metadata already present in the pipeline.
 """
+
+from __future__ import annotations
+
 
 import numpy as np
 
