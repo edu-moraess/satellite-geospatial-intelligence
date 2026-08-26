@@ -27,7 +27,7 @@ from src.sensor_registry import get_sensor, list_sensors, SENSORS
 # MÓDULOS EXISTENTES
 # ============================================================
 from src.config import RAW_DIR
-from src.catalog import create_bbox
+from src.catalog import create_bbox  # <-- IMPORT CORRETA
 
 from src.geospatial import (
     read_band,
@@ -202,7 +202,7 @@ with st.sidebar:
     st.caption("AOI · temporal window · scene filter")
 
     # --------------------------------------------------------
-    # SELETOR DE SENSOR (NOVO)
+    # SELETOR DE SENSOR
     # --------------------------------------------------------
     sensor_options = {sensor.name: sensor.id for sensor in SENSORS.values()}
     selected_sensor_name = st.selectbox("Sensor", list(sensor_options.keys()))
@@ -409,19 +409,13 @@ def _process_bands() -> None:
         b08, m08 = read_band(data["bands"]["B08"])
         b11, m11 = read_band(data["bands"]["B11"])
 
-        # ----------------------------------------------------
-        # ALIGN ALL BANDS TO B04 / REFERENCE GRID
-        # ----------------------------------------------------
-
+        # Align all bands to B04 / 10 m grid
         b02 = align_band_to_reference(b02, m02, b04, m04)
         b03 = align_band_to_reference(b03, m03, b04, m04)
         b08 = align_band_to_reference(b08, m08, b04, m04)
         b11 = align_band_to_reference(b11, m11, b04, m04)
 
-        # ----------------------------------------------------
-        # VALIDATE
-        # ----------------------------------------------------
-
+        # Validate
         for band, label in [
             (b02, "B02"),
             (b03, "B03"),
@@ -431,20 +425,14 @@ def _process_bands() -> None:
         ]:
             validate_raster(band, label=label)
 
-        # ----------------------------------------------------
         # RGB
-        # ----------------------------------------------------
-
         rgb = create_rgb(blue=b02, green=b03, red=b04)
         false_color = create_false_color(green=b03, red=b04, nir=b08)
 
         st.session_state.rgb_img = rgb
         st.session_state.false_color_img = false_color
 
-        # ----------------------------------------------------
-        # SPECTRAL INDICES
-        # ----------------------------------------------------
-
+        # Spectral indices
         ndvi = calculate_ndvi(red=b04, nir=b08)
         ndwi = calculate_ndwi(green=b03, nir=b08)
         ndbi = calculate_ndbi(nir=b08, swir=b11)
@@ -469,38 +457,27 @@ def _process_bands() -> None:
             cmap="RdYlGn",
         )
 
-        # ----------------------------------------------------
-        # LAND COVER
-        # ----------------------------------------------------
-
+        # Land cover
         classification = classify_land_cover(ndvi=ndvi, ndwi=ndwi, ndbi=ndbi)
 
         st.session_state.classification_fig = create_land_cover_figure(classification)
         st.session_state.percentages = calculate_class_percentages(classification)
         st.session_state.area_data = calculate_area_km2(classification, pixel_size_meters=10.0)
 
-        # ----------------------------------------------------
         # AI RGB
-        # ----------------------------------------------------
-
         detection_rgb = normalize_rgb(red=b04, green=b03, blue=b02)
         validate_detection_image(detection_rgb)
         st.session_state.detection_rgb = detection_rgb
 
-        # ----------------------------------------------------
-        # GEOREFERENCING
-        # ----------------------------------------------------
-
+        # Georeferencing
         st.session_state.transform = m04["transform"]
         st.session_state.crs = str(m04["crs"])
 
     except RasterValidationError as error:
-
         st.error("Raster validation failed.")
         st.warning(str(error))
 
     except Exception as error:
-
         st.error("Failed to process satellite bands.")
         st.exception(error)
 
@@ -633,7 +610,6 @@ with tab_land:
 # ============================================================
 
 def run_change_detection(params, bbox) -> None:
-    """Execute robust Before / After change detection."""
 
     before_name = params["before_name"]
     after_name = params["after_name"]
@@ -661,7 +637,6 @@ def run_change_detection(params, bbox) -> None:
         return
 
     try:
-
         with st.spinner("Downloading Before scene..."):
             before_bands = download_sensor_bands(
                 sensor_id=current_sensor_id,
@@ -940,4 +915,4 @@ if st.session_state.get("export_geojson", False):
 # ============================================================
 
 render_pipeline_status()
-render_footer() 
+render_footer()
