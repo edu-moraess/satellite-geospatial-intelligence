@@ -26,4 +26,4 @@ def download_sensor_bands(
     elif sensor_id == "landsat":
         return download_landsat_bands(item, bbox, output_directory)
     else:
-        raise NotImplementedError(f"Download para '{sensor_id}' ainda não implementado.") 
+        raise NotImplementedError(f"Download para '{sensor_id}' ainda não implementado.")
