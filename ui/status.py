@@ -1,37 +1,97 @@
 """
-ui/status.py — Pipeline stage status in session_state.
+Indicadores de status e pipeline.
 """
 
-from __future__ import annotations
-
 import streamlit as st
+from ui.theme import COLORS
 
-PIPELINE_STAGES = ("Catalog", "Imagery", "Spectral", "Change", "AI")
+# =============================================================================
+# INICIALIZAÇÃO
+# =============================================================================
 
-
-def init_pipeline_status() -> None:
+def init_pipeline_status():
+    """Inicializa o status do pipeline na sessão."""
     if "pipeline_status" not in st.session_state:
-        st.session_state["pipeline_status"] = {
-            stage: "pending" for stage in PIPELINE_STAGES
+        st.session_state.pipeline_status = {
+            "Catalog": "pending",
+            "Imagery": "pending",
+            "Spectral": "pending",
+            "Change": "pending",
+            "AI": "pending",
         }
 
 
-def get_pipeline_status() -> dict:
-    init_pipeline_status()
-    return st.session_state["pipeline_status"]
-
-
-def update_pipeline_status(stage: str, state: str) -> None:
+def update_pipeline_status(stage: str, status: str):
     """
-    Update one pipeline stage.
-    state: pending | active | done | error
+    Atualiza o status de um estágio do pipeline.
+    status: 'pending', 'active', 'done', 'error'
     """
-    init_pipeline_status()
-    if stage in st.session_state["pipeline_status"]:
-        st.session_state["pipeline_status"][stage] = state
+    if "pipeline_status" in st.session_state:
+        st.session_state.pipeline_status[stage] = status
 
 
-def reset_pipeline() -> None:
-    init_pipeline_status()
-    for stage in PIPELINE_STAGES:
-        st.session_state["pipeline_status"][stage] = "pending"
+def get_pipeline_status():
+    """Retorna o dicionário de status do pipeline."""
+    if "pipeline_status" not in st.session_state:
+        init_pipeline_status()
+    return st.session_state.pipeline_status
+
+
+# =============================================================================
+# RENDERIZAÇÃO DO PIPELINE
+# =============================================================================
+
+def render_pipeline_status(stages: dict):
+    """
+    stages: dict com chaves = nome do estágio, valor = 'done', 'active', 'pending', 'error'
+    """
+    order = ["Catalog", "Imagery", "Spectral", "Change", "AI"]
+
+    html = '<div class="pipeline">'
+    for i, name in enumerate(order):
+        status = stages.get(name, "pending")
+
+        # Normaliza para os estados do CSS
+        if status == "error":
+            css_status = "error"
+            icon = "✗"
+        elif status == "done":
+            css_status = "done"
+            icon = "✓"
+        elif status == "active":
+            css_status = "active"
+            icon = "●"
+        else:
+            css_status = "pending"
+            icon = "○"
+
+        html += f"""
+        <div class="pipeline-stage {css_status}">
+            <div class="icon">{icon}</div>
+            <div class="label">{name}</div>
+        </div>
+        """
+        if i < len(order) - 1:
+            connector_class = "done" if stages.get(order[i]) == "done" else ""
+            html += f'<div class="pipeline-connector {connector_class}"></div>'
+    html += "</div>"
+
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# =============================================================================
+# STATUS INDICATOR
+# =============================================================================
+
+def status_indicator(text: str, type: str = "active"):
+    """
+    type: 'active', 'ready', 'pending', 'error'
+    """
+    colors = {
+        "active": COLORS["accent"],
+        "ready": COLORS["success"],
+        "pending": COLORS["text_secondary"],
+        "error": COLORS["danger"],
+    }
+    color = colors.get(type, COLORS["text_secondary"])
+    return f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{color};margin-right:0.4rem;"></span><span style="font-size:0.7rem;color:{COLORS["text_secondary"]};text-transform:uppercase;letter-spacing:0.04em;">{text}</span>'
