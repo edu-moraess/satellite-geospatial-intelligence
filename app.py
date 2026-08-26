@@ -27,7 +27,7 @@ from src.sensor_registry import get_sensor, list_sensors
 # MÓDULOS EXISTENTES
 # ============================================================
 from src.config import RAW_DIR
-from src.aoi import create_bbox
+from src.catalog import create_bbox  # <-- CORRIGIDO: importando de src.catalog
 
 from src.geospatial import (
     read_band,
