@@ -9,8 +9,10 @@ Responsible for:
 - Filtering by cloud coverage
 """
 
+import time
 import planetary_computer
 import pystac_client
+from pystac_client.stac_api_io import StacApiIO
 
 from .config import (
     PLANETARY_COMPUTER_STAC,
@@ -22,11 +24,15 @@ from .config import (
 # CATALOG CONNECTION
 # ============================================================
 
-def connect_catalog():
-
+def connect_catalog(timeout: int = 120):
+    """
+    Open STAC client with increased timeout.
+    """
+    stac_io = StacApiIO(timeout=timeout)
     return pystac_client.Client.open(
         PLANETARY_COMPUTER_STAC,
         modifier=planetary_computer.sign_inplace,
+        stac_io=stac_io,
     )
 
 
@@ -45,21 +51,12 @@ def create_bbox(
     area_size is expressed approximately
     in degrees.
     """
-
     half = area_size / 2
-
     min_lon = longitude - half
     min_lat = latitude - half
-
     max_lon = longitude + half
     max_lat = latitude + half
-
-    return [
-        min_lon,
-        min_lat,
-        max_lon,
-        max_lat,
-    ]
+    return [min_lon, min_lat, max_lon, max_lat]
 
 
 # ============================================================
@@ -74,22 +71,26 @@ def search_sentinel(
     end_date: str,
     max_cloud_cover: float,
     bbox=None,
+    max_items: int = 50,
+    max_retries: int = 3,
 ):
     """
-    Search Sentinel-2 Level-2A scenes.
+    Search Sentinel-2 Level-2A scenes with retry and timeout.
 
     If `bbox` is provided (e.g. a polygon/rectangle drawn by
     the user on the map, via src.aoi.get_selected_aoi), it is
     used directly as the search area and `latitude`/
     `longitude`/`area_size` are ignored for the bbox
     computation. Otherwise the bbox falls back to the
-    lat/lon/area_size fields, exactly as before.
-    """
+    lat/lon/area_size fields.
 
-    catalog = connect_catalog()
+    Additional parameters:
+        max_items: limit number of results to reduce server load.
+        max_retries: number of attempts before giving up.
+    """
+    catalog = connect_catalog(timeout=120)
 
     if bbox is None:
-
         bbox = create_bbox(
             latitude=latitude,
             longitude=longitude,
@@ -97,30 +98,32 @@ def search_sentinel(
         )
 
     search = catalog.search(
-        collections=[
-            SENTINEL_COLLECTION
-        ],
+        collections=[SENTINEL_COLLECTION],
         bbox=bbox,
-        datetime=(
-            f"{start_date}/{end_date}"
-        ),
-        query={
-            "eo:cloud_cover": {
-                "lte": max_cloud_cover
-            }
-        },
+        datetime=f"{start_date}/{end_date}",
+        query={"eo:cloud_cover": {"lte": max_cloud_cover}},
+        max_items=max_items,
     )
 
-    items = list(
-        search.items()
-    )
+    # Retry loop with exponential backoff
+    items = None
+    for attempt in range(max_retries):
+        try:
+            items = list(search.items())
+            break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = 2 ** attempt  # 2s, 4s, 8s
+            print(
+                f"Search failed (attempt {attempt+1}/{max_retries}): "
+                f"{e}. Retrying in {wait}s..."
+            )
+            time.sleep(wait)
 
     # Best cloud coverage first
     items.sort(
-        key=lambda item: item.properties.get(
-            "eo:cloud_cover",
-            100,
-        )
+        key=lambda item: item.properties.get("eo:cloud_cover", 100)
     )
 
     return items
