@@ -1,28 +1,86 @@
+"src/change_detection.py"
+
 """
-Satellite Change Detection
-===========================
+Change Detection Engine
+=======================
 
-Compare two Sentinel-2 observations of the same geographic
-area using spectral indices.
+Responsible for:
 
-Supported:
-- NDVI
-- NDWI
-- NDBI
+    - validating Before / After rasters;
+    - calculating pixel-wise spectral differences;
+    - detecting significant increases/decreases;
+    - calculating spatial change statistics.
 
-This module performs mathematical change analysis only.
-Raster integrity and spatial compatibility are delegated to
-src.raster_validation.
+Core rule:
+
+    NO pixel-wise operation is executed before the input
+    rasters pass raster_validation.validate_raster_pair().
+
+Difference convention:
+
+    difference = AFTER - BEFORE
+
+Therefore:
+
+    +difference -> increase
+    -difference -> decrease
+     0          -> no change
+
+The module never silently crops, pads, broadcasts or invents
+pixels.
+
+If the Before and After rasters do not share the same spatial
+grid, the operation is rejected with RasterValidationError.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from src.raster_validation import (
+from .raster_validation import (
+    RasterValidationError,
+    common_valid_mask,
     validate_raster,
     validate_raster_pair,
 )
+
+
+# ============================================================
+# CONSTANTS
+# ============================================================
+
+DEFAULT_THRESHOLD = 0.10
+
+
+# ============================================================
+# INTERNAL VALIDATION
+# ============================================================
+
+def _validate_difference_inputs(
+    before,
+    after,
+    before_metadata=None,
+    after_metadata=None,
+):
+    """
+    Validate Before and After arrays before any arithmetic.
+
+    Returns:
+        validation diagnostics.
+    """
+
+    return validate_raster_pair(
+        before,
+        after,
+        before_metadata,
+        after_metadata,
+        label_a="Before",
+        label_b="After",
+        require_same_dtype=False,
+        require_same_crs=True,
+        require_same_transform=True,
+        require_overlap=True,
+    )
 
 
 # ============================================================
@@ -36,23 +94,48 @@ def calculate_difference(
     after_metadata=None,
 ):
     """
-    Calculate:
+    Calculate spectral difference:
 
-        after - before
+        difference = after - before
 
-    Positive values:
-        index increased.
+    Before performing subtraction, both rasters are validated
+    for:
 
-    Negative values:
-        index decreased.
+        - 2D structure;
+        - non-empty data;
+        - finite values;
+        - equal shape;
+        - compatible CRS;
+        - identical spatial transform;
+        - overlapping valid pixels.
 
-    When metadata is available, CRS and spatial-grid
-    compatibility are validated before subtraction.
+    Parameters:
+        before:
+            Before raster/index.
+
+        after:
+            After raster/index.
+
+        before_metadata:
+            Spatial metadata for Before.
+
+        after_metadata:
+            Spatial metadata for After.
+
+    Returns:
+        float32 difference raster.
 
     Raises:
-        RasterValidationError when rasters are unsafe
-        to compare.
+        RasterValidationError
+            If the rasters are not spatially compatible.
     """
+
+    _validate_difference_inputs(
+        before,
+        after,
+        before_metadata,
+        after_metadata,
+    )
 
     before = np.asarray(
         before,
@@ -64,61 +147,55 @@ def calculate_difference(
         dtype=np.float32,
     )
 
-    validate_raster_pair(
+    valid_mask = common_valid_mask(
         before,
         after,
-        before_metadata,
-        after_metadata,
-        label_a="before scene",
-        label_b="after scene",
     )
 
-    difference = (
-        after - before
-    ).astype(
-        np.float32,
-        copy=False,
+    # Start with NaN everywhere so invalid pixels are never
+    # interpreted as actual zero change.
+    difference = np.full(
+        before.shape,
+        np.nan,
+        dtype=np.float32,
     )
 
-    difference[
-        ~np.isfinite(difference)
-    ] = np.nan
+    difference[valid_mask] = (
+        after[valid_mask]
+        - before[valid_mask]
+    )
 
     return difference
 
 
 # ============================================================
-# CHANGE MASK
+# CHANGE CLASSIFICATION
 # ============================================================
 
 def detect_change(
     difference,
-    threshold=0.10,
+    threshold: float = DEFAULT_THRESHOLD,
 ):
     """
-    Detect significant change.
+    Convert a continuous difference raster into a categorical
+    change map.
 
-    Returns:
+    Classification:
 
-        -1 = decrease
-         0 = unchanged
-         1 = increase
+        -1 = significant decrease
+         0 = no significant change
+        +1 = significant increase
 
-    Invalid / NaN pixels are represented as NaN rather than
-    being silently classified as unchanged.
+    Threshold is symmetric:
 
-    The output is float32 because the map needs to preserve
-    the distinction between:
-        -1
-         0
-         1
-        NaN
+        difference <= -threshold -> decrease
+        difference >= +threshold -> increase
+
+    Invalid pixels remain NaN.
+
+    This is important because NoData must not be converted into
+    "unchanged".
     """
-
-    difference = np.asarray(
-        difference,
-        dtype=np.float32,
-    )
 
     validate_raster(
         difference,
@@ -132,10 +209,15 @@ def detect_change(
 
     if threshold < 0:
         raise ValueError(
-            "Change threshold cannot be negative."
+            "Change threshold must be >= 0."
         )
 
-    result = np.full(
+    difference = np.asarray(
+        difference,
+        dtype=np.float32,
+    )
+
+    change_map = np.full(
         difference.shape,
         np.nan,
         dtype=np.float32,
@@ -145,31 +227,84 @@ def detect_change(
         difference
     )
 
-    result[
+    decrease = (
         valid
-        & (
-            difference
-            < -threshold
-        )
-    ] = -1.0
+        & (difference <= -threshold)
+    )
 
-    result[
+    increase = (
         valid
-        & (
-            np.abs(difference)
-            <= threshold
-        )
-    ] = 0.0
+        & (difference >= threshold)
+    )
 
-    result[
+    unchanged = (
         valid
-        & (
-            difference
-            > threshold
-        )
-    ] = 1.0
+        & ~decrease
+        & ~increase
+    )
 
-    return result
+    change_map[decrease] = -1.0
+    change_map[unchanged] = 0.0
+    change_map[increase] = 1.0
+
+    return change_map
+
+
+# ============================================================
+# CHANGE MASK
+# ============================================================
+
+def get_change_mask(
+    change_map,
+):
+    """
+    Return a boolean mask identifying significant change.
+
+    True:
+        increase or decrease.
+
+    False:
+        unchanged or invalid.
+    """
+
+    validate_raster(
+        change_map,
+        label="change map",
+    )
+
+    change_map = np.asarray(
+        change_map
+    )
+
+    return (
+        np.isfinite(change_map)
+        & (change_map != 0)
+    )
+
+
+# ============================================================
+# VALIDITY MASK
+# ============================================================
+
+def get_valid_mask(
+    change_map,
+):
+    """
+    Return pixels that contain a valid change classification.
+    """
+
+    change_map = np.asarray(
+        change_map
+    )
+
+    if change_map.ndim != 2:
+        raise RasterValidationError(
+            "Change map must be a 2D array."
+        )
+
+    return np.isfinite(
+        change_map
+    )
 
 
 # ============================================================
@@ -178,216 +313,231 @@ def detect_change(
 
 def calculate_change_statistics(
     change_map,
-    pixel_size_meters=10.0,
+    pixel_size_meters: float = 10.0,
 ):
     """
-    Calculate changed area.
+    Calculate spatial change statistics.
 
-    Invalid pixels are excluded from the denominator and
-    from all class areas.
+    Parameters:
+        change_map:
+            Categorical map:
+                -1 decrease
+                 0 unchanged
+                +1 increase
 
-    Default:
-        Sentinel-2 10 m grid.
+        pixel_size_meters:
+            Pixel side length in meters.
+
+    Returns:
+        Dictionary containing:
+            decrease_pixels
+            increase_pixels
+            unchanged_pixels
+            valid_pixels
+            total_changed_pixels
+            decrease_km2
+            increase_km2
+            unchanged_km2
+            total_changed_km2
+            valid_area_km2
+            changed_fraction
+            decrease_fraction
+            increase_fraction
     """
-
-    change_map = np.asarray(
-        change_map,
-        dtype=np.float32,
-    )
 
     validate_raster(
         change_map,
         label="change map",
     )
 
-    if (
-        not np.isfinite(
-            pixel_size_meters
-        )
-        or pixel_size_meters <= 0
+    if not np.isfinite(
+        pixel_size_meters
     ):
         raise ValueError(
-            "pixel_size_meters must be "
-            "a positive finite number."
+            "pixel_size_meters must be finite."
         )
 
-    pixel_area_km2 = (
-        pixel_size_meters ** 2
-    ) / 1_000_000.0
+    if pixel_size_meters <= 0:
+        raise ValueError(
+            "pixel_size_meters must be greater than zero."
+        )
+
+    change_map = np.asarray(
+        change_map,
+        dtype=np.float32,
+    )
 
     valid = np.isfinite(
         change_map
     )
 
+    decrease = (
+        valid
+        & (change_map < 0)
+    )
+
+    increase = (
+        valid
+        & (change_map > 0)
+    )
+
+    unchanged = (
+        valid
+        & (change_map == 0)
+    )
+
     decrease_pixels = int(
-        np.sum(
-            valid
-            & (change_map == -1)
+        np.count_nonzero(
+            decrease
         )
     )
 
     increase_pixels = int(
-        np.sum(
-            valid
-            & (change_map == 1)
+        np.count_nonzero(
+            increase
         )
     )
 
     unchanged_pixels = int(
-        np.sum(
-            valid
-            & (change_map == 0)
+        np.count_nonzero(
+            unchanged
         )
     )
 
     valid_pixels = int(
-        np.sum(valid)
+        np.count_nonzero(
+            valid
+        )
     )
 
-    total_pixels = int(
-        change_map.size
-    )
-
-    changed_pixels = (
+    total_changed_pixels = (
         decrease_pixels
         + increase_pixels
     )
 
+    pixel_area_m2 = (
+        float(pixel_size_meters)
+        ** 2
+    )
+
+    pixel_area_km2 = (
+        pixel_area_m2
+        / 1_000_000.0
+    )
+
+    decrease_km2 = (
+        decrease_pixels
+        * pixel_area_km2
+    )
+
+    increase_km2 = (
+        increase_pixels
+        * pixel_area_km2
+    )
+
+    unchanged_km2 = (
+        unchanged_pixels
+        * pixel_area_km2
+    )
+
+    total_changed_km2 = (
+        total_changed_pixels
+        * pixel_area_km2
+    )
+
+    valid_area_km2 = (
+        valid_pixels
+        * pixel_area_km2
+    )
+
+    if valid_pixels > 0:
+        changed_fraction = (
+            total_changed_pixels
+            / valid_pixels
+        )
+
+        decrease_fraction = (
+            decrease_pixels
+            / valid_pixels
+        )
+
+        increase_fraction = (
+            increase_pixels
+            / valid_pixels
+        )
+
+    else:
+        changed_fraction = 0.0
+        decrease_fraction = 0.0
+        increase_fraction = 0.0
+
     return {
-        "decrease_pixels":
-            decrease_pixels,
+        "decrease_pixels": decrease_pixels,
+        "increase_pixels": increase_pixels,
+        "unchanged_pixels": unchanged_pixels,
+        "valid_pixels": valid_pixels,
+        "total_changed_pixels": total_changed_pixels,
 
-        "increase_pixels":
-            increase_pixels,
+        "decrease_km2": float(
+            decrease_km2
+        ),
+        "increase_km2": float(
+            increase_km2
+        ),
+        "unchanged_km2": float(
+            unchanged_km2
+        ),
+        "total_changed_km2": float(
+            total_changed_km2
+        ),
+        "valid_area_km2": float(
+            valid_area_km2
+        ),
 
-        "unchanged_pixels":
-            unchanged_pixels,
-
-        "valid_pixels":
-            valid_pixels,
-
-        "invalid_pixels":
-            total_pixels
-            - valid_pixels,
-
-        "changed_pixels":
-            changed_pixels,
-
-        "valid_fraction":
-            float(
-                valid_pixels
-                / total_pixels
-            )
-            if total_pixels
-            else 0.0,
-
-        "decrease_km2":
-            float(
-                decrease_pixels
-                * pixel_area_km2
-            ),
-
-        "increase_km2":
-            float(
-                increase_pixels
-                * pixel_area_km2
-            ),
-
-        "unchanged_km2":
-            float(
-                unchanged_pixels
-                * pixel_area_km2
-            ),
-
-        "total_changed_km2":
-            float(
-                changed_pixels
-                * pixel_area_km2
-            ),
-
-        "analyzed_area_km2":
-            float(
-                valid_pixels
-                * pixel_area_km2
-            ),
+        "changed_fraction": float(
+            changed_fraction
+        ),
+        "decrease_fraction": float(
+            decrease_fraction
+        ),
+        "increase_fraction": float(
+            increase_fraction
+        ),
     }
 
 
 # ============================================================
-# NORMALIZED CHANGE
+# SUMMARY
 # ============================================================
 
-def normalized_change(
-    before,
-    after,
+def summarize_change(
+    change_map,
+    pixel_size_meters: float = 10.0,
 ):
     """
-    Calculate relative change:
-
-        (after - before)
-        ----------------
-        abs(before) + epsilon
-
-    Pixels where either observation is invalid are returned
-    as NaN.
+    Convenience wrapper returning the main operational
+    statistics for UI presentation.
     """
 
-    before = np.asarray(
-        before,
-        dtype=np.float32,
+    stats = calculate_change_statistics(
+        change_map,
+        pixel_size_meters=pixel_size_meters,
     )
 
-    after = np.asarray(
-        after,
-        dtype=np.float32,
-    )
-
-    validate_raster_pair(
-        before,
-        after,
-        label_a="before scene",
-        label_b="after scene",
-    )
-
-    epsilon = np.float32(
-        1e-6
-    )
-
-    result = np.full(
-        before.shape,
-        np.nan,
-        dtype=np.float32,
-    )
-
-    valid = (
-        np.isfinite(before)
-        & np.isfinite(after)
-    )
-
-    denominator = (
-        np.abs(before)
-        + epsilon
-    )
-
-    safe = (
-        valid
-        & np.isfinite(denominator)
-        & (
-            denominator
-            > epsilon
-        )
-    )
-
-    result[safe] = (
-        (
-            after[safe]
-            - before[safe]
-        )
-        / denominator[safe]
-    )
-
-    result[
-        ~np.isfinite(result)
-    ] = np.nan
-
-    return result
+    return {
+        "changed_km2": stats[
+            "total_changed_km2"
+        ],
+        "decrease_km2": stats[
+            "decrease_km2"
+        ],
+        "increase_km2": stats[
+            "increase_km2"
+        ],
+        "changed_fraction": stats[
+            "changed_fraction"
+        ],
+        "valid_area_km2": stats[
+            "valid_area_km2"
+        ],
+    }
