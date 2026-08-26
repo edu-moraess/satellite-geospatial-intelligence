@@ -287,7 +287,7 @@ area_size = float(st.session_state["aoi_area_size"])
 # SATELLITE SEARCH (GENERIC)
 # ============================================================
 
-if search_clicked:
+if search_clicked or st.session_state.get("retry_search", False):
 
     if start_date > end_date:
         st.error("Start date must be before end date.")
@@ -310,6 +310,8 @@ if search_clicked:
                     if drawn_aoi_for_search
                     else None
                 ),
+                max_retries=3,   # tenta 3 vezes internamente
+                max_items=50,     # limita resultados
             )
 
             st.session_state.search_results = results
@@ -317,13 +319,26 @@ if search_clicked:
             st.session_state.change_result = None
             st.session_state.object_detections = []
             st.session_state.detection_figure = None
+            st.session_state["retry_search"] = False
 
             update_pipeline_status("Catalog", "done")
             st.rerun()
 
         except Exception as error:
-            st.error(f"{current_sensor.name} catalog search failed.")
-            st.exception(error)
+            st.session_state["retry_search"] = True
+            update_pipeline_status("Catalog", "error")
+            st.error(
+                f"Falha na busca ao catálogo {current_sensor.name}. "
+                "O serviço pode estar sobrecarregado. "
+                "Tente novamente ou ajuste os filtros (ex.: aumentar cobertura de nuvens)."
+            )
+            # Botão para tentar novamente sem recarregar a página
+            if st.button("Tentar novamente", key="retry_button"):
+                st.session_state["retry_search"] = True
+                st.rerun()
+            # Opcional: mostrar detalhes em expander
+            with st.expander("Detalhes do erro"):
+                st.exception(error)
 
 
 # ============================================================
@@ -920,4 +935,4 @@ if st.session_state.get("export_geojson", False):
 # ============================================================
 
 render_pipeline_status()
-render_footer() 
+render_footer()
