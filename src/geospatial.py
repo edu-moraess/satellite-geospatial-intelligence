@@ -1,11 +1,12 @@
-from __future__ import annotations
-
-# Geospatial utilities for Satellite Geospatial Intelligence.
-
 """
+Geospatial utilities for Satellite Geospatial Intelligence.
+
 Provides raster reading, alignment, resampling,
 normalization and band stacking utilities.
 """
+
+from __future__ import annotations
+
 
 from pathlib import Path
 
