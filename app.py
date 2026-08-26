@@ -940,4 +940,4 @@ if st.session_state.get("export_geojson", False):
 # ============================================================
 
 render_pipeline_status()
-render_footer()
+render_footer() 
