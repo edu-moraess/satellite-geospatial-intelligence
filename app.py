@@ -311,7 +311,7 @@ if search_clicked or st.session_state.get("retry_search", False):
                     else None
                 ),
                 max_retries=3,   # tenta 3 vezes internamente
-                max_items=50,     # limita resultados
+                max_items=30,     # reduz carga no servidor
             )
 
             st.session_state.search_results = results
