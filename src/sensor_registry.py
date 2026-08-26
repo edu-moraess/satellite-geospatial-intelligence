@@ -39,7 +39,23 @@ SENSORS = {
         ndbi_bands=("B11", "B08"),
         description="Copernicus Sentinel-2 Level-2A (10m, 20m, 60m)"
     ),
-    # Futuramente: Landsat, MODIS, etc.
+    "landsat": SensorDefinition(
+        id="landsat",
+        name="Landsat (C2 L2)",
+        collection="landsat-c2-l2",
+        bands={
+            "blue": "SR_B2",
+            "green": "SR_B3",
+            "red": "SR_B4",
+            "nir": "SR_B5",
+            "swir": "SR_B6"
+        },
+        resolution=30,
+        ndvi_bands=("SR_B5", "SR_B4"),
+        ndwi_bands=("SR_B3", "SR_B5"),
+        ndbi_bands=("SR_B6", "SR_B5"),
+        description="Landsat Collection 2 Level-2 (30m, desde 1982)"
+    ),
 }
 
 def get_sensor(sensor_id: str) -> Optional[SensorDefinition]:
