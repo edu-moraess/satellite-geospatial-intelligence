@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Raster Alignment / Validation Layer
 
 """
@@ -7,8 +9,6 @@ two rasters are safe to use in mathematical operations.
 This module NEVER invents data. It only inspects arrays and
 metadata already present in the pipeline.
 """
-
-from __future__ import annotations
 
 import numpy as np
 
@@ -89,9 +89,7 @@ def validate_raster(
             "cannot be validated as numeric data."
         ) from error
 
-    valid_fraction = float(
-        np.mean(finite_mask)
-    )
+    valid_fraction = float(np.mean(finite_mask))
 
     if valid_fraction == 0.0:
         raise RasterValidationError(
@@ -158,21 +156,10 @@ def validate_raster_pair(
             "before performing a pixel-wise operation."
         )
 
-    crs_a = _metadata_get(
-        metadata_a,
-        "crs",
-    )
+    crs_a = _metadata_get(metadata_a, "crs")
+    crs_b = _metadata_get(metadata_b, "crs")
 
-    crs_b = _metadata_get(
-        metadata_b,
-        "crs",
-    )
-
-    if (
-        crs_a is not None
-        and crs_b is not None
-        and crs_a != crs_b
-    ):
+    if crs_a is not None and crs_b is not None and crs_a != crs_b:
         raise RasterValidationError(
             "CRS mismatch between rasters.\n\n"
             f"{label_a}: {crs_a}\n"
@@ -181,23 +168,13 @@ def validate_raster_pair(
             "a pixel-wise comparison."
         )
 
-    transform_a = _metadata_get(
-        metadata_a,
-        "transform",
-    )
-
-    transform_b = _metadata_get(
-        metadata_b,
-        "transform",
-    )
+    transform_a = _metadata_get(metadata_a, "transform")
+    transform_b = _metadata_get(metadata_b, "transform")
 
     if (
         transform_a is not None
         and transform_b is not None
-        and not _transforms_close(
-            transform_a,
-            transform_b,
-        )
+        and not _transforms_close(transform_a, transform_b)
     ):
         raise RasterValidationError(
             "Spatial grid mismatch between rasters.\n\n"
@@ -207,24 +184,15 @@ def validate_raster_pair(
             "Align them to a common reference grid first."
         )
 
-    if (
-        require_same_dtype
-        and array_a.dtype != array_b.dtype
-    ):
+    if require_same_dtype and array_a.dtype != array_b.dtype:
         raise RasterValidationError(
             "Dtype mismatch between rasters.\n\n"
             f"{label_a}: {array_a.dtype}\n"
             f"{label_b}: {array_b.dtype}"
         )
 
-    overlap = (
-        np.isfinite(array_a)
-        & np.isfinite(array_b)
-    )
-
-    overlap_fraction = float(
-        np.mean(overlap)
-    )
+    overlap = np.isfinite(array_a) & np.isfinite(array_b)
+    overlap_fraction = float(np.mean(overlap))
 
     if not np.any(overlap):
         raise RasterValidationError(
