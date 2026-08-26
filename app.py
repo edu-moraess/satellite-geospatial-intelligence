@@ -17,17 +17,17 @@ import numpy as np
 import streamlit as st
 
 # ============================================================
-# INTERFACES DE SENSOR (NOVAS)
+# INTERFACES DE SENSOR
 # ============================================================
 from src.catalog_interface import search_sensor_catalog
 from src.download_interface import download_sensor_bands
-from src.sensor_registry import get_sensor, list_sensors
+from src.sensor_registry import get_sensor, list_sensors, SENSORS
 
 # ============================================================
 # MÓDULOS EXISTENTES
 # ============================================================
 from src.config import RAW_DIR
-from src.catalog import create_bbox  # <-- CORRIGIDO: importando de src.catalog
+from src.catalog import create_bbox
 
 from src.geospatial import (
     read_band,
@@ -116,17 +116,6 @@ from ui.status import (
 )
 
 # ============================================================
-# SENSOR CONFIGURATION
-# ============================================================
-
-# Por enquanto, usamos apenas Sentinel-2.
-CURRENT_SENSOR_ID = "sentinel2"
-
-_current_sensor = get_sensor(CURRENT_SENSOR_ID)
-if _current_sensor is None:
-    raise RuntimeError(f"Sensor '{CURRENT_SENSOR_ID}' não encontrado no registro.")
-
-# ============================================================
 # PAGE
 # ============================================================
 
@@ -197,21 +186,6 @@ for key, value in _DEFAULTS.items():
 
 
 # ============================================================
-# AOI HELPERS
-# ============================================================
-
-def _current_aoi_center() -> tuple[float, float]:
-    return (
-        float(st.session_state["aoi_latitude"]),
-        float(st.session_state["aoi_longitude"]),
-    )
-
-
-def _current_area_size() -> float:
-    return float(st.session_state["aoi_area_size"])
-
-
-# ============================================================
 # HEADER
 # ============================================================
 
@@ -227,9 +201,14 @@ with st.sidebar:
     st.markdown("**Analysis Control**")
     st.caption("AOI · temporal window · scene filter")
 
-    # Exibe o sensor atual
-    st.markdown(f"**Sensor:** {_current_sensor.name}")
-    st.caption(_current_sensor.description)
+    # --------------------------------------------------------
+    # SELETOR DE SENSOR (NOVO)
+    # --------------------------------------------------------
+    sensor_options = {sensor.name: sensor.id for sensor in SENSORS.values()}
+    selected_sensor_name = st.selectbox("Sensor", list(sensor_options.keys()))
+    current_sensor_id = sensor_options[selected_sensor_name]
+    current_sensor = get_sensor(current_sensor_id)
+    st.caption(current_sensor.description)
 
     st.markdown("AOI")
 
@@ -290,7 +269,7 @@ with st.sidebar:
     )
 
     search_clicked = st.button(
-        "Search Sentinel-2",
+        "Search Satellite Data",
         type="primary",
         use_container_width=True,
     )
@@ -306,7 +285,7 @@ area_size = float(st.session_state["aoi_area_size"])
 
 
 # ============================================================
-# SENTINEL-2 SEARCH
+# SATELLITE SEARCH (GENERIC)
 # ============================================================
 
 if search_clicked:
@@ -317,10 +296,10 @@ if search_clicked:
 
     drawn_aoi_for_search = st.session_state.get("drawn_aoi")
 
-    with st.spinner("Searching Sentinel-2 catalog..."):
+    with st.spinner(f"Searching {current_sensor.name} catalog..."):
         try:
             results = search_sensor_catalog(
-                sensor_id=CURRENT_SENSOR_ID,
+                sensor_id=current_sensor_id,
                 latitude=latitude,
                 longitude=longitude,
                 area_size=area_size,
@@ -344,7 +323,7 @@ if search_clicked:
             st.rerun()
 
         except Exception as error:
-            st.error("Satellite catalog search failed.")
+            st.error(f"{current_sensor.name} catalog search failed.")
             st.exception(error)
 
 
@@ -431,7 +410,7 @@ def _process_bands() -> None:
         b11, m11 = read_band(data["bands"]["B11"])
 
         # ----------------------------------------------------
-        # ALIGN ALL BANDS TO B04 / 10 m GRID
+        # ALIGN ALL BANDS TO B04 / REFERENCE GRID
         # ----------------------------------------------------
 
         b02 = align_band_to_reference(b02, m02, b04, m04)
@@ -549,7 +528,7 @@ def download_callback(item) -> None:
     with st.spinner(f"Downloading {item.id}..."):
         try:
             bands = download_sensor_bands(
-                sensor_id=CURRENT_SENSOR_ID,
+                sensor_id=current_sensor_id,
                 item=item,
                 bbox=bbox,
                 output_directory=RAW_DIR / item.id,
@@ -685,7 +664,7 @@ def run_change_detection(params, bbox) -> None:
 
         with st.spinner("Downloading Before scene..."):
             before_bands = download_sensor_bands(
-                sensor_id=CURRENT_SENSOR_ID,
+                sensor_id=current_sensor_id,
                 item=before_item,
                 bbox=bbox,
                 output_directory=RAW_DIR / before_item.id,
@@ -693,7 +672,7 @@ def run_change_detection(params, bbox) -> None:
 
         with st.spinner("Downloading After scene..."):
             after_bands = download_sensor_bands(
-                sensor_id=CURRENT_SENSOR_ID,
+                sensor_id=current_sensor_id,
                 item=after_item,
                 bbox=bbox,
                 output_directory=RAW_DIR / after_item.id,
