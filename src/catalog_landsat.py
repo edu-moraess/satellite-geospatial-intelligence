@@ -25,4 +25,4 @@ def search_landsat(latitude, longitude, area_size, start_date, end_date, max_clo
     for item in items:
         sign(item)
     
-    return items
+    return items 
