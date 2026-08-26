@@ -234,7 +234,6 @@ with st.sidebar:
         "Area size (deg)",
         min_value=0.01,
         max_value=0.20,
-        value=0.05,
         step=0.01,
         key="aoi_area_size",
         help="Approximate AOI side length in degrees.",
