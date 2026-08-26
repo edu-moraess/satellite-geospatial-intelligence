@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Change Detection Engine
 =======================
@@ -32,6 +30,9 @@ pixels.
 If the Before and After rasters do not share the same spatial
 grid, the operation is rejected with RasterValidationError.
 """
+
+from __future__ import annotations
+
 
 import numpy as np
 
