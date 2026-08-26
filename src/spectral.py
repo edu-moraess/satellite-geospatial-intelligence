@@ -5,21 +5,27 @@ Supported indices:
 
 NDVI -> vegetation
 NDWI -> water
-NDBI -> built-up areas
+NDBI -> built-up
+
+This module is responsible only for spectral mathematics.
+Raster integrity and pixel-grid compatibility are delegated
+to src.raster_validation.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from src.raster_validation import (
+    validate_raster_pair,
+)
+
 
 # ============================================================
 # SAFE FLOAT ARRAY
 # ============================================================
 
-def _to_float_array(
-    array,
-):
+def _to_float_array(array):
     """
     Convert an input array to float32.
     """
@@ -28,31 +34,6 @@ def _to_float_array(
         array,
         dtype=np.float32,
     )
-
-
-# ============================================================
-# ALIGN ARRAYS
-# ============================================================
-
-def _validate_same_shape(
-    band_a,
-    band_b,
-):
-    """
-    Validate that two arrays have identical dimensions.
-    """
-
-    if band_a.shape != band_b.shape:
-
-        raise ValueError(
-            "Spectral bands have different "
-            "spatial dimensions.\n\n"
-            f"Band A: {band_a.shape}\n"
-            f"Band B: {band_b.shape}\n\n"
-            "The lower-resolution band must "
-            "be resampled before calculating "
-            "the spectral index."
-        )
 
 
 # ============================================================
@@ -69,6 +50,10 @@ def normalized_difference(
         (A - B) / (A + B)
 
     Invalid divisions are converted to NaN.
+
+    Before performing the pixel-wise operation, both
+    rasters are validated and their spatial dimensions
+    are checked.
     """
 
     band_a = _to_float_array(
@@ -79,9 +64,11 @@ def normalized_difference(
         band_b
     )
 
-    _validate_same_shape(
+    validate_raster_pair(
         band_a,
         band_b,
+        label_a="band A",
+        label_b="band B",
     )
 
     numerator = (
@@ -92,8 +79,8 @@ def normalized_difference(
         band_a + band_b
     )
 
-    result = np.full_like(
-        denominator,
+    result = np.full(
+        denominator.shape,
         np.nan,
         dtype=np.float32,
     )
@@ -102,13 +89,20 @@ def normalized_difference(
         np.isfinite(band_a)
         & np.isfinite(band_b)
         & np.isfinite(denominator)
-        & (np.abs(denominator) > 1e-10)
+        & (
+            np.abs(denominator)
+            > 1e-10
+        )
     )
 
     result[valid] = (
         numerator[valid]
         / denominator[valid]
     )
+
+    result[
+        ~np.isfinite(result)
+    ] = np.nan
 
     return result
 
@@ -166,12 +160,12 @@ def calculate_ndbi(
 
         (SWIR - NIR) / (SWIR + NIR)
 
-    Important:
-    Sentinel-2 B11 is normally 20 m while
-    B08 is 10 m.
+    Sentinel-2:
+        B08 = 10 m
+        B11 = 20 m
 
-    The caller must align/resample the
-    arrays before passing them here.
+    The caller must align B11 to the B08 reference
+    grid before calling this function.
     """
 
     return normalized_difference(
@@ -189,6 +183,8 @@ def calculate_statistics(
 ):
     """
     Calculate robust statistics for a spectral index.
+
+    NaN and infinite values are excluded.
     """
 
     index = np.asarray(
@@ -201,13 +197,14 @@ def calculate_statistics(
     ]
 
     if valid.size == 0:
-
         return {
             "mean": np.nan,
             "median": np.nan,
             "minimum": np.nan,
             "maximum": np.nan,
             "std": np.nan,
+            "valid_pixels": 0,
+            "valid_fraction": 0.0,
         }
 
     return {
@@ -225,5 +222,12 @@ def calculate_statistics(
         ),
         "std": float(
             np.std(valid)
+        ),
+        "valid_pixels": int(
+            valid.size
+        ),
+        "valid_fraction": float(
+            valid.size
+            / index.size
         ),
     }
