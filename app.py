@@ -270,7 +270,7 @@ with st.sidebar:
     search_clicked = st.button(
         "Search Satellite Data",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -461,7 +461,10 @@ def _process_bands() -> None:
 
         st.session_state.classification_fig = create_land_cover_figure(classification)
         st.session_state.percentages = calculate_class_percentages(classification)
-        st.session_state.area_data = calculate_area_km2(classification, pixel_size_meters=10.0)
+        st.session_state.area_data = calculate_area_km2(
+            classification,
+            pixel_size_meters=float(current_sensor.resolution),
+        )
 
         # AI RGB
         detection_rgb = normalize_rgb(red=b04, green=b03, blue=b02)
@@ -757,7 +760,10 @@ def run_change_detection(params, bbox) -> None:
         validate_raster(diff, label=f"{index_name} difference")
 
         change_map = detect_change(diff, threshold=threshold)
-        stats = calculate_change_statistics(change_map, pixel_size_meters=10.0)
+        stats = calculate_change_statistics(
+            change_map,
+            pixel_size_meters=float(current_sensor.resolution),
+        )
 
         fig = create_change_figure(change_map, title=f"{index_choice} Change Detection")
 
