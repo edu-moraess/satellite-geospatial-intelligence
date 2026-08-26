@@ -18,7 +18,6 @@ def download_landsat_bands(item, bbox, output_dir):
     available_assets = list(item.assets.keys())
 
     # Mapeamento dos nomes dos assets para as bandas Sentinel-2
-    # Ordem de prioridade: nomes mais comuns primeiro
     possible_names = {
         "B02": ["blue", "coastal", "aerosol", "SR_B2", "B2", "B02"],
         "B03": ["green", "SR_B3", "B3", "B03"],
