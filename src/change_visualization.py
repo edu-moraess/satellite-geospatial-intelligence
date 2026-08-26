@@ -5,10 +5,9 @@ Change Detection Visualization
 
 from __future__ import annotations
 
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-
-import numpy as np
 
 
 # ============================================================
@@ -22,21 +21,37 @@ def create_change_figure(
     """
     Visualize:
 
-    -1 = decrease
-     0 = unchanged
-    +1 = increase
+        -1 = decrease
+         0 = unchanged
+        +1 = increase
+        NaN = invalid / unavailable
     """
 
     change_map = np.asarray(
-        change_map
+        change_map,
+        dtype=np.float32,
     )
+
+    display_map = np.array(
+        change_map,
+        dtype=np.float32,
+        copy=True,
+    )
+
+    display_map[
+        ~np.isfinite(display_map)
+    ] = np.nan
 
     cmap = ListedColormap(
         [
-            "#D73027",  # decrease
-            "#F0F0F0",  # unchanged
-            "#1A9850",  # increase
+            "#D73027",
+            "#F0F0F0",
+            "#1A9850",
         ]
+    )
+
+    cmap.set_bad(
+        alpha=0.0
     )
 
     figure, axis = plt.subplots(
@@ -44,7 +59,7 @@ def create_change_figure(
     )
 
     image = axis.imshow(
-        change_map,
+        display_map,
         cmap=cmap,
         vmin=-1,
         vmax=1,
@@ -53,15 +68,12 @@ def create_change_figure(
 
     axis.set_title(
         title,
-        fontsize=16,
+        fontsize=15,
+        fontweight="bold",
     )
 
-    axis.set_xlabel(
-        "Pixel X"
-    )
-
-    axis.set_ylabel(
-        "Pixel Y"
+    axis.axis(
+        "off"
     )
 
     colorbar = figure.colorbar(
@@ -72,6 +84,8 @@ def create_change_figure(
             0,
             1,
         ],
+        fraction=0.046,
+        pad=0.04,
     )
 
     colorbar.ax.set_yticklabels(
@@ -96,11 +110,34 @@ def create_difference_figure(
     title="Spectral Difference",
 ):
     """
-    Visualize continuous difference values.
+    Visualize continuous spectral difference.
+
+    NaN pixels are rendered transparently.
     """
 
     difference = np.asarray(
-        difference
+        difference,
+        dtype=np.float32,
+    )
+
+    display_difference = np.array(
+        difference,
+        dtype=np.float32,
+        copy=True,
+    )
+
+    display_difference[
+        ~np.isfinite(
+            display_difference
+        )
+    ] = np.nan
+
+    cmap = plt.get_cmap(
+        "RdBu_r"
+    ).copy()
+
+    cmap.set_bad(
+        alpha=0.0
     )
 
     figure, axis = plt.subplots(
@@ -108,28 +145,30 @@ def create_difference_figure(
     )
 
     image = axis.imshow(
-        difference,
-        cmap="RdBu_r",
+        display_difference,
+        cmap=cmap,
         interpolation="nearest",
     )
 
     axis.set_title(
         title,
-        fontsize=16,
+        fontsize=15,
+        fontweight="bold",
     )
 
-    axis.set_xlabel(
-        "Pixel X"
+    axis.axis(
+        "off"
     )
 
-    axis.set_ylabel(
-        "Pixel Y"
-    )
-
-    figure.colorbar(
+    colorbar = figure.colorbar(
         image,
         ax=axis,
-        label="Difference",
+        fraction=0.046,
+        pad=0.04,
+    )
+
+    colorbar.set_label(
+        "Difference"
     )
 
     figure.tight_layout()
