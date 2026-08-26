@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 # Geospatial utilities for Satellite Geospatial Intelligence.
 
 """
 Provides raster reading, alignment, resampling,
 normalization and band stacking utilities.
 """
-
-from __future__ import annotations
 
 from pathlib import Path
 
@@ -29,26 +29,17 @@ def read_band(path):
             array,
             metadata
     """
-
     path = Path(path)
 
     if not path.exists():
-        raise FileNotFoundError(
-            f"Band file not found: {path}"
-        )
+        raise FileNotFoundError(f"Band file not found: {path}")
 
     if not path.is_file():
-        raise FileNotFoundError(
-            f"Band path is not a file: {path}"
-        )
+        raise FileNotFoundError(f"Band path is not a file: {path}")
 
     try:
         with rasterio.open(path) as src:
-            data = src.read(1).astype(
-                np.float32,
-                copy=False,
-            )
-
+            data = src.read(1).astype(np.float32, copy=False)
             metadata = {
                 "transform": src.transform,
                 "crs": src.crs,
@@ -58,19 +49,12 @@ def read_band(path):
                 "bounds": src.bounds,
                 "profile": src.profile.copy(),
             }
-
     except Exception as error:
         raise RuntimeError(
-            f"Failed to read raster band: {path}\n\n"
-            f"Error: {error}"
+            f"Failed to read raster band: {path}\n\nError: {error}"
         ) from error
 
-    validate_raster(
-        data,
-        metadata,
-        label=path.name,
-    )
-
+    validate_raster(data, metadata, label=path.name)
     return data, metadata
 
 
@@ -89,12 +73,7 @@ def resample_to_reference(
         - CRS;
         - transform.
     """
-
-    validate_raster(
-        source_array,
-        source_metadata,
-        label="source raster",
-    )
+    validate_raster(source_array, source_metadata, label="source raster")
 
     if source_metadata is None:
         raise RasterValidationError(
@@ -106,17 +85,8 @@ def resample_to_reference(
             "reference raster: metadata is required for resampling."
         )
 
-    required_source = (
-        "transform",
-        "crs",
-    )
-
-    required_reference = (
-        "transform",
-        "crs",
-        "width",
-        "height",
-    )
+    required_source = ("transform", "crs")
+    required_reference = ("transform", "crs", "width", "height")
 
     for key in required_source:
         if source_metadata.get(key) is None:
@@ -139,14 +109,8 @@ def resample_to_reference(
         dtype=np.float32,
     )
 
-    source_array = np.asarray(
-        source_array,
-        dtype=np.float32,
-    )
-
-    source_nodata = source_metadata.get(
-        "nodata"
-    )
+    source_array = np.asarray(source_array, dtype=np.float32)
+    source_nodata = source_metadata.get("nodata")
 
     try:
         reproject(
@@ -160,7 +124,6 @@ def resample_to_reference(
             dst_nodata=np.nan,
             resampling=resampling,
         )
-
     except Exception as error:
         raise RasterValidationError(
             "Raster resampling failed.\n\n"
@@ -187,43 +150,19 @@ def align_band_to_reference(
     Otherwise the band is reprojected/resampled to the
     reference grid.
     """
-
-    validate_raster(
-        band_array,
-        band_metadata,
-        label="band",
-    )
-
-    validate_raster(
-        reference_array,
-        reference_metadata,
-        label="reference raster",
-    )
+    validate_raster(band_array, band_metadata, label="band")
+    validate_raster(reference_array, reference_metadata, label="reference raster")
 
     same_shape = (
-        np.asarray(band_array).shape
-        == np.asarray(reference_array).shape
+        np.asarray(band_array).shape == np.asarray(reference_array).shape
     )
-
     same_transform = (
-        band_metadata.get("transform")
-        == reference_metadata.get("transform")
+        band_metadata.get("transform") == reference_metadata.get("transform")
     )
+    same_crs = band_metadata.get("crs") == reference_metadata.get("crs")
 
-    same_crs = (
-        band_metadata.get("crs")
-        == reference_metadata.get("crs")
-    )
-
-    if (
-        same_shape
-        and same_transform
-        and same_crs
-    ):
-        return np.asarray(
-            band_array,
-            dtype=np.float32,
-        )
+    if same_shape and same_transform and same_crs:
+        return np.asarray(band_array, dtype=np.float32)
 
     return resample_to_reference(
         source_array=band_array,
@@ -246,43 +185,17 @@ def align_array_with_metadata(
     Equivalent to align_band_to_reference(), but explicitly
     accepts a resampling method.
     """
-
-    validate_raster(
-        array,
-        metadata,
-        label="array",
-    )
-
-    validate_raster(
-        reference_array,
-        reference_metadata,
-        label="reference array",
-    )
+    validate_raster(array, metadata, label="array")
+    validate_raster(reference_array, reference_metadata, label="reference array")
 
     same_shape = (
-        np.asarray(array).shape
-        == np.asarray(reference_array).shape
+        np.asarray(array).shape == np.asarray(reference_array).shape
     )
+    same_transform = metadata.get("transform") == reference_metadata.get("transform")
+    same_crs = metadata.get("crs") == reference_metadata.get("crs")
 
-    same_transform = (
-        metadata.get("transform")
-        == reference_metadata.get("transform")
-    )
-
-    same_crs = (
-        metadata.get("crs")
-        == reference_metadata.get("crs")
-    )
-
-    if (
-        same_shape
-        and same_transform
-        and same_crs
-    ):
-        return np.asarray(
-            array,
-            dtype=np.float32,
-        )
+    if same_shape and same_transform and same_crs:
+        return np.asarray(array, dtype=np.float32)
 
     return resample_to_reference(
         source_array=array,
@@ -297,74 +210,30 @@ def normalize_image(image):
     Normalize an image to the 0-1 range using
     robust 2nd/98th percentiles.
     """
-
-    image = np.asarray(
-        image,
-        dtype=np.float32,
-    )
+    image = np.asarray(image, dtype=np.float32)
 
     if image.size == 0:
-        return np.zeros_like(
-            image,
-            dtype=np.float32,
-        )
+        return np.zeros_like(image, dtype=np.float32)
 
-    valid = image[
-        np.isfinite(image)
-    ]
+    valid = image[np.isfinite(image)]
 
     if valid.size == 0:
-        return np.zeros_like(
-            image,
-            dtype=np.float32,
-        )
+        return np.zeros_like(image, dtype=np.float32)
 
-    low = float(
-        np.percentile(
-            valid,
-            2,
-        )
-    )
-
-    high = float(
-        np.percentile(
-            valid,
-            98,
-        )
-    )
+    low = float(np.percentile(valid, 2))
+    high = float(np.percentile(valid, 98))
 
     if high <= low:
-        result = np.zeros_like(
-            image,
-            dtype=np.float32,
-        )
-
+        result = np.zeros_like(image, dtype=np.float32)
         finite = np.isfinite(image)
-
         result[finite] = 0.5
-
         return result
 
-    normalized = (
-        image - low
-    ) / (
-        high - low
-    )
+    normalized = (image - low) / (high - low)
+    normalized = np.clip(normalized, 0.0, 1.0)
+    normalized[~np.isfinite(image)] = 0.0
 
-    normalized = np.clip(
-        normalized,
-        0.0,
-        1.0,
-    )
-
-    normalized[
-        ~np.isfinite(image)
-    ] = 0.0
-
-    return normalized.astype(
-        np.float32,
-        copy=False,
-    )
+    return normalized.astype(np.float32, copy=False)
 
 
 def stack_bands(bands):
@@ -373,24 +242,14 @@ def stack_bands(bands):
 
     All bands must already share identical dimensions.
     """
-
     if bands is None or len(bands) == 0:
-        raise ValueError(
-            "No bands provided."
-        )
+        raise ValueError("No bands provided.")
 
     arrays = [
-        np.asarray(
-            band,
-            dtype=np.float32,
-        )
-        for band in bands
+        np.asarray(band, dtype=np.float32) for band in bands
     ]
 
-    shapes = {
-        array.shape
-        for array in arrays
-    }
+    shapes = {array.shape for array in arrays}
 
     if len(shapes) != 1:
         raise RasterValidationError(
@@ -400,12 +259,6 @@ def stack_bands(bands):
         )
 
     for index, array in enumerate(arrays):
-        validate_raster(
-            array,
-            label=f"band {index + 1}",
-        )
+        validate_raster(array, label=f"band {index + 1}")
 
-    return np.stack(
-        arrays,
-        axis=-1,
-    )
+    return np.stack(arrays, axis=-1)
