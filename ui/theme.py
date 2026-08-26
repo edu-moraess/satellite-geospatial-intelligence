@@ -297,4 +297,4 @@ def load_theme():
         }}
     </style>
     """
-    return css
+    return css 
