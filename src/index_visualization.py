@@ -2,6 +2,8 @@
 Visualization of spectral indices.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -16,37 +18,68 @@ def create_index_figure(
     cmap="RdYlGn",
 ):
     """
-    Create spectral index visualization.
+    Create a spectral-index visualization.
+
+    Spectral indices are clipped to the physical display range
+    [-1, 1].
+
+    Invalid pixels are rendered transparently.
     """
 
-    display_index = np.clip(
+    index = np.asarray(
         index,
-        -1,
-        1,
+        dtype=np.float32,
     )
 
-    fig, ax = plt.subplots(
+    display_index = np.array(
+        index,
+        dtype=np.float32,
+        copy=True,
+    )
+
+    display_index[
+        ~np.isfinite(display_index)
+    ] = np.nan
+
+    display_index = np.clip(
+        display_index,
+        -1.0,
+        1.0,
+    )
+
+    cmap_object = plt.get_cmap(
+        cmap
+    ).copy()
+
+    cmap_object.set_bad(
+        alpha=0.0
+    )
+
+    figure, axis = plt.subplots(
         figsize=(10, 8)
     )
 
-    image = ax.imshow(
+    image = axis.imshow(
         display_index,
-        vmin=-1,
-        vmax=1,
-        cmap=cmap,
+        vmin=-1.0,
+        vmax=1.0,
+        cmap=cmap_object,
+        interpolation="nearest",
     )
 
-    ax.set_title(
-        title
+    axis.set_title(
+        title,
+        fontsize=15,
+        fontweight="bold",
     )
 
-    ax.axis(
+    axis.axis(
         "off"
     )
 
-    colorbar = fig.colorbar(
+    colorbar = figure.colorbar(
         image,
-        ax=ax,
+        ax=axis,
         fraction=0.046,
         pad=0.04,
     )
@@ -55,6 +88,6 @@ def create_index_figure(
         "Index value"
     )
 
-    fig.tight_layout()
+    figure.tight_layout()
 
-    return fig
+    return figure
