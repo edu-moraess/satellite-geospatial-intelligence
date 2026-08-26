@@ -46,4 +46,4 @@ def search_sensor_catalog(
             bbox=bbox
         )
     else:
-        raise NotImplementedError(f"Busca para '{sensor_id}' ainda não implementada.")
+        raise NotImplementedError(f"Busca para '{sensor_id}' ainda não implementada.") 
