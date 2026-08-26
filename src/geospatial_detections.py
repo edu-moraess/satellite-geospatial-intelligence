@@ -26,6 +26,21 @@ class GeoDetection:
     latitude: float | None = None
 
 
+def _field(detection, name, default=None):
+    """
+    Read a field from a detection object.
+
+    The AI pipeline (src.object_detection.Detection /
+    src.model_inference.Detection) produces plain dataclass
+    instances with attribute access (detection.x1, detection.label,
+    ...), not dicts. This helper supports both so this module keeps
+    working regardless of which form is passed in.
+    """
+    if isinstance(detection, dict):
+        return detection.get(name, default)
+    return getattr(detection, name, default)
+
+
 def pixel_to_map(
     transform: Affine,
     x: float,
@@ -54,10 +69,10 @@ def detection_to_geometry(
     a georeferenced polygon.
     """
 
-    x1 = float(detection["x1"])
-    y1 = float(detection["y1"])
-    x2 = float(detection["x2"])
-    y2 = float(detection["y2"])
+    x1 = float(_field(detection, "x1"))
+    y1 = float(_field(detection, "y1"))
+    x2 = float(_field(detection, "x2"))
+    y2 = float(_field(detection, "y2"))
 
     p1 = transform * (x1, y1)
     p2 = transform * (x2, y2)
@@ -113,32 +128,34 @@ def georeference_detections(
 
         records.append(
             {
-                "label": detection.get(
+                "label": _field(
+                    detection,
                     "label",
                     "unknown",
                 ),
 
                 "confidence": float(
-                    detection.get(
+                    _field(
+                        detection,
                         "confidence",
                         0.0,
                     )
                 ),
 
                 "x1": float(
-                    detection["x1"]
+                    _field(detection, "x1")
                 ),
 
                 "y1": float(
-                    detection["y1"]
+                    _field(detection, "y1")
                 ),
 
                 "x2": float(
-                    detection["x2"]
+                    _field(detection, "x2")
                 ),
 
                 "y2": float(
-                    detection["y2"]
+                    _field(detection, "y2")
                 ),
 
                 "longitude": centroid.x,
