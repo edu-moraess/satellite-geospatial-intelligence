@@ -95,4 +95,4 @@ def render_pipeline(stages: list):
 def status_badge(text: str, type: str = "ready"):
     """Badge de status: ready, pending, error."""
     cls = f"status-badge status-{type}"
-    return f'<span class="{cls}">{text}</span>'
+    return f'<span class="{cls}">{text}</span>' 
