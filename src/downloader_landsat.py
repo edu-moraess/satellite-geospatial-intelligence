@@ -14,18 +14,18 @@ def download_landsat_bands(item, bbox, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Dicionário com possíveis nomes de assets para cada banda
-    # Ordem de prioridade: nomes mais comuns primeiro
-    possible_names = {
-        "B02": ["blue", "SR_B2", "B2", "B02"],
-        "B03": ["green", "SR_B3", "B3", "B03"],
-        "B04": ["red", "SR_B4", "B4", "B04"],
-        "B08": ["nir", "SR_B5", "B5", "B05", "B08"],
-        "B11": ["swir1", "swir", "SR_B6", "B6", "B06", "B11"]
-    }
-
     # Lista de assets disponíveis na cena
     available_assets = list(item.assets.keys())
+
+    # Mapeamento dos nomes dos assets para as bandas Sentinel-2
+    # Ordem de prioridade: nomes mais comuns primeiro
+    possible_names = {
+        "B02": ["blue", "coastal", "aerosol", "SR_B2", "B2", "B02"],
+        "B03": ["green", "SR_B3", "B3", "B03"],
+        "B04": ["red", "SR_B4", "B4", "B04"],
+        "B08": ["nir", "SR_B5", "B5", "B05", "B08", "near_ir"],
+        "B11": ["swir1", "swir", "SR_B6", "B6", "B06", "B11"]
+    }
 
     bands = {}
     for sentinel_key, name_options in possible_names.items():
@@ -58,4 +58,4 @@ def download_landsat_bands(item, bbox, output_dir):
                 f"Assets disponíveis na cena: {available_assets}"
             )
 
-    return bands 
+    return bands
