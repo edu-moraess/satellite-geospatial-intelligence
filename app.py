@@ -93,27 +93,33 @@ from src.geospatial_detections import (
 from src.map_view import render_map_panel
 from src.aoi import get_selected_aoi
 
-from ui.theme import apply_theme
+# ============================================================
+# UI — NOVA IDENTIDADE VISUAL
+# ============================================================
+from ui.theme import load_theme
 
 from ui.layout import (
+    section_header,
+    metric_card,
+    render_pipeline,
+    status_badge,
+)
+
+from ui.components import (
     render_header,
-    render_mission_summary,
-    render_geospatial_operations_center,
-    render_scene_catalog,
-    render_active_scene,
-    render_spectral_intelligence,
-    render_land_cover,
-    render_change_detection_controls,
-    render_change_detection_results,
-    render_geospatial_ai_controls,
-    render_geospatial_ai_results,
-    render_pipeline_status,
-    render_footer,
+    render_mission_control,
+    render_catalog_table,
+    render_spectral_cards,
+    render_change_metrics,
+    render_ai_config,
 )
 
 from ui.status import (
     init_pipeline_status,
     update_pipeline_status,
+    get_pipeline_status,
+    render_pipeline_status,
+    status_indicator,
 )
 
 # ============================================================
@@ -122,12 +128,14 @@ from ui.status import (
 
 st.set_page_config(
     page_title="Satellite Geospatial Intelligence",
-    page_icon=None,
+    page_icon="🛰",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-apply_theme()
+# Carrega o tema CSS
+st.markdown(load_theme(), unsafe_allow_html=True)
+
 init_pipeline_status()
 
 
@@ -204,19 +212,27 @@ render_header()
 
 with st.sidebar:
 
-    st.markdown("**Analysis Control**")
-    st.caption("AOI · temporal window · scene filter")
+    st.markdown(
+        """
+        <div style="padding-bottom:0.5rem;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:1rem;">
+            <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:#8FA3AD;">Mission Control</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # --------------------------------------------------------
     # SELETOR DE SENSOR
     # --------------------------------------------------------
+    st.markdown("**Sensor**")
     sensor_options = {sensor.name: sensor.id for sensor in SENSORS.values()}
-    selected_sensor_name = st.selectbox("Sensor", list(sensor_options.keys()))
+    selected_sensor_name = st.selectbox("", list(sensor_options.keys()))
     current_sensor_id = sensor_options[selected_sensor_name]
     current_sensor = get_sensor(current_sensor_id)
     st.caption(current_sensor.description)
 
-    st.markdown("AOI")
+    st.markdown("---")
+    st.markdown("**Area of Interest**")
 
     # Callbacks to clear map click when manual input changes
     def clear_map_click():
@@ -257,7 +273,8 @@ with st.sidebar:
         "directly on the map."
     )
 
-    st.markdown("Temporal window")
+    st.markdown("---")
+    st.markdown("**Temporal Window**")
 
     start_date = st.date_input(
         "Start",
@@ -269,7 +286,8 @@ with st.sidebar:
         value=date(2026, 8, 23),
     )
 
-    st.markdown("Scene filter")
+    st.markdown("---")
+    st.markdown("**Scene Filter**")
 
     max_cloud_cover = st.slider(
         "Max cloud cover",
@@ -281,9 +299,9 @@ with st.sidebar:
     )
 
     search_clicked = st.button(
-        "Search Satellite Data",
+        "🔍 Search Satellite Data",
         type="primary",
-        width="stretch",
+        use_container_width=True,
     )
 
 
@@ -369,17 +387,33 @@ drawn_aoi = st.session_state.drawn_aoi
 
 
 # ============================================================
-# MISSION SUMMARY + MAP
+# 1. MISSION CONTROL (resumo)
 # ============================================================
 
-render_mission_summary(
-    items,
-    drawn_aoi,
-    latitude,
-    longitude,
-    area_size,
-)
+def render_mission_summary_integrated():
+    """Versão integrada do resumo da missão usando os novos componentes."""
 
+    num_scenes = len(items) if items else 0
+
+    # Dados para o resumo
+    aoi_data = {
+        "lat": f"{latitude:.4f}",
+        "lon": f"{longitude:.4f}",
+        "area": f"{area_size:.2f}° × {area_size:.2f}°",
+        "time_window": f"{start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}",
+        "cloud_coverage": f"{max_cloud_cover}% max",
+        "scenes": num_scenes,
+    }
+
+    render_mission_control(aoi_data)
+
+
+render_mission_summary_integrated()
+
+
+# ============================================================
+# 2. GEOSPATIAL OPERATIONS (mapa)
+# ============================================================
 
 def map_panel_wrapper():
     """
@@ -413,7 +447,95 @@ def map_panel_wrapper():
         return None
 
 
-render_geospatial_operations_center(map_panel_wrapper)
+# Seção Geospatial Operations
+section_header("Geospatial Operations", "Interactive Earth Observation Map")
+
+# Container do mapa
+map_placeholder = st.container()
+with map_placeholder:
+    map_panel_wrapper()
+
+# Informações auxiliares do mapa
+map_cols = st.columns(4)
+map_info = [
+    ("AOI", f"{latitude:.4f}, {longitude:.4f}"),
+    ("AREA", f"{area_size:.2f}° × {area_size:.2f}°"),
+    ("BBOX", "—"),
+    ("ZOOM", "12"),
+]
+for col, (label, value) in zip(map_cols, map_info):
+    with col:
+        st.markdown(
+            f"""
+            <div style="padding:0.2rem 0;">
+                <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3AD;">{label}</div>
+                <div style="font-size:0.85rem;color:#E8EEF2;">{value}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.markdown("---")
+
+
+# ============================================================
+# 3. SATELLITE CATALOG
+# ============================================================
+
+section_header("Satellite Catalog", f"{len(items)} observations" if items else "No observations")
+
+if items:
+    # Converte items para o formato da tabela
+    scenes = []
+    for item in items:
+        date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+        cloud = float(item.properties.get("eo:cloud_cover", 0))
+        scenes.append({
+            "date": date_str,
+            "cloud": f"{cloud:.2f}%",
+            "status": "Ready" if cloud < 10 else "Pending",
+        })
+    render_catalog_table(scenes)
+else:
+    st.caption("Nenhuma cena encontrada. Ajuste os filtros e tente novamente.")
+
+st.markdown("---")
+
+
+# ============================================================
+# 4. ACTIVE OBSERVATION
+# ============================================================
+
+section_header("Active Observation", "Select a scene from the catalog above")
+
+# Se houver dados carregados, exibe as imagens
+if st.session_state.satellite_data is not None and st.session_state.rgb_img is not None:
+    col_img1, col_img2 = st.columns(2)
+    with col_img1:
+        st.markdown(
+            """
+            <div class="panel" style="text-align:center;padding:0.5rem;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3AD;margin-bottom:0.3rem;">Natural Color</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.image(st.session_state.rgb_img, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_img2:
+        st.markdown(
+            """
+            <div class="panel" style="text-align:center;padding:0.5rem;">
+                <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3AD;margin-bottom:0.3rem;">False Color</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.image(st.session_state.false_color_img, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+else:
+    st.caption("Baixe uma cena do catálogo para visualizar as composições.")
+
+st.markdown("---")
 
 
 # ============================================================
@@ -595,67 +717,102 @@ def download_callback(item) -> None:
 
 
 # ============================================================
-# SCENE CATALOG + ACTIVE SCENE
+# SCENE CATALOG (botões de download integrados)
 # ============================================================
 
-render_scene_catalog(items, download_callback)
+def render_scene_catalog_integrated(items, download_callback):
+    """Versão integrada do catálogo com botões de download."""
+    if not items:
+        return
 
-render_active_scene(
-    st.session_state.satellite_data,
-    st.session_state.rgb_img,
-    st.session_state.false_color_img,
-)
+    # Tabela com botões
+    for idx, item in enumerate(items):
+        date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+        cloud = float(item.properties.get("eo:cloud_cover", 0))
+        cloud_str = f"{cloud:.2f}%"
 
-
-# ============================================================
-# ANALYSIS TABS
-# ============================================================
-
-(
-    tab_spectral,
-    tab_land,
-    tab_change,
-    tab_ai,
-) = st.tabs(
-    [
-        "Spectral",
-        "Land Cover",
-        "Change",
-        "Geospatial AI",
-    ]
-)
+        col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+        with col1:
+            st.write(date_str)
+        with col2:
+            st.write(cloud_str)
+        with col3:
+            status = "✓ Ready" if cloud < 10 else "⏳ Pending"
+            st.write(status)
+        with col4:
+            if st.button("Download", key=f"download_{idx}"):
+                download_callback(item)
+                st.rerun()
 
 
-# ============================================================
-# SPECTRAL
-# ============================================================
+# Catálogo com botões
+section_header("Scene Catalog", f"{len(items)} observations available" if items else "No observations")
 
-with tab_spectral:
+if items:
+    render_scene_catalog_integrated(items, download_callback)
+else:
+    st.caption("Nenhuma cena encontrada.")
 
-    render_spectral_intelligence(
-        st.session_state.ndvi,
-        st.session_state.ndwi,
-        st.session_state.ndbi,
-        st.session_state.index_figure,
-        st.session_state.get("index_stats"),
-    )
+st.markdown("---")
 
 
 # ============================================================
-# LAND COVER
+# 5. SPECTRAL INTELLIGENCE
 # ============================================================
 
-with tab_land:
+section_header("Spectral Intelligence", "Index analysis")
 
-    render_land_cover(
-        st.session_state.classification_fig,
-        st.session_state.percentages,
-        st.session_state.area_data,
-    )
+# Cards dos índices
+if st.session_state.ndvi is not None:
+    indices = {
+        "NDVI": f"{st.session_state.ndvi:.3f}",
+        "NDWI": f"{st.session_state.ndwi:.3f}" if st.session_state.ndwi is not None else "—",
+        "NDBI": f"{st.session_state.ndbi:.3f}" if st.session_state.ndbi is not None else "—",
+    }
+    render_spectral_cards(indices)
+
+# Mapa do índice
+if st.session_state.index_figure is not None:
+    st.plotly_chart(st.session_state.index_figure, use_container_width=True)
+else:
+    st.caption("Nenhum índice disponível. Baixe uma cena primeiro.")
+
+st.markdown("---")
 
 
 # ============================================================
-# CHANGE DETECTION
+# 6. LAND COVER
+# ============================================================
+
+section_header("Land Cover", "Classification from spectral indices")
+
+if st.session_state.classification_fig is not None:
+    st.plotly_chart(st.session_state.classification_fig, use_container_width=True)
+
+    # Estatísticas de cobertura
+    if st.session_state.percentages:
+        cols = st.columns(5)
+        labels = ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"]
+        for col, label in zip(cols, labels):
+            val = st.session_state.percentages.get(label, 0)
+            with col:
+                st.markdown(
+                    f"""
+                    <div class="panel" style="text-align:center;padding:0.4rem 0.2rem;">
+                        <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3AD;">{label}</div>
+                        <div style="font-size:1.1rem;font-weight:500;color:#E8EEF2;">{val:.1f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+else:
+    st.caption("Nenhuma classificação disponível. Baixe uma cena primeiro.")
+
+st.markdown("---")
+
+
+# ============================================================
+# 7. CHANGE DETECTION
 # ============================================================
 
 def run_change_detection(params, bbox) -> None:
@@ -848,12 +1005,34 @@ def run_change_detection(params, bbox) -> None:
         st.exception(error)
 
 
-with tab_change:
+section_header("Change Intelligence", "Before / After comparison")
 
-    change_params = render_change_detection_controls(items)
+# Controles
+col_before, col_after, col_index, col_threshold = st.columns(4)
 
-    if change_params is not None:
+with col_before:
+    before_label = st.selectbox(
+        "Before",
+        options=[f"{item.datetime.date()} · {item.properties.get('eo:cloud_cover', 0):.2f}%" for item in items] if items else ["—"],
+        key="before_select",
+    )
+with col_after:
+    after_label = st.selectbox(
+        "After",
+        options=[f"{item.datetime.date()} · {item.properties.get('eo:cloud_cover', 0):.2f}%" for item in items] if items else ["—"],
+        key="after_select",
+    )
+with col_index:
+    index_choice = st.selectbox(
+        "Index",
+        options=["NDVI", "NDWI", "NDBI"],
+        key="change_index",
+    )
+with col_threshold:
+    threshold = st.slider("Threshold", 0.05, 0.30, 0.10, 0.01, key="change_threshold")
 
+if st.button("📊 Analyze Change", use_container_width=False):
+    if items and before_label != "—" and after_label != "—":
         bbox = (
             st.session_state.drawn_aoi["bbox"]
             if st.session_state.drawn_aoi
@@ -864,14 +1043,43 @@ with tab_change:
             )
         )
 
-        run_change_detection(change_params, bbox)
+        scene_options = {}
+        for item in items:
+            date_str = str(item.datetime.date()) if item.datetime else "Unknown"
+            cloud = float(item.properties.get("eo:cloud_cover", 0))
+            label = f"{date_str} · {cloud:.2f}%"
+            scene_options[label] = item
+
+        params = {
+            "before_name": before_label,
+            "after_name": after_label,
+            "index_choice": index_choice,
+            "threshold": threshold,
+            "scene_options": scene_options,
+        }
+
+        run_change_detection(params, bbox)
         st.rerun()
 
-    render_change_detection_results()
+# Resultados da mudança
+if st.session_state.change_result:
+    stats = st.session_state.change_result["statistics"]
+    render_change_metrics(
+        f"{stats.get('decrease_area_km2', 0):.3f} km²",
+        f"{stats.get('increase_area_km2', 0):.3f} km²",
+        f"{stats.get('total_changed_km2', 0):.3f} km²",
+    )
+
+    if st.session_state.change_result.get("figure"):
+        st.plotly_chart(st.session_state.change_result["figure"], use_container_width=True)
+else:
+    st.caption("Nenhuma análise de mudança realizada. Selecione duas cenas e clique em 'Analyze Change'.")
+
+st.markdown("---")
 
 
 # ============================================================
-# GEOSPATIAL AI
+# 8. GEOSPATIAL AI
 # ============================================================
 
 def run_ai_inference(params, detection_rgb) -> None:
@@ -917,43 +1125,57 @@ def run_ai_inference(params, detection_rgb) -> None:
         st.exception(error)
 
 
-with tab_ai:
+section_header("Geospatial AI", "Object detection & inference")
 
-    ai_params = render_geospatial_ai_controls(
-        st.session_state.satellite_data,
-        st.session_state.detection_rgb,
+# Configuração
+with st.expander("Model Configuration", expanded=False):
+    model_options = ["remote_sensing_detector", "yolo_satellite", "custom_resnet"]
+    model_id = st.selectbox("Model", model_options, key="ai_model")
+    confidence = st.slider("Confidence", 0.1, 0.9, 0.5, 0.05, key="ai_confidence")
+    tile_size = st.selectbox("Tile Size", [256, 512, 1024], index=1, key="ai_tile")
+    overlap = st.slider("Overlap", 0.0, 0.5, 0.2, 0.05, key="ai_overlap")
+    classes = st.multiselect(
+        "Classes",
+        ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"],
+        default=["Vegetation", "Built-up"],
+        key="ai_classes",
     )
 
-    if ai_params is not None:
-        run_ai_inference(ai_params, st.session_state.detection_rgb)
+if st.button("🧠 Run Geospatial AI", use_container_width=False):
+    if st.session_state.detection_rgb is not None:
+        params = {
+            "model_id": model_id,
+            "confidence": confidence,
+            "tile_size": tile_size,
+            "overlap": overlap,
+            "classes": classes,
+        }
+        run_ai_inference(params, st.session_state.detection_rgb)
         st.rerun()
+    else:
+        st.warning("Nenhuma imagem disponível para IA. Baixe uma cena primeiro.")
 
-    render_geospatial_ai_results(
-        st.session_state.object_detections,
-        st.session_state.detection_rgb,
-    )
+# Resultados da IA
+if st.session_state.detection_figure is not None:
+    st.image(st.session_state.detection_figure, use_container_width=True)
 
-
-# ============================================================
-# GEOJSON EXPORT
-# ============================================================
+    # Botão de exportação
+    if st.session_state.object_detections:
+        st.session_state["export_geojson"] = True
 
 if st.session_state.get("export_geojson", False):
-
     detections = st.session_state.object_detections
 
     if detections and st.session_state.transform is not None:
-
         gdf = georeference_detections(
             detections,
             transform=st.session_state.transform,
             crs=st.session_state.crs,
         )
-
         geojson_bytes = to_geojson_bytes(gdf)
 
         st.download_button(
-            "Download GeoJSON",
+            "📥 Download GeoJSON",
             data=geojson_bytes,
             file_name="detections.geojson",
             mime="application/geo+json",
@@ -961,10 +1183,31 @@ if st.session_state.get("export_geojson", False):
 
     st.session_state["export_geojson"] = False
 
+st.markdown("---")
+
+
+# ============================================================
+# 9. PROCESSING PIPELINE
+# ============================================================
+
+section_header("Processing Pipeline", "Current stage")
+
+# Obtém status atualizado
+pipeline_status = get_pipeline_status()
+render_pipeline_status(pipeline_status)
+
 
 # ============================================================
 # FOOTER
 # ============================================================
 
-render_pipeline_status()
-render_footer()
+st.markdown(
+    """
+    <div style="margin-top:2rem;padding-top:0.8rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.65rem;color:#8FA3AD;text-align:center;letter-spacing:0.04em;">
+        Satellite Geospatial Intelligence · Earth Observation · Remote Sensing · Geospatial Analytics
+        <br>
+        Spectral values are analytical measurements; interpret with sensor, resolution and preprocessing context.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
