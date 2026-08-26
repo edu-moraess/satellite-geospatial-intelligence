@@ -5,35 +5,28 @@ Download de bandas Landsat (Collection 2 Level-2) com renomeação para compatib
 import rasterio
 from pathlib import Path
 import requests
-import streamlit as st
 
 def download_landsat_bands(item, bbox, output_dir):
     """
     Baixa as bandas Landsat e as renomeia para compatibilidade com o pipeline existente.
-    Mapeamento:
-        Landsat SR_B2 → B02 (blue)
-        Landsat SR_B3 → B03 (green)
-        Landsat SR_B4 → B04 (red)
-        Landsat SR_B5 → B08 (nir)
-        Landsat SR_B6 → B11 (swir)
+    Mapeamento automático dos assets disponíveis.
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Mapeamento das bandas Landsat para os nomes esperados pelo processamento
-    # Lista de possíveis nomes de assets para cada banda
+
+    # Dicionário com possíveis nomes de assets para cada banda
+    # Ordem de prioridade: nomes mais comuns primeiro
     possible_names = {
-        "B02": ["SR_B2", "B2", "B02", "blue"],          # azul
-        "B03": ["SR_B3", "B3", "B03", "green"],         # verde
-        "B04": ["SR_B4", "B4", "B04", "red"],           # vermelho
-        "B08": ["SR_B5", "B5", "B05", "nir"],           # infravermelho próximo
-        "B11": ["SR_B6", "B6", "B06", "swir1", "swir"]  # infravermelho de ondas curtas
+        "B02": ["blue", "SR_B2", "B2", "B02"],
+        "B03": ["green", "SR_B3", "B3", "B03"],
+        "B04": ["red", "SR_B4", "B4", "B04"],
+        "B08": ["nir", "SR_B5", "B5", "B05", "B08"],
+        "B11": ["swir1", "swir", "SR_B6", "B6", "B06", "B11"]
     }
-    
-    # Obter lista de assets disponíveis para depuração
+
+    # Lista de assets disponíveis na cena
     available_assets = list(item.assets.keys())
-    st.info(f"Assets disponíveis na cena: {available_assets}")
-    
+
     bands = {}
     for sentinel_key, name_options in possible_names.items():
         found = False
@@ -43,25 +36,26 @@ def download_landsat_bands(item, bbox, output_dir):
                 url = asset.href
                 response = requests.get(url, stream=True)
                 response.raise_for_status()
-                
+
                 file_path = output_dir / f"{sentinel_key}.tif"
                 with open(file_path, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
-                
-                # Validar com rasterio
+
+                # Validação simples com rasterio
                 with rasterio.open(file_path) as src:
                     pass
-                
+
                 bands[sentinel_key] = file_path
                 found = True
                 break
-        
+
         if not found:
+            # Se não encontrou, levanta erro com lista de assets disponíveis
             raise ValueError(
-                f"Nenhum asset encontrado para a banda {sentinel_key}. "
-                f"Opções tentadas: {name_options}. "
-                f"Assets disponíveis: {available_assets}"
+                f"Nenhum asset encontrado para a banda {sentinel_key}.\n"
+                f"Opções tentadas: {name_options}\n"
+                f"Assets disponíveis na cena: {available_assets}"
             )
-    
+
     return bands
