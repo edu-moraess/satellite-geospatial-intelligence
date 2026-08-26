@@ -4,7 +4,7 @@ Busca no catálogo Landsat (Planetary Computer).
 
 from pystac_client import Client
 from planetary_computer import sign
-from src.aoi import create_bbox
+from src.catalog import create_bbox  # <-- CORRIGIDO: importa de src.catalog
 
 def search_landsat(latitude, longitude, area_size, start_date, end_date, max_cloud_cover, bbox=None):
     """Busca cenas Landsat na região e período especificados."""
@@ -25,4 +25,4 @@ def search_landsat(latitude, longitude, area_size, start_date, end_date, max_clo
     for item in items:
         sign(item)
     
-    return items 
+    return items
