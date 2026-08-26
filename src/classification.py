@@ -5,20 +5,16 @@ Land Cover Classification
 Rule-based multispectral land-cover classifier.
 
 Classes:
+    0 -> Other
+    1 -> Vegetation
+    2 -> Water
+    3 -> Built-up
+    4 -> Bare Soil
 
-0 -> Other
-1 -> Vegetation
-2 -> Water
-3 -> Built-up
-4 -> Bare Soil
+This module intentionally does NOT claim to be a trained
+machine-learning model.
 
-This is a baseline classifier.
-
-It intentionally does NOT claim to be
-a trained machine-learning model.
-
-Raster integrity is delegated to
-src.raster_validation.
+Raster integrity is delegated to src.raster_validation.
 """
 
 from __future__ import annotations
@@ -36,13 +32,9 @@ from src.raster_validation import (
 # ============================================================
 
 OTHER = 0
-
 VEGETATION = 1
-
 WATER = 2
-
 BUILT_UP = 3
-
 BARE_SOIL = 4
 
 
@@ -60,7 +52,7 @@ CLASS_NAMES = {
 
 
 # ============================================================
-# INTERNAL VALIDATION
+# VALIDATE SINGLE INDEX
 # ============================================================
 
 def _validate_index(
@@ -70,11 +62,11 @@ def _validate_index(
     """
     Validate one spectral-index raster.
 
-    Classification requires each input to be:
-        - present;
-        - non-empty;
-        - 2D;
-        - containing finite pixels.
+    Required:
+        - not None
+        - non-empty
+        - 2D
+        - at least one finite pixel
     """
 
     return validate_raster(
@@ -82,6 +74,10 @@ def _validate_index(
         label=label,
     )
 
+
+# ============================================================
+# VALIDATE INDEX STACK
+# ============================================================
 
 def _validate_index_stack(
     ndvi,
@@ -92,10 +88,11 @@ def _validate_index_stack(
     Validate the three spectral-index rasters before
     classification.
 
-    In addition to validating each raster independently,
-    this function guarantees that all three arrays have
-    identical spatial dimensions and at least one pixel
-    is simultaneously valid across all three indices.
+    Guarantees:
+        - each index is valid;
+        - all indices have identical shape;
+        - at least one pixel is simultaneously valid
+          across NDVI, NDWI and NDBI.
 
     No resampling, cropping or broadcasting is performed.
     """
@@ -152,9 +149,10 @@ def _validate_index_stack(
 
     if not np.any(common_valid):
         raise RasterValidationError(
-            "NDVI, NDWI and NDBI have no common valid pixels.\n\n"
-            "The land-cover classifier cannot produce a valid "
-            "classification from these inputs."
+            "NDVI, NDWI and NDBI have no common "
+            "valid pixels.\n\n"
+            "The land-cover classifier cannot produce "
+            "a valid classification from these inputs."
         )
 
     return (
@@ -181,11 +179,11 @@ def classify_land_cover(
 
     Priority:
 
-    1. Water
-    2. Vegetation
-    3. Built-up
-    4. Bare soil
-    5. Other
+        1. Water
+        2. Vegetation
+        3. Built-up
+        4. Bare Soil
+        5. Other
 
     Parameters:
         ndvi:
@@ -204,17 +202,14 @@ def classify_land_cover(
             Optional NIR band reserved for future refinement.
 
     Returns:
-        uint8 classification map.
+        np.ndarray:
+            uint8 classification map.
 
     Notes:
-        Pixels where one or more indices are invalid remain
-        classified as OTHER. They are never used in the
-        spectral decision rules.
+        Invalid pixels remain OTHER.
 
-    Raises:
-        RasterValidationError:
-            If the input indices are missing, malformed,
-            empty or spatially incompatible.
+        The classifier is deterministic and rule-based.
+        It is not a trained ML model.
     """
 
     (
@@ -234,9 +229,9 @@ def classify_land_cover(
         dtype=np.uint8,
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # WATER
-    # --------------------------------------------------------
+    # ========================================================
 
     water = (
         valid
@@ -248,9 +243,9 @@ def classify_land_cover(
         water
     ] = WATER
 
-    # --------------------------------------------------------
+    # ========================================================
     # VEGETATION
-    # --------------------------------------------------------
+    # ========================================================
 
     vegetation = (
         valid
@@ -263,9 +258,9 @@ def classify_land_cover(
         vegetation
     ] = VEGETATION
 
-    # --------------------------------------------------------
+    # ========================================================
     # BUILT-UP
-    # --------------------------------------------------------
+    # ========================================================
 
     built_up = (
         valid
@@ -279,9 +274,9 @@ def classify_land_cover(
         built_up
     ] = BUILT_UP
 
-    # --------------------------------------------------------
+    # ========================================================
     # BARE SOIL
-    # --------------------------------------------------------
+    # ========================================================
 
     bare_soil = (
         valid
@@ -310,17 +305,55 @@ def validate_classification(
     """
     Validate a generated classification map.
 
-    Classification maps are categorical rasters, therefore
-    the expected structure is a non-empty 2D array.
-
     Returns:
         Diagnostic dictionary.
     """
 
-    return validate_raster(
-        classification,
-        label="land-cover classification",
+    classification = np.asarray(
+        classification
     )
+
+    if classification.size == 0:
+        raise RasterValidationError(
+            "Land-cover classification is empty."
+        )
+
+    if classification.ndim != 2:
+        raise RasterValidationError(
+            "Land-cover classification must be a "
+            "2D categorical raster.\n\n"
+            f"Received shape: {classification.shape}"
+        )
+
+    unique_values = np.unique(
+        classification
+    )
+
+    allowed = set(
+        CLASS_NAMES.keys()
+    )
+
+    invalid_values = [
+        int(value)
+        for value in unique_values
+        if int(value) not in allowed
+    ]
+
+    if invalid_values:
+        raise RasterValidationError(
+            "Land-cover classification contains "
+            f"unknown class IDs: {invalid_values}.\n\n"
+            f"Allowed IDs: {sorted(allowed)}"
+        )
+
+    return {
+        "shape": classification.shape,
+        "dtype": str(classification.dtype),
+        "classes_present": [
+            int(value)
+            for value in unique_values
+        ],
+    }
 
 
 # ============================================================
@@ -342,7 +375,8 @@ def get_class_mask(
     if class_id not in CLASS_NAMES:
         raise ValueError(
             f"Unknown class id: {class_id}. "
-            f"Expected one of: {list(CLASS_NAMES)}."
+            f"Expected one of: "
+            f"{list(CLASS_NAMES)}."
         )
 
     classification = np.asarray(
@@ -356,7 +390,7 @@ def get_class_mask(
 
 
 # ============================================================
-# CLASS PIXEL COUNTS
+# CLASS COUNTS
 # ============================================================
 
 def calculate_class_counts(
@@ -364,6 +398,13 @@ def calculate_class_counts(
 ):
     """
     Count pixels belonging to each class.
+
+    Returns:
+        Dictionary with one entry per class plus
+        `_valid_pixels`.
+
+    Note:
+        `_valid_pixels` excludes OTHER.
     """
 
     validate_classification(
@@ -374,8 +415,10 @@ def calculate_class_counts(
         classification
     )
 
-    total_valid = np.sum(
-        classification != OTHER
+    total_valid = int(
+        np.sum(
+            classification != OTHER
+        )
     )
 
     counts = {}
@@ -383,7 +426,6 @@ def calculate_class_counts(
     for class_id, name in (
         CLASS_NAMES.items()
     ):
-
         count = int(
             np.sum(
                 classification
@@ -393,7 +435,7 @@ def calculate_class_counts(
 
         counts[name] = count
 
-    counts["_valid_pixels"] = int(
+    counts["_valid_pixels"] = (
         total_valid
     )
 
@@ -410,8 +452,19 @@ def calculate_class_percentages(
     """
     Calculate percentage of each class.
 
-    Percentages are calculated over all classified pixels,
+    Percentages are calculated over ALL pixels,
     including Other.
+
+    Returns:
+        Dictionary:
+
+            {
+                "Other": ...,
+                "Vegetation": ...,
+                "Water": ...,
+                "Built-up": ...,
+                "Bare Soil": ...
+            }
     """
 
     validate_classification(
@@ -427,7 +480,6 @@ def calculate_class_percentages(
     )
 
     if total_pixels == 0:
-
         return {
             name: 0.0
             for name in CLASS_NAMES.values()
@@ -438,7 +490,6 @@ def calculate_class_percentages(
     for class_id, name in (
         CLASS_NAMES.items()
     ):
-
         count = np.sum(
             classification
             == class_id
