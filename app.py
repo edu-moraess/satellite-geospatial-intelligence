@@ -2,8 +2,15 @@
 app.py — Satellite Geospatial Intelligence
 
 Orchestration only:
-page configuration, session state, AOI control,
-search/download/analysis wiring.
+- page configuration
+- session state
+- AOI control
+- catalog search
+- scene download
+- scientific pipeline wiring
+- change detection
+- AI inference
+- export
 
 Presentation lives in ui/.
 Scientific logic lives in src/.
@@ -12,37 +19,66 @@ Scientific logic lives in src/.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
 
 import numpy as np
 import streamlit as st
 
-from src.catalog import search_sentinel, create_bbox
+from src.catalog import (
+    search_sentinel,
+    create_bbox,
+)
+
 from src.config import RAW_DIR
-from src.downloader import download_required_bands
-from src.geospatial import read_band, align_band_to_reference
-from src.raster_validation import validate_raster
-from src.visualization import create_rgb, create_false_color
+
+from src.downloader import (
+    download_required_bands,
+)
+
+from src.geospatial import (
+    read_band,
+    align_band_to_reference,
+)
+
+from src.raster_validation import (
+    RasterValidationError,
+    validate_raster,
+)
+
+from src.visualization import (
+    create_rgb,
+    create_false_color,
+)
+
 from src.spectral import (
     calculate_ndvi,
     calculate_ndwi,
     calculate_ndbi,
 )
-from src.index_visualization import create_index_figure
+
+from src.index_visualization import (
+    create_index_figure,
+)
+
 from src.classification import (
     classify_land_cover,
     calculate_class_percentages,
 )
+
 from src.land_cover import (
     create_land_cover_figure,
     calculate_area_km2,
 )
+
 from src.change_detection import (
     calculate_difference,
     detect_change,
     calculate_change_statistics,
 )
-from src.change_visualization import create_change_figure
+
+from src.change_visualization import (
+    create_change_figure,
+)
+
 from src.object_detection import (
     normalize_rgb,
     validate_detection_image,
@@ -50,16 +86,32 @@ from src.object_detection import (
     filter_classes,
     draw_detections,
 )
-from src.tiling import create_tiles
-from src.detector_model import SatelliteDetector
+
+from src.tiling import (
+    create_tiles,
+)
+
+from src.detector_model import (
+    SatelliteDetector,
+)
+
 from src.geospatial_detections import (
     georeference_detections,
     to_geojson_bytes,
 )
-from src.map_view import render_map_panel
-from src.aoi import get_selected_aoi
 
-from ui.theme import apply_theme
+from src.map_view import (
+    render_map_panel,
+)
+
+from src.aoi import (
+    get_selected_aoi,
+)
+
+from ui.theme import (
+    apply_theme,
+)
+
 from ui.layout import (
     render_header,
     render_mission_summary,
@@ -75,6 +127,7 @@ from ui.layout import (
     render_pipeline_status,
     render_footer,
 )
+
 from ui.status import (
     init_pipeline_status,
     update_pipeline_status,
@@ -97,101 +150,190 @@ init_pipeline_status()
 
 
 # ============================================================
-# SESSION STATE DEFAULTS
+# SESSION DEFAULTS
 # ============================================================
 
-_DEFAULTS: dict[str, Any] = {
+_DEFAULTS = {
     # --------------------------------------------------------
     # AOI
     # --------------------------------------------------------
+
     "aoi_latitude": -23.5505,
     "aoi_longitude": -46.6333,
     "aoi_area_size": 0.05,
     "aoi_source": "manual",
-
-    # Persistent AOI drawn on map.
-    "drawn_aoi": None,
-
-    # Last map click used to update manual coordinates.
     "_last_processed_map_click": None,
 
     # --------------------------------------------------------
-    # Catalog / imagery
+    # Catalog
     # --------------------------------------------------------
+
     "search_results": [],
+    "drawn_aoi": None,
+
+    # --------------------------------------------------------
+    # Active scene
+    # --------------------------------------------------------
+
     "satellite_data": None,
 
     # --------------------------------------------------------
     # Visualization
     # --------------------------------------------------------
+
     "rgb_img": None,
     "false_color_img": None,
 
     # --------------------------------------------------------
     # Spectral
     # --------------------------------------------------------
+
     "ndvi": None,
     "ndwi": None,
     "ndbi": None,
+
     "index_stats": {},
+
     "index_figure": None,
 
     # --------------------------------------------------------
     # Land cover
     # --------------------------------------------------------
+
     "classification_fig": None,
     "percentages": None,
     "area_data": None,
 
     # --------------------------------------------------------
-    # AI
+    # Change detection
     # --------------------------------------------------------
+
+    "change_result": None,
+
+    # --------------------------------------------------------
+    # Geospatial AI
+    # --------------------------------------------------------
+
     "detection_rgb": None,
     "object_detections": [],
     "detection_figure": None,
 
     # --------------------------------------------------------
-    # Change detection
-    # --------------------------------------------------------
-    "change_result": None,
-
-    # --------------------------------------------------------
     # Georeferencing
     # --------------------------------------------------------
+
     "transform": None,
     "crs": None,
 
     # --------------------------------------------------------
     # Export
     # --------------------------------------------------------
+
     "export_geojson": False,
 }
 
 
 for key, value in _DEFAULTS.items():
+
     if key not in st.session_state:
+
         st.session_state[key] = value
 
 
 # ============================================================
-# STATE HELPERS
+# AOI HELPERS
+# ============================================================
+
+def _current_aoi_center() -> tuple[float, float]:
+    """
+    Return the current AOI center from session state.
+    """
+
+    return (
+        float(
+            st.session_state[
+                "aoi_latitude"
+            ]
+        ),
+        float(
+            st.session_state[
+                "aoi_longitude"
+            ]
+        ),
+    )
+
+
+def _current_area_size() -> float:
+    """
+    Return current AOI area size.
+    """
+
+    return float(
+        st.session_state[
+            "aoi_area_size"
+        ]
+    )
+
+
+def _current_bbox():
+    """
+    Return the active search/analysis bounding box.
+
+    Drawn AOI takes precedence over the manual AOI.
+    """
+
+    drawn_aoi = (
+        st.session_state.get(
+            "drawn_aoi"
+        )
+    )
+
+    if drawn_aoi:
+
+        bbox = drawn_aoi.get(
+            "bbox"
+        )
+
+        if bbox:
+
+            return bbox
+
+    latitude, longitude = (
+        _current_aoi_center()
+    )
+
+    area_size = (
+        _current_area_size()
+    )
+
+    return create_bbox(
+        latitude,
+        longitude,
+        area_size,
+    )
+
+
+# ============================================================
+# STATE RESET HELPERS
 # ============================================================
 
 def _reset_scene_analysis() -> None:
     """
-    Reset all analysis products when a new search is executed.
+    Reset all analysis products associated with the active
+    satellite scene.
 
-    AOI and catalog state are intentionally preserved.
+    This prevents results from an old scene remaining visible
+    after a new scene is downloaded.
     """
 
-    st.session_state.satellite_data = None
-
     st.session_state.rgb_img = None
+
     st.session_state.false_color_img = None
 
     st.session_state.ndvi = None
     st.session_state.ndwi = None
     st.session_state.ndbi = None
+
     st.session_state.index_stats = {}
     st.session_state.index_figure = None
 
@@ -203,63 +345,20 @@ def _reset_scene_analysis() -> None:
     st.session_state.object_detections = []
     st.session_state.detection_figure = None
 
-    st.session_state.change_result = None
-
     st.session_state.transform = None
     st.session_state.crs = None
 
-    st.session_state.export_geojson = False
-
-
-def _reset_downstream_after_download() -> None:
-    """
-    Reset products that depend on the active scene.
-    """
-
-    st.session_state.object_detections = []
-    st.session_state.detection_figure = None
     st.session_state.change_result = None
+
     st.session_state.export_geojson = False
 
 
-def _current_aoi_center() -> tuple[float, float]:
-    return (
-        float(st.session_state["aoi_latitude"]),
-        float(st.session_state["aoi_longitude"]),
-    )
-
-
-def _current_area_size() -> float:
-    return float(
-        st.session_state["aoi_area_size"]
-    )
-
-
-def _current_search_bbox():
+def _reset_change_result() -> None:
     """
-    Return the drawn AOI bbox when available.
-
-    Otherwise use the manual latitude/longitude AOI.
+    Reset only change-detection state.
     """
 
-    drawn_aoi = st.session_state.get(
-        "drawn_aoi"
-    )
-
-    if drawn_aoi:
-        bbox = drawn_aoi.get("bbox")
-
-        if bbox:
-            return bbox
-
-    latitude, longitude = _current_aoi_center()
-    area_size = _current_area_size()
-
-    return create_bbox(
-        latitude,
-        longitude,
-        area_size,
-    )
+    st.session_state.change_result = None
 
 
 # ============================================================
@@ -275,43 +374,50 @@ render_header()
 
 with st.sidebar:
 
-    st.markdown("**Analysis Control**")
+    st.markdown(
+        "**Analysis Control**"
+    )
 
     st.caption(
         "AOI · temporal window · scene filter"
     )
 
-    # --------------------------------------------------------
-    # AOI
-    # --------------------------------------------------------
+    st.markdown(
+        "AOI"
+    )
 
-    st.markdown("AOI")
-
-    st.number_input(
+    latitude = st.number_input(
         "Latitude",
         min_value=-90.0,
         max_value=90.0,
         key="aoi_latitude",
         format="%.6f",
-        help="Analysis area center latitude.",
+        help=(
+            "Analysis area center latitude."
+        ),
     )
 
-    st.number_input(
+    longitude = st.number_input(
         "Longitude",
         min_value=-180.0,
         max_value=180.0,
         key="aoi_longitude",
         format="%.6f",
-        help="Analysis area center longitude.",
+        help=(
+            "Analysis area center longitude."
+        ),
     )
 
-    st.slider(
+    area_size = st.slider(
         "Area size (deg)",
         min_value=0.01,
         max_value=0.20,
+        value=0.05,
         step=0.01,
         key="aoi_area_size",
-        help="Approximate AOI side length in degrees.",
+        help=(
+            "Approximate AOI side length in degrees."
+        ),
     )
 
     st.caption(
@@ -319,29 +425,31 @@ with st.sidebar:
         "selected directly on the map."
     )
 
-    # --------------------------------------------------------
-    # TEMPORAL WINDOW
-    # --------------------------------------------------------
-
-    st.markdown("Temporal window")
+    st.markdown(
+        "Temporal window"
+    )
 
     start_date = st.date_input(
         "Start",
-        value=date(2026, 1, 1),
-        key="analysis_start_date",
+        value=date(
+            2026,
+            1,
+            1,
+        ),
     )
 
     end_date = st.date_input(
         "End",
-        value=date(2026, 8, 23),
-        key="analysis_end_date",
+        value=date(
+            2026,
+            8,
+            23,
+        ),
     )
 
-    # --------------------------------------------------------
-    # CLOUD FILTER
-    # --------------------------------------------------------
-
-    st.markdown("Scene filter")
+    st.markdown(
+        "Scene filter"
+    )
 
     max_cloud_cover = st.slider(
         "Max cloud cover",
@@ -350,35 +458,35 @@ with st.sidebar:
         value=10,
         step=1,
         format="%d%%",
-        key="max_cloud_cover",
     )
-
-    # --------------------------------------------------------
-    # SEARCH
-    # --------------------------------------------------------
 
     search_clicked = st.button(
         "Search Sentinel-2",
         type="primary",
         use_container_width=True,
-        key="search_sentinel_btn",
     )
 
 
 # ============================================================
-# CURRENT AOI VALUES
+# AOI VALUES AFTER WIDGET STATE UPDATE
 # ============================================================
 
 latitude = float(
-    st.session_state["aoi_latitude"]
+    st.session_state[
+        "aoi_latitude"
+    ]
 )
 
 longitude = float(
-    st.session_state["aoi_longitude"]
+    st.session_state[
+        "aoi_longitude"
+    ]
 )
 
 area_size = float(
-    st.session_state["aoi_area_size"]
+    st.session_state[
+        "aoi_area_size"
+    ]
 )
 
 
@@ -394,71 +502,84 @@ if search_clicked:
             "Start date must be before end date."
         )
 
-    else:
+        st.stop()
 
-        drawn_aoi_for_search = (
-            st.session_state.get(
-                "drawn_aoi"
+    drawn_aoi_for_search = (
+        st.session_state.get(
+            "drawn_aoi"
+        )
+    )
+
+    search_bbox = None
+
+    if drawn_aoi_for_search:
+
+        search_bbox = (
+            drawn_aoi_for_search.get(
+                "bbox"
             )
         )
 
-        search_bbox = None
+    with st.spinner(
+        "Searching Sentinel-2 catalog..."
+    ):
 
-        if drawn_aoi_for_search:
+        try:
 
-            search_bbox = (
-                drawn_aoi_for_search.get(
-                    "bbox"
-                )
+            results = search_sentinel(
+                latitude=latitude,
+                longitude=longitude,
+                area_size=area_size,
+                start_date=str(
+                    start_date
+                ),
+                end_date=str(
+                    end_date
+                ),
+                max_cloud_cover=(
+                    max_cloud_cover
+                ),
+                bbox=search_bbox,
             )
 
-        with st.spinner(
-            "Searching Sentinel-2 catalog..."
-        ):
+            st.session_state.search_results = (
+                results
+            )
 
-            try:
+            st.session_state.satellite_data = (
+                None
+            )
 
-                results = search_sentinel(
-                    latitude=latitude,
-                    longitude=longitude,
-                    area_size=area_size,
-                    start_date=str(start_date),
-                    end_date=str(end_date),
-                    max_cloud_cover=max_cloud_cover,
-                    bbox=search_bbox,
-                )
+            _reset_scene_analysis()
 
-                st.session_state.search_results = (
-                    results
-                )
+            update_pipeline_status(
+                "Catalog",
+                "done",
+            )
 
-                _reset_scene_analysis()
+            st.rerun()
 
-                update_pipeline_status(
-                    "Catalog",
-                    "done",
-                )
+        except Exception as error:
 
-            except Exception as e:
+            st.error(
+                "Satellite catalog search failed."
+            )
 
-                st.error(
-                    "Satellite catalog search failed."
-                )
-
-                st.exception(e)
+            st.exception(
+                error
+            )
 
 
 # ============================================================
-# CURRENT DATA
+# CURRENT CATALOG DATA
 # ============================================================
 
-items = st.session_state.get(
-    "search_results",
-    [],
+items = (
+    st.session_state.search_results
 )
 
-drawn_aoi = st.session_state.get(
-    "drawn_aoi"
+drawn_aoi = (
+    st.session_state.drawn_aoi
 )
 
 
@@ -488,31 +609,27 @@ def map_panel_wrapper():
         key="aoi_map",
     )
 
-    # --------------------------------------------------------
-    # IMPORTANT:
-    #
-    # Do NOT clear the previously selected AOI merely because
-    # the map component returned no drawings during a rerun.
-    #
-    # This prevents Streamlit/Folium state synchronization
-    # from destroying the AOI.
-    # --------------------------------------------------------
+    aoi = get_selected_aoi(
+        state
+    )
 
-    if state:
+    if aoi:
 
-        selected_aoi = (
-            get_selected_aoi(state)
+        st.session_state.drawn_aoi = (
+            aoi
         )
 
-        if selected_aoi is not None:
+        st.session_state.aoi_source = (
+            "map"
+        )
 
-            st.session_state.drawn_aoi = (
-                selected_aoi
-            )
+    else:
 
-            st.session_state.aoi_source = (
-                "map"
-            )
+        st.session_state.drawn_aoi = None
+
+        st.session_state.aoi_source = (
+            "manual"
+        )
 
     return state
 
@@ -540,6 +657,7 @@ def _index_stats(
     ]
 
     if finite.size == 0:
+
         return None
 
     return {
@@ -565,28 +683,19 @@ def _index_stats(
 # BAND PROCESSING
 # ============================================================
 
-def _process_bands() -> bool:
-    """
-    Process the active Sentinel-2 scene.
-
-    Returns:
-        True  -> processing succeeded
-        False -> processing failed
-    """
+def _process_bands() -> None:
 
     data = (
-        st.session_state.get(
-            "satellite_data"
-        )
+        st.session_state.satellite_data
     )
 
     if data is None:
-        return False
+        return
 
     try:
 
         # ----------------------------------------------------
-        # READ BANDS
+        # READ NATIVE BANDS
         # ----------------------------------------------------
 
         b02, m02 = read_band(
@@ -610,7 +719,17 @@ def _process_bands() -> bool:
         )
 
         # ----------------------------------------------------
-        # ALIGN TO B04 REFERENCE GRID
+        # VALIDATE REFERENCE BAND
+        # ----------------------------------------------------
+
+        validate_raster(
+            b04,
+            m04,
+            label="B04 reference",
+        )
+
+        # ----------------------------------------------------
+        # ALIGN ALL BANDS TO B04
         # ----------------------------------------------------
 
         b02 = align_band_to_reference(
@@ -642,16 +761,16 @@ def _process_bands() -> bool:
         )
 
         # ----------------------------------------------------
-        # RASTER VALIDATION
+        # VALIDATE FINAL GRID
         # ----------------------------------------------------
 
-        for band, label in (
+        for band, label in [
             (b02, "B02"),
             (b03, "B03"),
             (b04, "B04"),
             (b08, "B08"),
             (b11, "B11"),
-        ):
+        ]:
 
             validate_raster(
                 band,
@@ -674,7 +793,9 @@ def _process_bands() -> bool:
             nir=b08,
         )
 
-        st.session_state.rgb_img = rgb
+        st.session_state.rgb_img = (
+            rgb
+        )
 
         st.session_state.false_color_img = (
             false_color
@@ -698,6 +819,10 @@ def _process_bands() -> bool:
             nir=b08,
             swir=b11,
         )
+
+        # ----------------------------------------------------
+        # INDEX STATISTICS
+        # ----------------------------------------------------
 
         ndvi_s = _index_stats(
             ndvi
@@ -736,7 +861,7 @@ def _process_bands() -> bool:
         }
 
         # ----------------------------------------------------
-        # INDEX VISUALIZATION
+        # INDEX FIGURE
         # ----------------------------------------------------
 
         st.session_state.index_figure = (
@@ -797,7 +922,7 @@ def _process_bands() -> bool:
         )
 
         # ----------------------------------------------------
-        # GEOREFERENCING
+        # GEOSPATIAL METADATA
         # ----------------------------------------------------
 
         st.session_state.transform = (
@@ -808,17 +933,35 @@ def _process_bands() -> bool:
             m04["crs"]
         )
 
-        return True
+    except RasterValidationError as error:
 
-    except Exception as e:
+        st.error(
+            "Raster validation failed."
+        )
+
+        st.warning(
+            str(error)
+        )
+
+        update_pipeline_status(
+            "Spectral",
+            "error",
+        )
+
+    except Exception as error:
 
         st.error(
             "Failed to process satellite bands."
         )
 
-        st.exception(e)
+        st.exception(
+            error
+        )
 
-        return False
+        update_pipeline_status(
+            "Spectral",
+            "error",
+        )
 
 
 # ============================================================
@@ -845,25 +988,7 @@ def download_callback(item) -> None:
         ]
     )
 
-    drawn_aoi = (
-        st.session_state.get(
-            "drawn_aoi"
-        )
-    )
-
-    if drawn_aoi:
-
-        bbox = drawn_aoi.get(
-            "bbox"
-        )
-
-    else:
-
-        bbox = create_bbox(
-            current_latitude,
-            current_longitude,
-            current_area_size,
-        )
+    bbox = _current_bbox()
 
     with st.spinner(
         f"Downloading {item.id}..."
@@ -881,53 +1006,107 @@ def download_callback(item) -> None:
                 )
             )
 
+            # ----------------------------------------------
+            # RESET PREVIOUS SCENE PRODUCTS
+            # ----------------------------------------------
+
+            _reset_scene_analysis()
+
+            # ----------------------------------------------
+            # ACTIVE SCENE
+            # ----------------------------------------------
+
             st.session_state.satellite_data = {
+
                 "scene_id": item.id,
+
                 "date": (
-                    str(item.datetime.date())
+                    str(
+                        item.datetime.date()
+                    )
                     if item.datetime
                     else "Unknown"
                 ),
+
                 "cloud": float(
                     item.properties.get(
                         "eo:cloud_cover",
                         0,
                     )
                 ),
+
                 "bands": bands,
-                "latitude": current_latitude,
-                "longitude": current_longitude,
-                "area_size": current_area_size,
+
+                "latitude": (
+                    current_latitude
+                ),
+
+                "longitude": (
+                    current_longitude
+                ),
+
+                "area_size": (
+                    current_area_size
+                ),
+
+                "bbox": bbox,
+
+                "crs": None,
+
+                "transform": None,
             }
 
-            # Reset only downstream products.
-            _reset_downstream_after_download()
+            # ----------------------------------------------
+            # PROCESS
+            # ----------------------------------------------
 
-            processed = _process_bands()
+            _process_bands()
 
-            if processed:
+            # ----------------------------------------------
+            # PIPELINE STATUS
+            # ----------------------------------------------
 
-                update_pipeline_status(
-                    "Imagery",
-                    "done",
-                )
+            update_pipeline_status(
+                "Imagery",
+                "done",
+            )
 
-                update_pipeline_status(
-                    "Spectral",
-                    "done",
-                )
+            update_pipeline_status(
+                "Spectral",
+                "done",
+            )
 
-                st.success(
-                    "Scene downloaded and processed."
-                )
+            st.rerun()
 
-        except Exception as e:
+        except RasterValidationError as error:
+
+            st.error(
+                "Downloaded raster failed validation."
+            )
+
+            st.warning(
+                str(error)
+            )
+
+            update_pipeline_status(
+                "Imagery",
+                "error",
+            )
+
+        except Exception as error:
 
             st.error(
                 "Download failed."
             )
 
-            st.exception(e)
+            st.exception(
+                error
+            )
+
+            update_pipeline_status(
+                "Imagery",
+                "error",
+            )
 
 
 # ============================================================
@@ -945,15 +1124,9 @@ render_scene_catalog(
 # ============================================================
 
 render_active_scene(
-    st.session_state.get(
-        "satellite_data"
-    ),
-    st.session_state.get(
-        "rgb_img"
-    ),
-    st.session_state.get(
-        "false_color_img"
-    ),
+    st.session_state.satellite_data,
+    st.session_state.rgb_img,
+    st.session_state.false_color_img,
 )
 
 
@@ -983,18 +1156,10 @@ render_active_scene(
 with tab_spectral:
 
     render_spectral_intelligence(
-        st.session_state.get(
-            "ndvi"
-        ),
-        st.session_state.get(
-            "ndwi"
-        ),
-        st.session_state.get(
-            "ndbi"
-        ),
-        st.session_state.get(
-            "index_figure"
-        ),
+        st.session_state.ndvi,
+        st.session_state.ndwi,
+        st.session_state.ndbi,
+        st.session_state.index_figure,
         st.session_state.get(
             "index_stats"
         ),
@@ -1008,15 +1173,9 @@ with tab_spectral:
 with tab_land:
 
     render_land_cover(
-        st.session_state.get(
-            "classification_fig"
-        ),
-        st.session_state.get(
-            "percentages"
-        ),
-        st.session_state.get(
-            "area_data"
-        ),
+        st.session_state.classification_fig,
+        st.session_state.percentages,
+        st.session_state.area_data,
     )
 
 
@@ -1024,62 +1183,199 @@ with tab_land:
 # CHANGE DETECTION
 # ============================================================
 
+def _build_scene_options():
+
+    scene_options = {}
+
+    for item in items:
+
+        date_str = (
+            str(
+                item.datetime.date()
+            )
+            if item.datetime
+            else "Unknown"
+        )
+
+        cloud = float(
+            item.properties.get(
+                "eo:cloud_cover",
+                0,
+            )
+        )
+
+        label = (
+            f"{date_str} · "
+            f"{cloud:.2f}% · "
+            f"{item.id[:12]}"
+        )
+
+        scene_options[
+            label
+        ] = item
+
+    return scene_options
+
+
+def _calculate_scene_index(
+    index_choice,
+    b03,
+    b04,
+    b08,
+    b11,
+):
+    """
+    Calculate the selected spectral index.
+
+    All inputs must already share the same spatial grid.
+    """
+
+    if "NDVI" in index_choice:
+
+        return calculate_ndvi(
+            red=b04,
+            nir=b08,
+        )
+
+    if "NDWI" in index_choice:
+
+        return calculate_ndwi(
+            green=b03,
+            nir=b08,
+        )
+
+    return calculate_ndbi(
+        nir=b08,
+        swir=b11,
+    )
+
+
+def _download_scene_for_change(
+    item,
+    bbox,
+):
+    """
+    Download the bands required for one temporal scene.
+    """
+
+    return download_required_bands(
+        item=item,
+        bbox=bbox,
+        output_directory=(
+            RAW_DIR / item.id
+        ),
+    )
+
+
+def _read_and_align_change_bands(
+    bands,
+):
+    """
+    Read all required bands and align them to B04.
+
+    Returns:
+        b03, b04, b08, b11, m04
+    """
+
+    b04, m04 = read_band(
+        bands["B04"]
+    )
+
+    b03, m03 = read_band(
+        bands["B03"]
+    )
+
+    b08, m08 = read_band(
+        bands["B08"]
+    )
+
+    b11, m11 = read_band(
+        bands["B11"]
+    )
+
+    validate_raster(
+        b04,
+        m04,
+        label="B04 reference",
+    )
+
+    b03 = align_band_to_reference(
+        b03,
+        m03,
+        b04,
+        m04,
+    )
+
+    b08 = align_band_to_reference(
+        b08,
+        m08,
+        b04,
+        m04,
+    )
+
+    b11 = align_band_to_reference(
+        b11,
+        m11,
+        b04,
+        m04,
+    )
+
+    validate_raster(
+        b03,
+        label="B03 aligned",
+    )
+
+    validate_raster(
+        b04,
+        label="B04 reference",
+    )
+
+    validate_raster(
+        b08,
+        label="B08 aligned",
+    )
+
+    validate_raster(
+        b11,
+        label="B11 aligned",
+    )
+
+    return (
+        b03,
+        b04,
+        b08,
+        b11,
+        m04,
+    )
+
+
 def run_change_detection(
     params,
     bbox,
 ) -> None:
 
-    before_name = params[
-        "before_name"
-    ]
+    before_name = (
+        params["before_name"]
+    )
 
-    after_name = params[
-        "after_name"
-    ]
+    after_name = (
+        params["after_name"]
+    )
 
-    threshold = params[
-        "threshold"
-    ]
+    threshold = float(
+        params["threshold"]
+    )
 
-    index_choice = params[
-        "index_choice"
-    ]
+    index_choice = (
+        params["index_choice"]
+    )
 
     scene_options = (
         params.get(
             "scene_options"
         )
-        or {}
+        or _build_scene_options()
     )
-
-    if not scene_options:
-
-        for it in items:
-
-            date_str = (
-                str(
-                    it.datetime.date()
-                )
-                if it.datetime
-                else "Unknown"
-            )
-
-            cloud = float(
-                it.properties.get(
-                    "eo:cloud_cover",
-                    0,
-                )
-            )
-
-            label = (
-                f"{date_str} · "
-                f"{cloud:.2f}% · "
-                f"{it.id[:12]}"
-            )
-
-            scene_options[
-                label
-            ] = it
 
     before_item = (
         scene_options.get(
@@ -1093,15 +1389,47 @@ def run_change_detection(
         )
     )
 
+    # --------------------------------------------------------
+    # VALIDATE SCENE SELECTION
+    # --------------------------------------------------------
+
     if (
         before_item is None
         or after_item is None
-        or before_item.id
+    ):
+
+        st.warning(
+            "Could not resolve the selected scenes."
+        )
+
+        return
+
+    if (
+        before_item.id
         == after_item.id
     ):
 
         st.warning(
-            "Choose two different scenes."
+            "Choose two different scenes "
+            "for temporal comparison."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # VALIDATE TEMPORAL ORDER
+    # --------------------------------------------------------
+
+    if (
+        before_item.datetime
+        and after_item.datetime
+        and after_item.datetime
+        < before_item.datetime
+    ):
+
+        st.warning(
+            "The 'After' scene must be later "
+            "than the 'Before' scene."
         )
 
         return
@@ -1109,182 +1437,96 @@ def run_change_detection(
     try:
 
         # ----------------------------------------------------
-        # BEFORE
+        # DOWNLOAD BEFORE
         # ----------------------------------------------------
 
         with st.spinner(
-            "Downloading Data A..."
+            "Downloading Before scene..."
         ):
 
             before_bands = (
-                download_required_bands(
-                    item=before_item,
-                    bbox=bbox,
-                    output_directory=(
-                        RAW_DIR
-                        / before_item.id
-                    ),
+                _download_scene_for_change(
+                    before_item,
+                    bbox,
                 )
             )
 
         # ----------------------------------------------------
-        # AFTER
+        # DOWNLOAD AFTER
         # ----------------------------------------------------
 
         with st.spinner(
-            "Downloading Data B..."
+            "Downloading After scene..."
         ):
 
             after_bands = (
-                download_required_bands(
-                    item=after_item,
-                    bbox=bbox,
-                    output_directory=(
-                        RAW_DIR
-                        / after_item.id
-                    ),
+                _download_scene_for_change(
+                    after_item,
+                    bbox,
                 )
             )
 
         # ----------------------------------------------------
-        # READ BEFORE
+        # READ + ALIGN BEFORE
         # ----------------------------------------------------
 
-        b04_b, m04_b = read_band(
-            before_bands["B04"]
-        )
-
-        b03_b, m03_b = read_band(
-            before_bands["B03"]
-        )
-
-        b08_b, m08_b = read_band(
-            before_bands["B08"]
-        )
-
-        b11_b, m11_b = read_band(
-            before_bands["B11"]
+        (
+            b03_before,
+            b04_before,
+            b08_before,
+            b11_before,
+            m04_before,
+        ) = _read_and_align_change_bands(
+            before_bands
         )
 
         # ----------------------------------------------------
-        # READ AFTER
+        # READ + ALIGN AFTER
         # ----------------------------------------------------
 
-        b04_a, m04_a = read_band(
-            after_bands["B04"]
-        )
-
-        b03_a, m03_a = read_band(
-            after_bands["B03"]
-        )
-
-        b08_a, m08_a = read_band(
-            after_bands["B08"]
-        )
-
-        b11_a, m11_a = read_band(
-            after_bands["B11"]
+        (
+            b03_after,
+            b04_after,
+            b08_after,
+            b11_after,
+            m04_after,
+        ) = _read_and_align_change_bands(
+            after_bands
         )
 
         # ----------------------------------------------------
-        # ALIGN BEFORE
+        # CALCULATE INDEX
         # ----------------------------------------------------
 
-        b03_b = align_band_to_reference(
-            b03_b,
-            m03_b,
-            b04_b,
-            m04_b,
-        )
-
-        b08_b = align_band_to_reference(
-            b08_b,
-            m08_b,
-            b04_b,
-            m04_b,
-        )
-
-        b11_b = align_band_to_reference(
-            b11_b,
-            m11_b,
-            b04_b,
-            m04_b,
-        )
-
-        # ----------------------------------------------------
-        # ALIGN AFTER
-        # ----------------------------------------------------
-
-        b03_a = align_band_to_reference(
-            b03_a,
-            m03_a,
-            b04_a,
-            m04_a,
-        )
-
-        b08_a = align_band_to_reference(
-            b08_a,
-            m08_a,
-            b04_a,
-            m04_a,
-        )
-
-        b11_a = align_band_to_reference(
-            b11_a,
-            m11_a,
-            b04_a,
-            m04_a,
-        )
-
-        # ----------------------------------------------------
-        # INDEX
-        # ----------------------------------------------------
-
-        if "NDVI" in index_choice:
-
-            before_idx = calculate_ndvi(
-                b04_b,
-                b08_b,
+        before_idx = (
+            _calculate_scene_index(
+                index_choice,
+                b03_before,
+                b04_before,
+                b08_before,
+                b11_before,
             )
+        )
 
-            after_idx = calculate_ndvi(
-                b04_a,
-                b08_a,
+        after_idx = (
+            _calculate_scene_index(
+                index_choice,
+                b03_after,
+                b04_after,
+                b08_after,
+                b11_after,
             )
-
-        elif "NDWI" in index_choice:
-
-            before_idx = calculate_ndwi(
-                b03_b,
-                b08_b,
-            )
-
-            after_idx = calculate_ndwi(
-                b03_a,
-                b08_a,
-            )
-
-        else:
-
-            before_idx = calculate_ndbi(
-                b08_b,
-                b11_b,
-            )
-
-            after_idx = calculate_ndbi(
-                b08_a,
-                b11_a,
-            )
+        )
 
         # ----------------------------------------------------
-        # DIFFERENCE
+        # TEMPORAL DIFFERENCE
         # ----------------------------------------------------
 
         diff = calculate_difference(
-            before_idx,
-            after_idx,
-            before_metadata=m04_b,
-            after_metadata=m04_a,
+            before=before_idx,
+            after=after_idx,
+            before_metadata=m04_before,
+            after_metadata=m04_after,
         )
 
         # ----------------------------------------------------
@@ -1319,13 +1561,59 @@ def run_change_detection(
             ),
         )
 
+        # ----------------------------------------------------
+        # SAVE RESULT
+        # ----------------------------------------------------
+
         st.session_state.change_result = {
+
             "statistics": stats,
+
             "figure": fig,
-            "index_name": index_choice,
-            "threshold": threshold,
-            "before_scene": before_item.id,
-            "after_scene": after_item.id,
+
+            "index_name": (
+                index_choice
+            ),
+
+            "threshold": (
+                threshold
+            ),
+
+            "before_scene": (
+                before_item.id
+            ),
+
+            "after_scene": (
+                after_item.id
+            ),
+
+            "before_date": (
+                str(
+                    before_item.datetime.date()
+                )
+                if before_item.datetime
+                else "Unknown"
+            ),
+
+            "after_date": (
+                str(
+                    after_item.datetime.date()
+                )
+                if after_item.datetime
+                else "Unknown"
+            ),
+
+            "difference": diff,
+
+            "change_map": change_map,
+
+            "before_metadata": (
+                m04_before
+            ),
+
+            "after_metadata": (
+                m04_after
+            ),
         }
 
         update_pipeline_status(
@@ -1337,13 +1625,36 @@ def run_change_detection(
             "Change detection completed."
         )
 
-    except Exception as e:
+    except RasterValidationError as error:
+
+        update_pipeline_status(
+            "Change",
+            "error",
+        )
+
+        st.error(
+            "Change detection stopped: "
+            "raster alignment is unsafe."
+        )
+
+        st.warning(
+            str(error)
+        )
+
+    except Exception as error:
+
+        update_pipeline_status(
+            "Change",
+            "error",
+        )
 
         st.error(
             "Change detection failed."
         )
 
-        st.exception(e)
+        st.exception(
+            error
+        )
 
 
 with tab_change:
@@ -1356,12 +1667,16 @@ with tab_change:
 
     if change_params is not None:
 
-        bbox = _current_search_bbox()
+        bbox = _current_bbox()
+
+        _reset_change_result()
 
         run_change_detection(
             change_params,
             bbox,
         )
+
+        st.rerun()
 
     render_change_detection_results()
 
@@ -1411,18 +1726,22 @@ def run_ai_inference(
             )
         )
 
-        detections = filter_detections(
-            detections,
-            params[
-                "confidence"
-            ],
+        detections = (
+            filter_detections(
+                detections,
+                params[
+                    "confidence"
+                ],
+            )
         )
 
-        detections = filter_classes(
-            detections,
-            params[
-                "classes"
-            ],
+        detections = (
+            filter_classes(
+                detections,
+                params[
+                    "classes"
+                ],
+            )
         )
 
         st.session_state.object_detections = (
@@ -1454,25 +1773,28 @@ def run_ai_inference(
             f"{len(detections)} objects detected."
         )
 
-    except Exception as e:
+    except Exception as error:
+
+        update_pipeline_status(
+            "AI",
+            "error",
+        )
 
         st.error(
             "AI inference failed."
         )
 
-        st.exception(e)
+        st.exception(
+            error
+        )
 
 
 with tab_ai:
 
     ai_params = (
         render_geospatial_ai_controls(
-            st.session_state.get(
-                "satellite_data"
-            ),
-            st.session_state.get(
-                "detection_rgb"
-            ),
+            st.session_state.satellite_data,
+            st.session_state.detection_rgb,
         )
     )
 
@@ -1480,19 +1802,14 @@ with tab_ai:
 
         run_ai_inference(
             ai_params,
-            st.session_state.get(
-                "detection_rgb"
-            ),
+            st.session_state.detection_rgb,
         )
 
+        st.rerun()
+
     render_geospatial_ai_results(
-        st.session_state.get(
-            "object_detections",
-            [],
-        ),
-        st.session_state.get(
-            "detection_rgb"
-        ),
+        st.session_state.object_detections,
+        st.session_state.detection_rgb,
     )
 
 
@@ -1506,10 +1823,7 @@ if st.session_state.get(
 ):
 
     detections = (
-        st.session_state.get(
-            "object_detections",
-            [],
-        )
+        st.session_state.object_detections
     )
 
     transform = (
@@ -1532,10 +1846,12 @@ if st.session_state.get(
 
         try:
 
-            gdf = georeference_detections(
-                detections,
-                transform=transform,
-                crs=crs,
+            gdf = (
+                georeference_detections(
+                    detections,
+                    transform=transform,
+                    crs=crs,
+                )
             )
 
             geojson_bytes = (
@@ -1547,18 +1863,23 @@ if st.session_state.get(
             st.download_button(
                 "Download GeoJSON",
                 data=geojson_bytes,
-                file_name="detections.geojson",
-                mime="application/geo+json",
-                key="download_geojson",
+                file_name=(
+                    "detections.geojson"
+                ),
+                mime=(
+                    "application/geo+json"
+                ),
             )
 
-        except Exception as e:
+        except Exception as error:
 
             st.error(
                 "GeoJSON export failed."
             )
 
-            st.exception(e)
+            st.exception(
+                error
+            )
 
     elif not detections:
 
@@ -1566,33 +1887,22 @@ if st.session_state.get(
             "There are no detections to export."
         )
 
-    elif transform is None:
+    else:
 
         st.warning(
-            "Georeferencing transform is unavailable."
+            "Geospatial reference is unavailable "
+            "for this scene."
         )
 
-    elif crs is None:
-
-        st.warning(
-            "Coordinate reference system is unavailable."
-        )
-
-    # Prevent repeating the export action.
     st.session_state[
         "export_geojson"
     ] = False
 
 
 # ============================================================
-# PIPELINE
+# FOOTER
 # ============================================================
 
 render_pipeline_status()
-
-
-# ============================================================
-# FOOTER
-# ============================================================
 
 render_footer()
