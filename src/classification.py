@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Land Cover Classification
 
@@ -15,8 +17,6 @@ It does NOT claim to be a trained machine-learning model.
 
 Raster integrity is delegated to src.raster_validation.
 """
-
-from __future__ import annotations
 
 import numpy as np
 
