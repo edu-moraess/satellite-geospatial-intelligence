@@ -145,16 +145,16 @@ def render_active_scene(data, rgb, false_color) -> None:
         c1, c2 = st.columns(2)
         with c1:
             st.caption("NATURAL COLOR")
-            st.image(rgb, use_container_width=True)
+            st.image(rgb, width="stretch")
         with c2:
             st.caption("FALSE COLOR")
-            st.image(false_color, use_container_width=True)
+            st.image(false_color, width="stretch")
     elif rgb is not None:
         st.caption("NATURAL COLOR")
-        st.image(rgb, use_container_width=True)
+        st.image(rgb, width="stretch")
     elif false_color is not None:
         st.caption("FALSE COLOR")
-        st.image(false_color, use_container_width=True)
+        st.image(false_color, width="stretch")
 
 
 def _fmt_stat(v) -> str:
@@ -193,7 +193,7 @@ def render_spectral_intelligence(ndvi, ndwi, ndbi, index_figure, stats: dict | N
                 metric_card(name, _fmt_stat(mean_v), f"mean {hint}")
 
     if index_figure is not None:
-        st.pyplot(index_figure, use_container_width=True)
+        st.pyplot(index_figure, width="stretch")
 
 
 def render_land_cover(classification_fig, percentages, area_data) -> None:
@@ -214,7 +214,7 @@ def render_land_cover(classification_fig, percentages, area_data) -> None:
                 hint = f"{area:.3f} km²" if area is not None else "share"
                 metric_card(str(key), f"{pct:.1f}%", hint)
 
-    st.pyplot(classification_fig, use_container_width=True)
+    st.pyplot(classification_fig, width="stretch")
 
 
 def render_change_detection_controls(items):
@@ -237,12 +237,17 @@ def render_change_detection_controls(items):
 
     c1, c2 = st.columns(2)
     with c1:
-        before_name = st.selectbox("Before", scene_names, key="change_before")
+        before_name = st.selectbox(
+            "Before",
+            scene_names,
+            index=len(scene_names) - 1,
+            key="change_before",
+        )
     with c2:
         after_name = st.selectbox(
             "After",
             scene_names,
-            index=min(1, len(scene_names) - 1),
+            index=0,
             key="change_after",
         )
 
@@ -284,7 +289,7 @@ def render_change_detection_results() -> None:
         metric_card("Total changed", f"{stats['total_changed_km2']:.3f} km²")
 
     if change_result.get("figure"):
-        st.pyplot(change_result["figure"], use_container_width=True)
+        st.pyplot(change_result["figure"], width="stretch")
 
 
 def render_geospatial_ai_controls(data, detection_rgb):
@@ -298,7 +303,7 @@ def render_geospatial_ai_controls(data, detection_rgb):
         return None
 
     with st.expander("Model configuration", expanded=False):
-        st.image(detection_rgb, caption="Input RGB", use_container_width=True)
+        st.image(detection_rgb, caption="Input RGB", width="stretch")
         c1, c2 = st.columns(2)
         with c1:
             tile_size = st.selectbox(
@@ -354,7 +359,7 @@ def render_geospatial_ai_results(detections, detection_rgb) -> None:
 
     detection_fig = st.session_state.get("detection_figure")
     if detection_fig is not None:
-        st.pyplot(detection_fig, use_container_width=True)
+        st.pyplot(detection_fig, width="stretch")
 
     if st.button("Export GeoJSON", key="export_geojson_btn"):
         st.session_state["export_geojson"] = True
