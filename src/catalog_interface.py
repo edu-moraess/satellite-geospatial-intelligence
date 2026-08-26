@@ -19,7 +19,7 @@ def search_sensor_catalog(
     max_cloud_cover: int,
     bbox: Optional[list] = None,
     max_retries: int = 3,
-    max_items: int = 50,
+    max_items: int = 30,
 ):
     """
     Função unificada para busca de cenas no catálogo.
@@ -45,6 +45,7 @@ def search_sensor_catalog(
             max_items=max_items,
         )
     elif sensor_id == "landsat":
+        # Se o módulo Landsat não aceitar os parâmetros, ajuste aqui ou remova-os
         return search_landsat(
             latitude=latitude,
             longitude=longitude,
@@ -59,4 +60,4 @@ def search_sensor_catalog(
     else:
         raise NotImplementedError(
             f"Busca para '{sensor_id}' ainda não implementada."
-        ) 
+        )
