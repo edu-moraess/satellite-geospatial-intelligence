@@ -35,7 +35,6 @@ def download_landsat_bands(item, bbox, output_dir):
             raise ValueError(f"Banda {landsat_key} não encontrada no item.")
         
         url = asset.href
-        # O Planetary Computer já assina os hrefs
         response = requests.get(url, stream=True)
         response.raise_for_status()
         
