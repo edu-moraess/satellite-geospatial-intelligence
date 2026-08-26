@@ -72,4 +72,4 @@ def get_sensor_by_name(name: str) -> Optional[SensorDefinition]:
     for sensor in SENSORS.values():
         if sensor.name.lower() == name_lower:
             return sensor
-    return None 
+    return None
