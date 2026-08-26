@@ -174,4 +174,4 @@ def render_ai_config():
         ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"],
         default=["Vegetation", "Built-up"],
     )
-    return confidence, tile_size, overlap, classes
+    return confidence, tile_size, overlap, classes 
