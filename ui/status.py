@@ -94,4 +94,4 @@ def status_indicator(text: str, type: str = "active"):
         "error": COLORS["danger"],
     }
     color = colors.get(type, COLORS["text_secondary"])
-    return f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{color};margin-right:0.4rem;"></span><span style="font-size:0.7rem;color:{COLORS["text_secondary"]};text-transform:uppercase;letter-spacing:0.04em;">{text}</span>'
+    return f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{color};margin-right:0.4rem;"></span><span style="font-size:0.7rem;color:{COLORS["text_secondary"]};text-transform:uppercase;letter-spacing:0.04em;">{text}</span>' 
