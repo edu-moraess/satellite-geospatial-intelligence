@@ -590,16 +590,12 @@ def _handle_map_click(
 
     new_lat, new_lon = new_center
 
-    # Persist the new AOI center so the sidebar inputs (keys
-    # "aoi_latitude" / "aoi_longitude") and every downstream search
-    # actually pick it up. Previously this function only returned a
-    # bool and never wrote to session_state, so the "AOI center
-    # updated" message was shown even though nothing had changed.
-    st.session_state["aoi_latitude"] = new_lat
-    st.session_state["aoi_longitude"] = new_lon
+    # Store clicked coordinates in separate session keys
+    # (not the widget keys, to avoid StreamlitAPIException)
+    st.session_state["_map_click_lat"] = new_lat
+    st.session_state["_map_click_lon"] = new_lon
 
     return True
-
 
 
 # ============================================================
