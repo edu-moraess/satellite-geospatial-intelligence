@@ -1,17 +1,21 @@
+"src/geospatial.py"
+
 """
 Geospatial utilities for Satellite Geospatial Intelligence.
 
 Responsibilities:
-- Read GeoTIFF bands
-- Validate raster structure
-- Align/resample bands to a reference grid
-- Preserve spatial metadata
-- Normalize imagery for visualization
-- Stack already-aligned bands
+    - reading GeoTIFF bands;
+    - raster reprojection;
+    - raster alignment;
+    - spatial-grid comparison;
+    - safe image normalization;
+    - aligned band stacking.
 
-This module does not perform scientific interpretation.
-It is responsible only for raster I/O, spatial alignment,
-and safe geospatial transformations.
+Scientific operations themselves do not live here.
+
+This module is responsible for making sure arrays and their
+spatial metadata are correctly represented before they reach
+the analytical layers.
 """
 
 from __future__ import annotations
@@ -22,76 +26,15 @@ import numpy as np
 import rasterio
 
 from rasterio.enums import Resampling
+from rasterio.transform import Affine
 from rasterio.warp import reproject
 
-from src.raster_validation import (
+from .raster_validation import (
     RasterValidationError,
+    transforms_close,
     validate_raster,
     validate_raster_pair,
 )
-
-
-# ============================================================
-# CONSTANTS
-# ============================================================
-
-TRANSFORM_TOLERANCE = 1e-6
-
-
-# ============================================================
-# INTERNAL HELPERS
-# ============================================================
-
-def _transforms_close(
-    transform_a,
-    transform_b,
-    tolerance: float = TRANSFORM_TOLERANCE,
-) -> bool:
-    """
-    Compare two raster transforms using numerical tolerance.
-
-    Exact equality is avoided because affine transforms can
-    contain very small floating-point differences while still
-    representing the same spatial grid.
-    """
-
-    if transform_a is None or transform_b is None:
-        return transform_a == transform_b
-
-    values_a = tuple(transform_a)[:6]
-    values_b = tuple(transform_b)[:6]
-
-    if len(values_a) != len(values_b):
-        return False
-
-    return all(
-        abs(float(a) - float(b)) <= tolerance
-        for a, b in zip(values_a, values_b)
-    )
-
-
-def _metadata_from_reference(
-    reference_metadata,
-    *,
-    shape,
-    transform,
-):
-    """
-    Build metadata describing an aligned raster.
-
-    The returned metadata preserves the reference CRS/grid
-    while updating dimensions and transform when necessary.
-    """
-
-    metadata = dict(
-        reference_metadata or {}
-    )
-
-    metadata["height"] = int(shape[0])
-    metadata["width"] = int(shape[1])
-    metadata["transform"] = transform
-
-    return metadata
 
 
 # ============================================================
@@ -103,13 +46,7 @@ def read_band(path):
     Read a single-band GeoTIFF.
 
     Returns:
-        tuple:
-            data: float32 numpy array
-            metadata: spatial metadata dictionary
-
-    Raises:
-        FileNotFoundError
-        RasterValidationError
+        array, metadata
     """
 
     path = Path(path)
@@ -132,9 +69,10 @@ def read_band(path):
                     f"GeoTIFF contains no raster bands: {path}"
                 )
 
-            data = src.read(1).astype(
-                np.float32,
-                copy=False,
+            data = src.read(
+                1
+            ).astype(
+                np.float32
             )
 
             metadata = {
@@ -144,9 +82,9 @@ def read_band(path):
                 "height": src.height,
                 "nodata": src.nodata,
                 "bounds": src.bounds,
-                "dtype": str(src.dtypes[0]),
-                "count": src.count,
                 "profile": src.profile.copy(),
+                "dtype": str(src.dtypes[0]),
+                "driver": src.driver,
             }
 
     except RasterValidationError:
@@ -154,17 +92,85 @@ def read_band(path):
 
     except Exception as error:
         raise RasterValidationError(
-            f"Unable to read raster band: {path}\n\n"
+            f"Failed to read raster: {path}\n\n"
             f"Error: {error}"
         ) from error
 
     validate_raster(
         data,
         metadata,
-        label=str(path),
+        label=path.name,
     )
 
     return data, metadata
+
+
+# ============================================================
+# GRID COMPARISON
+# ============================================================
+
+def same_spatial_grid(
+    array_a,
+    metadata_a,
+    array_b,
+    metadata_b,
+    *,
+    transform_tolerance: float = 1e-6,
+) -> bool:
+    """
+    Return True when two rasters already share the same
+    mathematical pixel grid.
+
+    Checks:
+        - shape;
+        - CRS;
+        - transform.
+
+    This function does not modify either raster.
+    """
+
+    array_a = np.asarray(array_a)
+    array_b = np.asarray(array_b)
+
+    if array_a.shape != array_b.shape:
+        return False
+
+    crs_a = (
+        metadata_a.get("crs")
+        if metadata_a
+        else None
+    )
+
+    crs_b = (
+        metadata_b.get("crs")
+        if metadata_b
+        else None
+    )
+
+    if (
+        crs_a is not None
+        and crs_b is not None
+        and crs_a != crs_b
+    ):
+        return False
+
+    transform_a = (
+        metadata_a.get("transform")
+        if metadata_a
+        else None
+    )
+
+    transform_b = (
+        metadata_b.get("transform")
+        if metadata_b
+        else None
+    )
+
+    return transforms_close(
+        transform_a,
+        transform_b,
+        tolerance=transform_tolerance,
+    )
 
 
 # ============================================================
@@ -178,40 +184,23 @@ def resample_to_reference(
     resampling=Resampling.bilinear,
 ):
     """
-    Resample a raster to the exact spatial grid of a
-    reference raster.
+    Reproject/resample a raster onto the exact spatial grid
+    represented by reference_metadata.
 
-    This function performs:
-        - reprojection when CRS differs;
-        - resampling when resolution differs;
-        - translation when origin differs;
-        - shape normalization to the reference dimensions.
+    The returned array has:
+        - reference height;
+        - reference width;
+        - reference CRS;
+        - reference transform.
 
-    The output always uses:
-        reference width
-        reference height
-        reference transform
-        reference CRS
-
-    Parameters
-    ----------
-    source_array:
-        2D source raster.
-
-    source_metadata:
-        Metadata describing source raster.
-
-    reference_metadata:
-        Metadata describing target/reference raster.
-
-    resampling:
-        rasterio Resampling method.
-
-    Returns
-    -------
-    numpy.ndarray
-        Float32 raster aligned to the reference grid.
+    This function does not return metadata because the
+    resulting grid is exactly the reference grid.
     """
+
+    source_array = np.asarray(
+        source_array,
+        dtype=np.float32,
+    )
 
     validate_raster(
         source_array,
@@ -219,61 +208,46 @@ def resample_to_reference(
         label="source raster",
     )
 
-    if source_metadata is None:
-        raise RasterValidationError(
-            "Source raster metadata is required "
-            "for spatial alignment."
-        )
-
-    if reference_metadata is None:
-        raise RasterValidationError(
-            "Reference raster metadata is required "
-            "for spatial alignment."
-        )
-
-    required_source = [
+    required_source_keys = (
         "transform",
         "crs",
-    ]
-
-    required_reference = [
-        "transform",
-        "crs",
-        "width",
-        "height",
-    ]
-
-    missing_source = [
-        key
-        for key in required_source
-        if source_metadata.get(key) is None
-    ]
-
-    missing_reference = [
-        key
-        for key in required_reference
-        if reference_metadata.get(key) is None
-    ]
-
-    if missing_source:
-        raise RasterValidationError(
-            "Source raster metadata is incomplete.\n\n"
-            f"Missing: {', '.join(missing_source)}"
-        )
-
-    if missing_reference:
-        raise RasterValidationError(
-            "Reference raster metadata is incomplete.\n\n"
-            f"Missing: {', '.join(missing_reference)}"
-        )
-
-    reference_shape = (
-        int(reference_metadata["height"]),
-        int(reference_metadata["width"]),
     )
 
+    required_reference_keys = (
+        "transform",
+        "crs",
+        "height",
+        "width",
+    )
+
+    for key in required_source_keys:
+        if source_metadata.get(key) is None:
+            raise RasterValidationError(
+                f"Source raster metadata is missing '{key}'."
+            )
+
+    for key in required_reference_keys:
+        if reference_metadata.get(key) is None:
+            raise RasterValidationError(
+                f"Reference raster metadata is missing '{key}'."
+            )
+
+    height = int(
+        reference_metadata["height"]
+    )
+
+    width = int(
+        reference_metadata["width"]
+    )
+
+    if height <= 0 or width <= 0:
+        raise RasterValidationError(
+            "Reference raster has invalid dimensions: "
+            f"{height} x {width}."
+        )
+
     destination = np.full(
-        reference_shape,
+        (height, width),
         np.nan,
         dtype=np.float32,
     )
@@ -282,51 +256,31 @@ def resample_to_reference(
         "nodata"
     )
 
-    destination_nodata = np.nan
-
-    try:
-        reproject(
-            source=np.asarray(
-                source_array,
-                dtype=np.float32,
-            ),
-            destination=destination,
-            src_transform=source_metadata["transform"],
-            src_crs=source_metadata["crs"],
-            dst_transform=reference_metadata["transform"],
-            dst_crs=reference_metadata["crs"],
-            src_nodata=source_nodata,
-            dst_nodata=destination_nodata,
-            resampling=resampling,
-            init_dest_nodata=True,
-        )
-
-    except Exception as error:
-        raise RasterValidationError(
-            "Raster reprojection/resampling failed.\n\n"
-            f"Source CRS: {source_metadata.get('crs')}\n"
-            f"Target CRS: {reference_metadata.get('crs')}\n"
-            f"Error: {error}"
-        ) from error
-
-    destination = np.asarray(
-        destination,
-        dtype=np.float32,
+    # Rasterio's reprojection machinery can handle NaN
+    # destinations. For source data without an explicit
+    # nodata value, finite values are copied normally.
+    reproject(
+        source=source_array,
+        destination=destination,
+        src_transform=source_metadata[
+            "transform"
+        ],
+        src_crs=source_metadata[
+            "crs"
+        ],
+        dst_transform=reference_metadata[
+            "transform"
+        ],
+        dst_crs=reference_metadata[
+            "crs"
+        ],
+        src_nodata=source_nodata,
+        dst_nodata=np.nan,
+        resampling=resampling,
     )
-
-    # Ensure invalid numerical values are represented
-    # consistently as NaN.
-    destination[
-        ~np.isfinite(destination)
-    ] = np.nan
 
     validate_raster(
         destination,
-        _metadata_from_reference(
-            reference_metadata,
-            shape=destination.shape,
-            transform=reference_metadata["transform"],
-        ),
         label="aligned raster",
     )
 
@@ -334,7 +288,7 @@ def resample_to_reference(
 
 
 # ============================================================
-# ALIGN BAND
+# ALIGN BAND TO REFERENCE
 # ============================================================
 
 def align_band_to_reference(
@@ -342,42 +296,22 @@ def align_band_to_reference(
     band_metadata,
     reference_array,
     reference_metadata,
+    *,
     resampling=Resampling.bilinear,
 ):
     """
-    Align a raster band to an existing reference raster.
+    Align one raster band to the exact grid of a reference
+    raster.
 
-    If the band already has the same:
-        - shape
-        - CRS
-        - transform
+    If both rasters are already aligned, the original array
+    is returned without resampling.
 
-    it is returned without resampling.
+    If not, the band is reprojected/resampled to the reference
+    grid.
 
-    Otherwise it is reprojected/resampled to the exact
-    reference grid.
-
-    Returns:
-        aligned numpy array
-
-    Notes
-    -----
-    The public return type intentionally remains a numpy
-    array to preserve compatibility with the existing
-    application architecture.
+    The function preserves the historical API used by app.py:
+        align_band_to_reference(...) -> ndarray
     """
-
-    validate_raster(
-        band_array,
-        band_metadata,
-        label="band to align",
-    )
-
-    validate_raster(
-        reference_array,
-        reference_metadata,
-        label="reference raster",
-    )
 
     band_array = np.asarray(
         band_array,
@@ -389,58 +323,118 @@ def align_band_to_reference(
         dtype=np.float32,
     )
 
-    same_shape = (
-        band_array.shape
-        == reference_array.shape
+    validate_raster(
+        band_array,
+        band_metadata,
+        label="band",
     )
 
-    same_transform = _transforms_close(
-        band_metadata.get("transform"),
-        reference_metadata.get("transform"),
+    validate_raster(
+        reference_array,
+        reference_metadata,
+        label="reference band",
     )
 
-    same_crs = (
-        band_metadata.get("crs")
-        == reference_metadata.get("crs")
-    )
-
-    if (
-        same_shape
-        and same_transform
-        and same_crs
+    if same_spatial_grid(
+        band_array,
+        band_metadata,
+        reference_array,
+        reference_metadata,
     ):
-        aligned = band_array.copy()
+        return band_array
 
-        aligned[
-            ~np.isfinite(aligned)
-        ] = np.nan
-
-        validate_raster_pair(
-            aligned,
-            reference_array,
-            _metadata_from_reference(
-                reference_metadata,
-                shape=aligned.shape,
-                transform=reference_metadata["transform"],
-            ),
-            reference_metadata,
-            label_a="aligned band",
-            label_b="reference raster",
-        )
-
-        return aligned
-
-    aligned = resample_to_reference(
+    return resample_to_reference(
         source_array=band_array,
         source_metadata=band_metadata,
         reference_metadata=reference_metadata,
         resampling=resampling,
     )
 
-    aligned_metadata = _metadata_from_reference(
+
+# ============================================================
+# ALIGN ARRAY + RETURN METADATA
+# ============================================================
+
+def align_array_with_metadata(
+    source_array,
+    source_metadata,
+    reference_array,
+    reference_metadata,
+    *,
+    resampling=Resampling.bilinear,
+):
+    """
+    Align a raster to a reference grid and return both the
+    resulting array and synchronized metadata.
+
+    Returns:
+        aligned_array, aligned_metadata
+
+    This is especially useful for Change Detection, where
+    the After scene must be represented on the exact grid
+    of the Before scene.
+    """
+
+    source_array = np.asarray(
+        source_array,
+        dtype=np.float32,
+    )
+
+    reference_array = np.asarray(
+        reference_array,
+        dtype=np.float32,
+    )
+
+    validate_raster(
+        source_array,
+        source_metadata,
+        label="source raster",
+    )
+
+    validate_raster(
+        reference_array,
         reference_metadata,
-        shape=aligned.shape,
-        transform=reference_metadata["transform"],
+        label="reference raster",
+    )
+
+    if same_spatial_grid(
+        source_array,
+        source_metadata,
+        reference_array,
+        reference_metadata,
+    ):
+        aligned = source_array
+    else:
+        aligned = resample_to_reference(
+            source_array=source_array,
+            source_metadata=source_metadata,
+            reference_metadata=reference_metadata,
+            resampling=resampling,
+        )
+
+    aligned_metadata = dict(
+        reference_metadata
+    )
+
+    aligned_metadata.update(
+        {
+            "height": int(
+                reference_array.shape[0]
+            ),
+            "width": int(
+                reference_array.shape[1]
+            ),
+            "transform": reference_metadata[
+                "transform"
+            ],
+            "crs": reference_metadata[
+                "crs"
+            ],
+            "nodata": np.nan,
+            "dtype": str(
+                aligned.dtype
+            ),
+        }
     )
 
     validate_raster_pair(
@@ -448,28 +442,26 @@ def align_band_to_reference(
         reference_array,
         aligned_metadata,
         reference_metadata,
-        label_a="aligned band",
+        label_a="aligned raster",
         label_b="reference raster",
+        require_same_dtype=False,
     )
 
-    return aligned
+    return aligned, aligned_metadata
 
 
 # ============================================================
-# SAFE NORMALIZATION
+# NORMALIZE IMAGE
 # ============================================================
 
 def normalize_image(
     image,
 ):
     """
-    Normalize an image to the 0-1 range.
+    Normalize an image to [0, 1].
 
     Robust percentile normalization prevents a small number
     of extreme pixels from dominating visualization.
-
-    Invalid pixels remain represented as zero because this
-    function is intended for display imagery.
     """
 
     image = np.asarray(
@@ -487,21 +479,27 @@ def normalize_image(
             dtype=np.float32,
         )
 
-    low = np.percentile(
-        valid,
-        2,
+    low = float(
+        np.percentile(
+            valid,
+            2,
+        )
     )
 
-    high = np.percentile(
-        valid,
-        98,
+    high = float(
+        np.percentile(
+            valid,
+            98,
+        )
     )
 
-    if (
-        not np.isfinite(low)
-        or not np.isfinite(high)
-        or high <= low
-    ):
+    if not np.isfinite(low) or not np.isfinite(high):
+        return np.zeros_like(
+            image,
+            dtype=np.float32,
+        )
+
+    if high <= low:
         return np.zeros_like(
             image,
             dtype=np.float32,
@@ -519,13 +517,14 @@ def normalize_image(
         1.0,
     )
 
+    # Preserve invalid pixels as NaN instead of converting
+    # them into artificial valid observations.
     normalized[
-        ~np.isfinite(normalized)
-    ] = 0.0
+        ~np.isfinite(image)
+    ] = np.nan
 
     return normalized.astype(
-        np.float32,
-        copy=False,
+        np.float32
     )
 
 
@@ -540,12 +539,11 @@ def stack_bands(
     Stack multiple already-aligned bands.
 
     All bands must:
-        - exist;
+        - be non-empty;
         - be 2D;
-        - have identical shape.
+        - share the same spatial dimensions.
 
-    Returns:
-        numpy array with shape (height, width, bands)
+    No automatic resampling is performed here.
     """
 
     if not bands:
@@ -561,26 +559,22 @@ def stack_bands(
         for band in bands
     ]
 
-    for index, band in enumerate(arrays):
-
+    for index, array in enumerate(arrays):
         validate_raster(
-            band,
+            array,
             label=f"band[{index}]",
         )
 
     shapes = {
-        band.shape
-        for band in arrays
+        array.shape
+        for array in arrays
     }
 
     if len(shapes) != 1:
         raise RasterValidationError(
-            "Cannot stack rasters with different "
-            "spatial dimensions.\n\n"
-            + "\n".join(
-                f"Band {i}: {band.shape}"
-                for i, band in enumerate(arrays)
-            )
+            "All bands must have the same spatial dimensions "
+            "before stacking.\n\n"
+            f"Detected shapes: {sorted(shapes)}"
         )
 
     return np.stack(
