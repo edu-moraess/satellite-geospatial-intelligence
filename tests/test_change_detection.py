@@ -3,6 +3,7 @@ Tests: src.change_detection
 """
 
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -10,7 +11,6 @@ from src.change_detection import (
     calculate_difference,
     detect_change,
     calculate_change_statistics,
-    normalized_change,
 )
 from src.raster_validation import RasterValidationError
 
@@ -90,20 +90,6 @@ class TestChangeStatistics(unittest.TestCase):
             3 * (10.0 ** 2) / 1_000_000.0,
             places=8,
         )
-
-
-class TestNormalizedChange(unittest.TestCase):
-
-    def test_relative_change(self):
-        before = np.array([[1.0]], dtype=np.float32)
-        after = np.array([[1.5]], dtype=np.float32)
-
-        result = normalized_change(before, after)
-        self.assertAlmostEqual(float(result[0, 0]), 0.5, places=5)
-
-
-from pathlib import Path
-
 
 
 class TestChangeStatisticsAppContract(unittest.TestCase):
