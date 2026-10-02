@@ -10,8 +10,11 @@ Responsible for:
 """
 
 import time
+import logging
 import pystac_client
 from pystac_client.stac_api_io import StacApiIO
+
+logger = logging.getLogger(__name__)
 
 from .config import (
     EARTH_SEARCH_STAC_URL,
@@ -122,9 +125,12 @@ def search_sentinel(
             if attempt == max_retries - 1:
                 raise
             wait = 2 ** attempt  # 2s, 4s, 8s
-            print(
-                f"Search failed (attempt {attempt+1}/{max_retries}): "
-                f"{e}. Retrying in {wait}s..."
+            logger.warning(
+                "Search failed (attempt %s/%s): %s. Retrying in %ss...",
+                attempt + 1,
+                max_retries,
+                e,
+                wait,
             )
             time.sleep(wait)
 
