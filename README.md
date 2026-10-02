@@ -1,6 +1,6 @@
-# Satellite Geospatial Intelligence
+# GEOCORE
 
-Experimental Streamlit application for **Sentinel-2** Earth Observation analysis: catalog search, AOI-based download, spectral indices, land-cover classification, change detection, and a Geospatial AI inference interface.
+Experimental **Geospatial Computing & Intelligence** platform for **Sentinel-2** Earth Observation analysis: catalog search, AOI-based download, spectral indices, land-cover classification, change detection, and a Geospatial AI inference interface.
 
 Repository: [edu-moraess/satellite-geospatial-intelligence](https://github.com/edu-moraess/satellite-geospatial-intelligence)
 
@@ -194,7 +194,7 @@ Heavy ML stacks (e.g. torch) are intentionally omitted until a real checkpoint i
 streamlit run app.py
 ```
 
-Default browser opens the Streamlit app. Configure AOI and temporal filters in **Analysis Control**, search the catalog, download a scene, then use the analysis tabs.
+Default browser opens the Streamlit app. Configure AOI and temporal filters in **Mission Control**, search the catalog, download a scene, then use the analysis workspace.
 
 ---
 
@@ -284,4 +284,4 @@ Spectral values should be interpreted in the context of sensor characteristics a
 
 ---
 
-*Satellite Geospatial Intelligence — experimental Earth Observation / remote sensing analysis on Sentinel-2.*
+*GEOCORE — experimental Earth Observation / remote sensing analysis on Sentinel-2.*
