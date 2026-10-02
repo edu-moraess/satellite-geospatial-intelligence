@@ -11,9 +11,9 @@ from src.deep_learning.inference import build_inference_gate
 
 
 def _metadata(pixel_size: float) -> dict:
-    width = 6
-    height = 6
-    transform = from_origin(0, 180, pixel_size, pixel_size)
+    width = int(60 / pixel_size)
+    height = int(60 / pixel_size)
+    transform = from_origin(0, 60, pixel_size, pixel_size)
     return {
         "transform": transform,
         "crs": "EPSG:32623",
@@ -22,7 +22,7 @@ def _metadata(pixel_size: float) -> dict:
         "bounds": (
             type("Bounds", (), {
                 "left": 0.0, "bottom": 0.0,
-                "right": width * pixel_size, "top": height * pixel_size,
+                "right": 60.0, "top": 60.0,
             })()
         ),
     }
