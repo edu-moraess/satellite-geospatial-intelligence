@@ -25,10 +25,10 @@ def render_header():
         ">
             <div>
                 <span style="font-size:1.3rem;font-weight:600;letter-spacing:-0.02em;color:{COLORS["text_primary"]};">
-                    SATELLITE GEOSPATIAL INTELLIGENCE
+                    GEOCORE
                 </span>
                 <div style="font-size:0.75rem;color:{COLORS["text_secondary"]};margin-top:0.1rem;">
-                    Earth Observation • Remote Sensing • Geospatial AI
+                    Geospatial Computing & Intelligence
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:0.5rem;">
