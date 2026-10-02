@@ -13,9 +13,9 @@ DEFAULT_LONGITUDE = -46.633308
 def render_sidebar() -> dict:
     with st.sidebar:
         st.markdown(
-            '<div class="eyebrow">MISSION CONTROL</div>'
-            '<div class="sidebar-title">Analysis setup</div>'
-            '<div class="sidebar-subtitle">Sensor · AOI · time · cloud filter</div>',
+            '<div class="eyebrow">GEOCORE</div>'
+            '<div class="sidebar-title">Mission Control</div>'
+            '<div class="sidebar-subtitle">Sensor · AOI · temporal window</div>',
             unsafe_allow_html=True,
         )
 
