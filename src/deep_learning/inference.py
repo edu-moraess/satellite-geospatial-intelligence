@@ -26,6 +26,7 @@ def build_inference_gate(
     model_id: str,
     available_bands: set[str] | list[str] | tuple[str, ...],
     source_domain: str = "sentinel2-l2a",
+    harmonization_status: str | None = None,
 ) -> InferenceGate:
     """Return an explicit readiness gate; never fall back to synthetic output."""
     model = get_model(model_id)
@@ -35,16 +36,20 @@ def build_inference_gate(
         return InferenceGate(False, compatibility, compatibility.message)
 
     if model.source_domain.lower() != source_domain.lower():
-        return InferenceGate(
-            False,
-            compatibility,
-            (
-                "Deep-learning inference blocked: the registered checkpoint "
-                f"expects {model.source_domain} inputs, but the current scene "
-                f"is {source_domain}. A harmonization adapter is required; "
-                "simple band renaming/resampling is not sufficient."
-            ),
-        )
+        if not (
+            model.source_domain.lower() == "hls"
+            and source_domain.lower() == "sentinel2-l2a"
+            and harmonization_status == "hls_s30"
+        ):
+            return InferenceGate(
+                False,
+                compatibility,
+                (
+                    "Deep-learning inference blocked: the registered checkpoint "
+                    f"expects {model.source_domain} inputs, but the current scene "
+                    f"is {source_domain}. A validated harmonization adapter is required."
+                ),
+            )
 
     if not checkpoint_available(model_id):
         return InferenceGate(
