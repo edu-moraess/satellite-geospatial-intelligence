@@ -1,4 +1,4 @@
-"""Satellite Geospatial Intelligence — application shell.
+"""GEOCORE — Geospatial Computing & Intelligence Platform application shell.
 
 This module owns orchestration only. Scientific operations live in src/;
 reusable presentation lives in ui/.
@@ -31,7 +31,7 @@ from ui.status import init_pipeline_status, update_pipeline_status, get_pipeline
 from ui.theme import load_theme
 
 
-st.set_page_config(page_title="Satellite Geospatial Intelligence", page_icon="🛰", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="GEOCORE", page_icon="G", layout="wide", initial_sidebar_state="expanded")
 st.markdown(load_theme(), unsafe_allow_html=True)
 init_pipeline_status()
 
@@ -140,7 +140,7 @@ items = st.session_state.search_results
 render_header()
 render_summary(config, len(items))
 
-section_header("Geospatial Operations", "Interactive Earth Observation Map")
+section_header("Geospatial Workspace", "AOI · Scenes · Observations")
 try:
     map_state = render_map_panel(latitude=latitude, longitude=longitude, area_size=area_size, key="aoi_map")
     selected_aoi = get_selected_aoi(map_state)
@@ -163,7 +163,7 @@ if selected is not None:
 
 active_item = next((x for x in items if x.id == st.session_state.active_scene_id), None)
 if active_item is not None:
-    section_header("Active Observation", f"{active_item.datetime.date() if active_item.datetime else 'Unknown'} · {float(active_item.properties.get('eo:cloud_cover', 0)):.2f}%")
+    section_header("Observation", f"{active_item.datetime.date() if active_item.datetime else 'Unknown'} · {float(active_item.properties.get('eo:cloud_cover', 0)):.2f}%")
     meta_cols = st.columns([3, 2, 1.2])
     with meta_cols[0]: st.caption(active_item.id)
     with meta_cols[1]: st.caption(sensor.name)
@@ -201,14 +201,14 @@ if st.session_state.rgb_img is not None:
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-section_header("Spectral Intelligence", "NDVI · NDWI · NDBI")
+section_header("Spectral", "NDVI · NDWI · NDBI")
 if st.session_state.ndvi is not None:
     render_spectral_cards({"NDVI": f'{st.session_state.ndvi:.3f}', "NDWI": f'{st.session_state.ndwi:.3f}', "NDBI": f'{st.session_state.ndbi:.3f}'})
     if st.session_state.index_figure is not None: st.plotly_chart(st.session_state.index_figure, use_container_width=True)
 else:
     st.caption("No spectral analysis available. Download a scene first.")
 
-section_header("Land Cover", "Rule-based classification from spectral indices")
+section_header("Land Cover", "Spectral classification")
 if st.session_state.classification_fig is not None:
     st.plotly_chart(st.session_state.classification_fig, use_container_width=True)
     if st.session_state.percentages:
@@ -218,7 +218,7 @@ if st.session_state.classification_fig is not None:
 else:
     st.caption("No land-cover classification available. Download a scene first.")
 
-section_header("Change Intelligence", "Before / After comparison")
+section_header("Change", "Before / After")
 if len(items) >= 2:
     labels = {f'{i.id[:14]} · {i.datetime.date() if i.datetime else "Unknown"} · {float(i.properties.get("eo:cloud_cover",0)):.2f}%': i for i in items}
     c1,c2,c3,c4 = st.columns(4)
@@ -250,7 +250,7 @@ if st.session_state.change_result:
     render_change_metrics(f'{stats.get("decrease_area_km2",0):.3f} km²', f'{stats.get("increase_area_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
     st.plotly_chart(st.session_state.change_result["figure"], use_container_width=True)
 
-section_header("Geospatial AI", "Inference only when a real checkpoint is available")
+section_header("Geospatial AI", "Real checkpoint required")
 models = list_models()
 model_id = st.selectbox("Model", models, key="ai_model")
 model = get_model(model_id)
@@ -280,7 +280,7 @@ if st.session_state.object_detections and st.session_state.transform is not None
     gdf = georeference_detections(st.session_state.object_detections, transform=st.session_state.transform, crs=st.session_state.crs)
     st.download_button("Download GeoJSON", data=to_geojson_bytes(gdf), file_name="detections.geojson", mime="application/geo+json", use_container_width=True)
 
-section_header("Processing Pipeline", "Current mission state")
+section_header("Pipeline", "Mission state")
 render_pipeline_status(get_pipeline_status())
 
-st.markdown('<div class="footer-note">Satellite Geospatial Intelligence · Earth Observation · Remote Sensing · Geospatial Analytics<br>Analytical measurements require appropriate sensor, resolution and preprocessing context.</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer-note">GEOCORE · Geospatial Computing & Intelligence<br>Analytical measurements require appropriate sensor, resolution and preprocessing context.</div>', unsafe_allow_html=True)
