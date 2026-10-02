@@ -1,0 +1,4 @@
+# Offline-only ML training dependencies.
+# Keep these out of the Streamlit Cloud runtime requirements.
+lightgbm
+scikit-learn
