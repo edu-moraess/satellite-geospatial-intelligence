@@ -44,6 +44,30 @@ def load_theme():
             max-width: 1400px !important;
         }}
 
+        /* Streamlit global surfaces */
+        .stApp,
+        .stAppViewContainer,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"] {{
+            background: {COLORS["bg_primary"]} !important;
+            color: {COLORS["text_primary"]} !important;
+        }}
+        [data-baseweb="popover"],
+        [data-baseweb="menu"],
+        [role="listbox"],
+        [role="option"],
+        [role="menuitem"] {{
+            background: {COLORS["bg_panel"]} !important;
+            color: {COLORS["text_primary"]} !important;
+            border-color: {COLORS["border"]} !important;
+        }}
+        [role="option"]:hover,
+        [role="menuitem"]:hover,
+        [data-baseweb="menu"] li:hover {{
+            background: {COLORS["accent_dim"]} !important;
+            color: {COLORS["text_primary"]} !important;
+        }}
+
         /* Global Streamlit surfaces */
         .stApp, .stAppViewContainer, [data-testid="stAppViewContainer"],
         [data-testid="stHeader"], [data-testid="stToolbar"] {
@@ -293,6 +317,27 @@ def load_theme():
             color: ${COLORS["text_secondary"]} !important;
         }
 
+        /* Widget surfaces */
+        .stTextInput input,
+        .stNumberInput input,
+        .stDateInput input,
+        .stTextArea textarea,
+        .stSelectbox [data-baseweb="select"] > div,
+        .stMultiSelect [data-baseweb="select"] > div {{
+            background: {COLORS["bg_secondary"]} !important;
+            color: {COLORS["text_primary"]} !important;
+            border-color: {COLORS["border"]} !important;
+        }}
+        .stSelectbox [data-baseweb="select"] *,
+        .stMultiSelect [data-baseweb="select"] * {{
+            color: {COLORS["text_primary"]} !important;
+        }}
+        .stTextInput input::placeholder,
+        .stNumberInput input::placeholder,
+        .stDateInput input::placeholder {{
+            color: {COLORS["text_secondary"]} !important;
+        }}
+
         /* Selectbox, inputs */
         .stSelectbox div[data-baseweb="select"] > div,
         .stDateInput input,
@@ -331,6 +376,13 @@ def load_theme():
             color: ${COLORS["text_primary"]} !important;
             border: 1px solid ${COLORS["border"]} !important;
         }
+
+        /* Alerts */
+        [data-testid="stAlert"] {{
+            background: {COLORS["bg_panel"]} !important;
+            color: {COLORS["text_primary"]} !important;
+            border-color: {COLORS["border"]} !important;
+        }}
 
         /* Expanders */
         .streamlit-expanderHeader {{
