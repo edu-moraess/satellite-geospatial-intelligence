@@ -78,7 +78,9 @@ def perform_search() -> None:
         st.error("Start date must be before end date.")
         return
 
-    drawn_aoi = st.session_state.get("drawn_aoi") or {}\n    bbox = drawn_aoi.get("bbox")
+    drawn_aoi = st.session_state.get("drawn_aoi") or {}
+    bbox = drawn_aoi.get("bbox")
+    if bbox is None:
         bbox = create_bbox(latitude, longitude, area_size)
 
     if len(bbox) != 4 or bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
