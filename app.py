@@ -187,7 +187,7 @@ if active_item is not None:
                     update_pipeline_status("Imagery", "error"); st.error("Scene download or processing failed.")
                     with st.expander("Technical details"): st.exception(exc)
 else:
-    section_header("Active Observation", "No scene selected")
+    section_header("Observation", "No scene selected")
     st.caption("Select a scene from the archive to download and analyze it.")
 
 if st.session_state.rgb_img is not None:
