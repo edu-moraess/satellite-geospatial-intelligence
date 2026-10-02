@@ -456,7 +456,7 @@ def create_geospatial_map(
             font-size: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         ">
-            <b>GEOSPATIAL INTELLIGENCE</b>
+            <b>GEOCORE</b>
         </div>
         """
     )
@@ -613,14 +613,8 @@ def render_map_panel(
     key: str = "main_geospatial_map",
 ) -> dict[str, Any]:
 
-    st.subheader(
-        "Geospatial workspace"
-    )
-
-    st.caption(
-        "Interactive Earth observation map · "
-        "Sentinel-2 · AOI · spatial analysis"
-    )
+    st.subheader("Geospatial Workspace")
+    st.caption("AOI · scenes · spatial analysis")
 
     # ========================================================
     # MAP CONTROLS
