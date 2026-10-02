@@ -264,6 +264,9 @@ def download_band(
         "B04": ("red", "B04"),
         "B08": ("nir", "B08"),
         "B11": ("swir16", "B11"),
+        "B8A": ("nir08", "B8A"),
+        "B12": ("swir22", "B12"),
+        "SCL": ("scl", "SCL"),
     }.get(band_name, (band_name,))
 
     asset = next(
@@ -578,7 +581,10 @@ def download_required_bands(
         "B03",
         "B04",
         "B08",
+        "B8A",
         "B11",
+        "B12",
+        "SCL",
     ]
 
     downloaded = {}
