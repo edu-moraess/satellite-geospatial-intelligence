@@ -44,6 +44,25 @@ def load_theme():
             max-width: 1400px !important;
         }}
 
+        /* Force every native Streamlit surface into the dark visual system. */
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"],
+        [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{
+            background: {COLORS["bg_primary"]} !important;
+            color: {COLORS["text_primary"]} !important;
+        }}
+        [data-testid="stSidebar"], [data-testid="stSidebarContent"],
+        [data-testid="stSidebarUserContent"] {{
+            background: {COLORS["bg_secondary"]} !important;
+            color: {COLORS["text_primary"]} !important;
+        }}
+        [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"],
+        [data-testid="stColumn"], [data-testid="stElementContainer"] {{
+            color: {COLORS["text_primary"]} !important;
+        }}
+        label, p, span, div, small, strong, em, li {{
+            color: inherit;
+        }}
+
         /* Streamlit global surfaces */
         .stApp,
         .stAppViewContainer,
