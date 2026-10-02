@@ -17,6 +17,7 @@ The project implements a modular pipeline for remote-sensing analysis over user-
 5. Derive **land-cover** classes from those indices.
 6. Compare two scenes for **change detection**.
 7. Run **object-detection style inference** when a model checkpoint is available, with optional **GeoJSON** export of georeferenced detections.
+8. Prepare a gated **Earth Observation deep-learning layer** for multispectral foundation models, with explicit input-band and checkpoint validation.
 
 The application is experimental. Results depend on scene quality, cloud cover, AOI geometry, algorithm parameters, and data availability.
 
@@ -184,7 +185,7 @@ pip install -r requirements.txt
 
 Dependencies (from `requirements.txt`): `streamlit`, `numpy`, `rasterio`, `geopandas`, `shapely`, `pystac-client`, `planetary-computer`, `folium`, `streamlit-folium`, `matplotlib`.
 
-Heavy ML stacks (e.g. torch) are intentionally omitted until a real checkpoint is added.
+Heavy ML stacks (e.g. torch / TerraTorch) remain intentionally omitted until a real compatible checkpoint and its input pipeline are validated.
 
 ---
 
@@ -261,6 +262,8 @@ Spectral values should be interpreted in the context of sensor characteristics a
 
 ### Planned
 
+- Connect the deep-learning layer to a real compatible multispectral checkpoint
+- Add Sentinel-2 B8A/B12 ingestion and a 6-band resampling path for compatible Earth Observation foundation models
 - Optional real model checkpoints and documented inference dependencies
 - Stronger geodetic area statistics
 - CI (e.g. GitHub Actions) running `pytest` on each push
