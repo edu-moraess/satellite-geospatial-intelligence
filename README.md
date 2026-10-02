@@ -24,35 +24,45 @@ The application is experimental. Results depend on scene quality, cloud cover, A
 
 ## Architecture
 
-```
-Planetary Computer STAC (Sentinel-2 L2A)
-                │
-                ▼
-        Catalog search (AOI / bbox, dates, cloud)
-                │
-                ▼
-        Scene selection + band download
-                │
-                ▼
-        Raster validation + alignment
-                │
-                ▼
-        Spectral processing (NDVI / NDWI / NDBI)
-                │
-        ┌───────┼────────┬──────────────┐
-        ▼       ▼        ▼              ▼
-      RGB    Land     Change      Geospatial AI
-   False color Cover  Detection   (+ GeoJSON)
-```
+The application is organized as a thin Streamlit shell over testable scientific workflows:
 
-**Layering**
+\`\`\`
+app.py
+  ├── Mission Control (ui/mission_control.py)
+  ├── Geospatial Operations (src/map_view.py)
+  ├── Satellite Archive (ui/catalog.py)
+  ├── Active Observation
+  ├── Spectral Intelligence
+  ├── Land Cover
+  ├── Change Intelligence
+  ├── Geospatial AI
+  └── Processing Pipeline
 
-| Layer | Role |
-|-------|------|
-| `app.py` | Orchestration: page config, session state, wiring UI ↔ `src` |
-| `ui/` | Presentation only (layout, theme, components, status) |
-| `src/` | Scientific and geospatial logic |
-| `tests/` | Automated unit tests |
+src/
+  ├── domain modules       # catalog, AOI, raster, spectral, detection
+  └── workflows/           # orchestration of multi-step scientific analysis
+
+ui/
+  ├── mission_control.py   # mission inputs + summary
+  ├── catalog.py           # archive presentation + selection
+  ├── components.py        # reusable cards and metrics
+  ├── layout.py            # structural UI primitives
+  ├── status.py            # pipeline state
+  └── theme.py             # visual system
+
+tests/
+  └── unit + architecture guardrails
+\`\`\`
+
+**Design principles**
+
+- \`app.py\` coordinates; it does not implement scientific algorithms.
+- \`src/\` remains independent from Streamlit wherever possible.
+- One satellite archive is the source of truth for scene selection.
+- Active imagery is explicit: select → download → process → analyze.
+- AI is checkpoint-gated. A missing checkpoint produces \`MODEL UNAVAILABLE\`; it never fabricates detections.
+- UI state and scientific state are kept separate and reset deliberately when the catalog changes.
+- The interface uses one dark visual system with consistent surfaces, controls and semantic status colors.
 
 ---
 
@@ -80,28 +90,19 @@ Implemented in the current codebase:
 
 ## User Interface
 
-```
-Analysis Control (sidebar)
-        ↓
-Geospatial Operations Center (map + AOI draw)
-        ↓
-Satellite Archive → Active Scene
-        ↓
-Analysis tabs
-  · Spectral
-  · Land Cover
-  · Change
-  · Geospatial AI
-```
+The interface is structured as a single mission workspace rather than duplicated catalog/analysis surfaces:
 
-**Analysis Control** (sidebar)
+1. **Mission Control** — sensor, AOI, time window and cloud filter.
+2. **Geospatial Operations** — interactive AOI map and telemetry.
+3. **Satellite Archive** — one authoritative scene list with explicit selection.
+4. **Active Observation** — download state and natural/false-color imagery.
+5. **Spectral Intelligence** — NDVI, NDWI and NDBI.
+6. **Land Cover** — rule-based spectral classification.
+7. **Change Intelligence** — explicit Before/After comparison.
+8. **Geospatial AI** — real-checkpoint inference only.
+9. **Processing Pipeline** — operational state of the current mission.
 
-- **AOI** — Latitude, Longitude, Area size (degrees)
-- **Temporal window** — Start / End dates
-- **Scene filter** — Max cloud cover
-- **Search Sentinel-2**
-
-Light / Dark appearance follows Streamlit theme settings (see `.streamlit/config.toml`).
+The UI is designed to remain readable on desktop and mobile widths without relying on light Streamlit surfaces.
 
 ---
 
@@ -121,7 +122,7 @@ Bands used: **B02** (Blue), **B03** (Green), **B04** (Red), **B08** (NIR), **B11
 
 ```
 satellite-geospatial-intelligence/
-├── app.py                 # Streamlit entry point / orchestration
+├── app.py                 # Thin Streamlit application shell
 ├── requirements.txt
 ├── README.md
 ├── .streamlit/
@@ -146,7 +147,11 @@ satellite-geospatial-intelligence/
 │   ├── model_registry.py
 │   ├── model_inference.py
 │   ├── geospatial_detections.py
-│   └── map_view.py        # Folium map panel
+│   ├── map_view.py        # Folium map panel
+│   └── workflows/
+│       ├── __init__.py
+│       ├── imagery.py      # Scene processing orchestration
+│       └── change.py       # Before/after orchestration
 ├── ui/
 │   ├── theme.py
 │   ├── layout.py

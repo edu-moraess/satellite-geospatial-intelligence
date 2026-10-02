@@ -25,7 +25,7 @@ def render_header():
         ">
             <div>
                 <span style="font-size:1.3rem;font-weight:600;letter-spacing:-0.02em;color:{COLORS["text_primary"]};">
-                    🛰 SATELLITE GEOSPATIAL INTELLIGENCE
+                    SATELLITE GEOSPATIAL INTELLIGENCE
                 </span>
                 <div style="font-size:0.75rem;color:{COLORS["text_secondary"]};margin-top:0.1rem;">
                     Earth Observation • Remote Sensing • Geospatial AI
@@ -72,42 +72,6 @@ def render_mission_control(aoi_data: dict):
                 """,
                 unsafe_allow_html=True,
             )
-
-
-# =============================================================================
-# CATÁLOGO DE CENAS (tabela compacta)
-# =============================================================================
-
-def render_catalog_table(scenes: list):
-    """
-    scenes: lista de dicionários com date, cloud, status
-    """
-    if not scenes:
-        st.caption("Nenhuma cena disponível.")
-        return
-
-    html = """
-    <table class="catalog-table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Cloud Cover</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    for s in scenes:
-        status_cls = "ready" if s.get("status") == "Ready" else "pending"
-        html += f"""
-        <tr>
-            <td>{s.get('date', '—')}</td>
-            <td>{s.get('cloud', '—')}</td>
-            <td>{status_badge(s.get('status', 'Pending'), status_cls)}</td>
-        </tr>
-        """
-    html += "</tbody></table>"
-    st.markdown(html, unsafe_allow_html=True)
 
 
 # =============================================================================
