@@ -23,6 +23,7 @@ from src.workflows.imagery import process_scene
 from src.workflows.change import run_change
 from src.map_view import render_map_panel
 from src.deep_learning.inference import build_inference_gate
+from src.deep_learning.prithvi_burn_scars import runtime_available
 
 from ui.catalog import render_scene_catalog
 from ui.components import render_header, render_spectral_cards, render_change_metrics
@@ -312,29 +313,43 @@ available_deep_bands = (
     if st.session_state.satellite_data
     else set()
 )
+deep_runtime_ok, deep_runtime_message = runtime_available()
+deep_harmonization_status = st.session_state.get("deep_harmonization_status")
+
 deep_gate = build_inference_gate(
     deep_model_id,
     available_deep_bands,
     source_domain="sentinel2-l2a",
+    harmonization_status=deep_harmonization_status,
 )
+
+d1, d2, d3 = st.columns(3)
+with d1:
+    st.metric("Model", "Prithvi-EO 2.0")
+with d2:
+    st.metric("Input", "6 × 512²")
+with d3:
+    st.metric("Runtime", "READY" if deep_runtime_ok else "OPTIONAL")
+
+if deep_runtime_ok:
+    st.success("Real Prithvi runtime detected.")
+else:
+    st.info(deep_runtime_message)
+
 if deep_gate.ready:
     st.success("Deep-learning input contract and checkpoint are ready.")
 else:
     st.info(deep_gate.reason)
     if deep_gate.compatibility.missing_bands:
-        st.caption(
-            "Missing bands: "
-            + ", ".join(deep_gate.compatibility.missing_bands)
-        )
+        st.caption("Missing bands: " + ", ".join(deep_gate.compatibility.missing_bands))
     else:
-        st.caption(
-            "Input contract: six-band multispectral set detected "
-            "(B02, B03, B04, B8A, B11, B12)."
-        )
+        st.caption("Input contract detected: B02 · B03 · B04 · B8A · B11 · B12.")
+
 st.caption(
-    "The current Burn Scars checkpoint is HLS-trained. GEOCORE keeps "
-    "inference blocked until the Sentinel-2/HLS harmonization contract "
-    "is explicitly validated."
+    "Official checkpoint: ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars. "
+    "The checkpoint is approximately 1.3 GB and is loaded lazily. "
+    "Sentinel-2 inference remains blocked until full HLS S30 harmonization "
+    "is validated; spatial resampling alone is insufficient."
 )
 
 section_header("Pipeline", "Mission state")
