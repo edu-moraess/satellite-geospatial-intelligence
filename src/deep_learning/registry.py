@@ -54,5 +54,8 @@ def get_model(model_id: str) -> EOModelDefinition:
 
 
 def checkpoint_available(model_id: str) -> bool:
-    checkpoint = get_model(model_id).checkpoint
-    return checkpoint is not None and checkpoint.exists()
+    """Return whether a local or explicitly registered remote checkpoint exists."""
+    model = get_model(model_id)
+    if model.checkpoint is not None and model.checkpoint.exists():
+        return True
+    return bool(model.checkpoint_repo)
