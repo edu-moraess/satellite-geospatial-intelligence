@@ -5,6 +5,7 @@ reusable presentation lives in ui/.
 """
 from __future__ import annotations
 from pathlib import Path
+import numpy as np
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 
