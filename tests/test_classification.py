@@ -13,6 +13,7 @@ from src.classification import (
     BUILT_UP,
     OTHER,
 )
+from src.raster_validation import RasterValidationError
 
 
 class TestClassifyLandCover(unittest.TestCase):
@@ -41,13 +42,13 @@ class TestClassifyLandCover(unittest.TestCase):
         result = classify_land_cover(ndvi, ndwi, ndbi)
         self.assertEqual(result[0, 0], BUILT_UP)
 
-    def test_nan_pixel_is_other(self):
+    def test_nan_pixel_is_rejected_as_invalid_raster(self):
         ndvi = np.array([[np.nan]], dtype=np.float32)
         ndwi = np.array([[0.5]], dtype=np.float32)
         ndbi = np.array([[0.1]], dtype=np.float32)
 
-        result = classify_land_cover(ndvi, ndwi, ndbi)
-        self.assertEqual(result[0, 0], OTHER)
+        with self.assertRaises(RasterValidationError):
+            classify_land_cover(ndvi, ndwi, ndbi)
 
     def test_shape_mismatch_raises(self):
         ndvi = np.zeros((4, 4), dtype=np.float32)
