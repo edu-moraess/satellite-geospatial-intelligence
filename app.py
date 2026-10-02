@@ -22,6 +22,7 @@ from src.raster_validation import RasterValidationError
 from src.workflows.imagery import process_scene
 from src.workflows.change import run_change
 from src.map_view import render_map_panel
+from src.deep_learning.inference import build_inference_gate
 
 from ui.catalog import render_scene_catalog
 from ui.components import render_header, render_spectral_cards, render_change_metrics
@@ -42,7 +43,7 @@ DEFAULTS = {
     "index_figure": None, "classification_fig": None, "percentages": None,
     "area_data": None, "detection_rgb": None, "object_detections": [],
     "detection_figure": None, "transform": None, "crs": None,
-    "change_result": None, "retry_search": False,
+    "change_result": None, "retry_search": False, "scene_quality": None,
 }
 for key, value in DEFAULTS.items():
     if key not in st.session_state:
@@ -64,7 +65,7 @@ def reset_analysis_state() -> None:
         "index_stats": {}, "index_figure": None, "classification_fig": None,
         "percentages": None, "area_data": None, "detection_rgb": None,
         "object_detections": [], "detection_figure": None, "transform": None,
-        "crs": None, "change_result": None,
+        "crs": None, "change_result": None, "scene_quality": None,
     }.items():
         st.session_state[key] = value
     st.session_state["pipeline_status"] = {k: "pending" for k in ["Catalog", "Imagery", "Spectral", "Change", "AI"]}
@@ -197,6 +198,26 @@ if st.session_state.rgb_img is not None:
     with c2:
         st.image(st.session_state.false_color_img, caption="False Color · NIR", use_container_width=True)
 
+quality = st.session_state.get("scene_quality")
+if quality:
+    section_header("Scene Quality", "SCL · cloud · usable pixels")
+    if quality.get("available"):
+        q1, q2, q3, q4 = st.columns(4)
+        with q1:
+            st.metric("Usable", f'{100.0 * (quality.get("valid_fraction") or 0.0):.1f}%')
+        with q2:
+            st.metric("Cloud", f'{100.0 * (quality.get("cloud_fraction") or 0.0):.1f}%')
+        with q3:
+            st.metric("Shadow", f'{100.0 * (quality.get("shadow_fraction") or 0.0):.1f}%')
+        with q4:
+            st.metric("Quality", f'{100.0 * (quality.get("score") or 0.0):.1f}%')
+        st.caption(
+            "Quality is AOI-level and derived from Sentinel-2 SCL. "
+            "It is not a probability of scene correctness."
+        )
+    else:
+        st.caption("SCL quality layer is unavailable for this observation.")
+
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
 section_header("Spectral", "NDVI · NDWI · NDBI")
@@ -283,6 +304,38 @@ if st.session_state.detection_figure is not None:
 if st.session_state.object_detections and st.session_state.transform is not None:
     gdf = georeference_detections(st.session_state.object_detections, transform=st.session_state.transform, crs=st.session_state.crs)
     st.download_button("Download GeoJSON", data=to_geojson_bytes(gdf), file_name="detections.geojson", mime="application/geo+json", use_container_width=True)
+
+section_header("Deep Learning", "Multispectral foundation-model gate")
+deep_model_id = "prithvi_eo_v2_300m_burn_scars"
+available_deep_bands = (
+    set(st.session_state.satellite_data.get("bands", {}).keys())
+    if st.session_state.satellite_data
+    else set()
+)
+deep_gate = build_inference_gate(
+    deep_model_id,
+    available_deep_bands,
+    source_domain="sentinel2-l2a",
+)
+if deep_gate.ready:
+    st.success("Deep-learning input contract and checkpoint are ready.")
+else:
+    st.info(deep_gate.reason)
+    if deep_gate.compatibility.missing_bands:
+        st.caption(
+            "Missing bands: "
+            + ", ".join(deep_gate.compatibility.missing_bands)
+        )
+    else:
+        st.caption(
+            "Input contract: six-band multispectral set detected "
+            "(B02, B03, B04, B8A, B11, B12)."
+        )
+st.caption(
+    "The current Burn Scars checkpoint is HLS-trained. GEOCORE keeps "
+    "inference blocked until the Sentinel-2/HLS harmonization contract "
+    "is explicitly validated."
+)
 
 section_header("Pipeline", "Mission state")
 render_pipeline_status(get_pipeline_status())
