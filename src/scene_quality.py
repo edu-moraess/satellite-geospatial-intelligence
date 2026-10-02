@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 
 
-SCL_VALID = (2, 4, 5, 6, 7)
+SCL_VALID = (4, 5, 6, 7)
 SCL_CLOUD = (8, 9, 10)
 SCL_SHADOW = (2, 3)
 SCL_SNOW = (11,)
