@@ -26,7 +26,7 @@ from src.map_view import render_map_panel
 from ui.catalog import render_scene_catalog
 from ui.components import render_header, render_spectral_cards, render_change_metrics
 from ui.layout import section_header
-from ui.mission_control import render_sidebar, render_summary
+from ui.mission_control import render_sidebar
 from ui.status import init_pipeline_status, update_pipeline_status, get_pipeline_status, render_pipeline_status
 from ui.theme import load_theme
 
@@ -138,8 +138,6 @@ if config["search_clicked"]:
 items = st.session_state.search_results
 
 render_header()
-render_summary(config, len(items))
-
 section_header("Geospatial Workspace", "AOI · Scenes · Observations")
 try:
     map_state = render_map_panel(latitude=latitude, longitude=longitude, area_size=area_size, key="aoi_map")
@@ -149,8 +147,8 @@ try:
 except StreamlitAPIException:
     st.warning("Map interaction is temporarily unavailable. Manual coordinates remain available.")
 
-map_cols = st.columns(4)
-for col, label, value in zip(map_cols, ["AOI", "AREA", "BBOX", "ZOOM"], [f"{latitude:.4f}, {longitude:.4f}", f"{area_size:.2f}° × {area_size:.2f}°", "—", "12"]):
+map_cols = st.columns(3)
+for col, label, value in zip(map_cols, ["AOI", "AREA", "SCENES"], [f"{latitude:.4f}, {longitude:.4f}", f"{area_size:.2f}° × {area_size:.2f}°", str(len(items))]):
     with col:
         st.markdown(f'<div class="telemetry"><div class="metric-label">{label}</div><div class="metric-value-small">{value}</div></div>', unsafe_allow_html=True)
 
