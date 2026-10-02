@@ -72,7 +72,8 @@ def _download_windowed_band(item, sentinel_key, asset, bbox, output_directory):
     grava só esse recorte localmente.
     """
 
-    output_directory = ensure_output_directory(output_directory / bbox_cache_key(bbox))\n    output_path = output_directory / f"{sentinel_key}.tif"
+    output_directory = ensure_output_directory(output_directory / bbox_cache_key(bbox))
+    output_path = output_directory / f"{sentinel_key}.tif"
 
     # --------------------------------------------------------
     # REUSE
