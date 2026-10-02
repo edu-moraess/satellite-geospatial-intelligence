@@ -23,7 +23,8 @@ from src.workflows.imagery import process_scene
 from src.workflows.change import run_change
 from src.map_view import render_map_panel
 from src.deep_learning.inference import build_inference_gate
-from src.deep_learning.prithvi_burn_scars import runtime_available
+from src.deep_learning.prithvi_burn_scars import runtime_available, predict_burn_scars
+from src.deep_learning.hls_source import search_hls_s30, load_hls_s30_item
 
 from ui.catalog import render_scene_catalog
 from ui.components import render_header, render_spectral_cards, render_change_metrics
@@ -44,7 +45,7 @@ DEFAULTS = {
     "index_figure": None, "classification_fig": None, "percentages": None,
     "area_data": None, "detection_rgb": None, "object_detections": [],
     "detection_figure": None, "transform": None, "crs": None,
-    "change_result": None, "retry_search": False, "scene_quality": None,
+    "change_result": None, "retry_search": False, "scene_quality": None, "deep_learning_result": None,
 }
 for key, value in DEFAULTS.items():
     if key not in st.session_state:
@@ -66,7 +67,7 @@ def reset_analysis_state() -> None:
         "index_stats": {}, "index_figure": None, "classification_fig": None,
         "percentages": None, "area_data": None, "detection_rgb": None,
         "object_detections": [], "detection_figure": None, "transform": None,
-        "crs": None, "change_result": None, "scene_quality": None,
+        "crs": None, "change_result": None, "scene_quality": None, "deep_learning_result": None,
     }.items():
         st.session_state[key] = value
     st.session_state["pipeline_status"] = {k: "pending" for k in ["Catalog", "Imagery", "Spectral", "Change", "AI"]}
@@ -313,6 +314,42 @@ available_deep_bands = (
     if st.session_state.satellite_data
     else set()
 )
+if st.session_state.satellite_data and active_item is not None:
+    st.caption("Real HLS S30 execution path — uses NASA HLS rather than treating Sentinel-2 L2A as HLS.")
+    if st.button("Acquire matching HLS S30 + Run Prithvi", type="primary", key="run_hls_prithvi"):
+        try:
+            bbox = st.session_state.drawn_aoi["bbox"] if st.session_state.drawn_aoi else create_bbox(latitude, longitude, area_size)
+            with st.spinner("Finding the matching NASA HLS S30 observation..."):
+                hls_items = search_hls_s30(
+                    bbox=bbox,
+                    target_datetime=active_item.datetime,
+                )
+                if not hls_items:
+                    raise RuntimeError("No HLS S30 observation was found within ±1 day of the selected Sentinel-2 scene.")
+                hls_scene = load_hls_s30_item(hls_items[0], bbox)
+            with st.spinner("Running Prithvi-EO-2.0 300M Burn Scars..."):
+                prediction = predict_burn_scars(hls_scene.cube)
+            st.session_state.deep_learning_result = {
+                "prediction": prediction,
+                "transform": hls_scene.transform,
+                "crs": hls_scene.crs,
+                "hls_item_id": hls_scene.item_id,
+            }
+            st.success(f"Prithvi completed on {hls_scene.item_id}.")
+            update_pipeline_status("AI", "done")
+        except Exception as exc:
+            update_pipeline_status("AI", "error")
+            st.error("Real Prithvi inference failed.")
+            with st.expander("Technical details"):
+                st.exception(exc)
+
+if st.session_state.deep_learning_result:
+    result = st.session_state.deep_learning_result
+    prediction = result["prediction"]
+    st.metric("Burn scar fraction", f"{100.0 * prediction.burned_fraction:.2f}%")
+    st.caption(f"HLS source: {result['hls_item_id']} · valid coverage: {100.0 * prediction.valid_fraction:.1f}%")
+    st.image((prediction.mask == 1).astype(np.uint8) * 255, caption="Prithvi · Burn Scar segmentation", use_container_width=True)
+
 deep_runtime_ok, deep_runtime_message = runtime_available()
 deep_harmonization_status = st.session_state.get("deep_harmonization_status")
 
