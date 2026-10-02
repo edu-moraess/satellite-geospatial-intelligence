@@ -1,12 +1,13 @@
 """
-Interface unificada de busca no catálogo.
-Delega a busca para o módulo específico de cada sensor.
+Unified satellite catalog search interface.
+
+Delegates discovery to the implementation registered for each sensor.
 """
+from typing import Optional
 
 from src.catalog import search_sentinel
 from src.catalog_landsat import search_landsat
 from src.sensor_registry import get_sensor
-from typing import Optional
 
 
 def search_sensor_catalog(
@@ -21,16 +22,10 @@ def search_sensor_catalog(
     max_retries: int = 3,
     max_items: int = 30,
 ):
-    """
-    Função unificada para busca de cenas no catálogo.
-
-    Parâmetros adicionais:
-        max_retries: número de tentativas em caso de timeout/erro.
-        max_items: limite de resultados retornados (reduz carga no servidor).
-    """
+    """Search the selected real satellite catalog with bounded retries."""
     sensor = get_sensor(sensor_id)
     if sensor is None:
-        raise ValueError(f"Sensor '{sensor_id}' não suportado.")
+        raise ValueError(f"Sensor '{sensor_id}' not supported.")
 
     if sensor_id == "sentinel2":
         return search_sentinel(
@@ -44,8 +39,8 @@ def search_sensor_catalog(
             max_retries=max_retries,
             max_items=max_items,
         )
-    elif sensor_id == "landsat":
-        # Se o módulo Landsat não aceitar os parâmetros, ajuste aqui ou remova-os
+
+    if sensor_id == "landsat":
         return search_landsat(
             latitude=latitude,
             longitude=longitude,
@@ -57,7 +52,7 @@ def search_sensor_catalog(
             max_retries=max_retries,
             max_items=max_items,
         )
-    else:
-        raise NotImplementedError(
-            f"Busca para '{sensor_id}' ainda não implementada."
-        )
+
+    raise NotImplementedError(
+        f"Search for '{sensor_id}' is not implemented."
+    )
