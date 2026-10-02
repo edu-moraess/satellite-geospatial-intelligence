@@ -34,7 +34,7 @@ def render_scene_catalog(items, active_scene_id: str | None = None):
         with row[2]:
             st.markdown(f'<div class="table-cell">{status_badge("Ready" if ready else "Review", "ready" if ready else "pending")}</div>', unsafe_allow_html=True)
         with row[3]:
-            if st.button("Select", key=f"scene_select_{idx}", width="stretch"):
+            if st.button("Select", key=f"scene_select_{idx}", use_container_width=True):
                 selected = item
         if active_scene_id == item.id:
             st.markdown('<div class="active-scene-line">ACTIVE SCENE</div>', unsafe_allow_html=True)
