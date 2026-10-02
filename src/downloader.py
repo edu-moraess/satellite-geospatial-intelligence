@@ -17,6 +17,7 @@ Features:
 from pathlib import Path
 import time
 from datetime import datetime, timezone
+import hashlib
 
 import numpy as np
 import rasterio
@@ -229,6 +230,19 @@ def read_remote_window(
         "asset after multiple attempts.\n\n"
         f"Last error: {last_error}"
     )
+
+
+# ============================================================
+# AOI CACHE IDENTITY
+# ============================================================
+
+def bbox_cache_key(bbox) -> str:
+    """Return a stable short cache key for a WGS84 bbox."""
+    if len(bbox) != 4:
+        raise ValueError("bbox must contain exactly four coordinates.")
+    normalized = tuple(round(float(value), 6) for value in bbox)
+    payload = "|".join(f"{value:.6f}" for value in normalized)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
 # ============================================================

@@ -21,7 +21,7 @@ import rasterio
 from rasterio.windows import from_bounds
 from rasterio.warp import transform_bounds
 
-from src.downloader import ensure_output_directory, is_valid_geotiff
+from src.downloader import bbox_cache_key, ensure_output_directory, is_valid_geotiff
 
 
 # ============================================================
@@ -72,7 +72,7 @@ def _download_windowed_band(item, sentinel_key, asset, bbox, output_directory):
     grava só esse recorte localmente.
     """
 
-    output_path = output_directory / f"{sentinel_key}.tif"
+    output_directory = ensure_output_directory(output_directory / bbox_cache_key(bbox))\n    output_path = output_directory / f"{sentinel_key}.tif"
 
     # --------------------------------------------------------
     # REUSE
