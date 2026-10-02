@@ -35,12 +35,12 @@ def connect_catalog(timeout: int = 180):
 
     # Mantém compatibilidade com Planetary Computer se quiser voltar
     modifier = None
-    if "planetarycomputer" in PLANETARY_COMPUTER_STAC:
+    if "planetarycomputer" in EARTH_SEARCH_STAC_URL:
         import planetary_computer
         modifier = planetary_computer.sign_inplace
 
     return pystac_client.Client.open(
-        PLANETARY_COMPUTER_STAC,
+        EARTH_SEARCH_STAC_URL,
         modifier=modifier,
         stac_io=stac_io,
     )

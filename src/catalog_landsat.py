@@ -29,7 +29,7 @@ def search_landsat(
     for attempt in range(max_retries):
         try:
             catalog = Client.open(
-                PLANETARY_COMPUTER_STAC,
+                EARTH_SEARCH_STAC_URL,
                 modifier=planetary_computer.sign_inplace,
             )
             search = catalog.search(

@@ -102,11 +102,8 @@ class TestNormalizedChange(unittest.TestCase):
         self.assertAlmostEqual(float(result[0, 0]), 0.5, places=5)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 from pathlib import Path
-import unittest
+
 
 
 class TestChangeStatisticsAppContract(unittest.TestCase):
