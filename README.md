@@ -295,3 +295,10 @@ Spectral values should be interpreted in the context of sensor characteristics a
 Sentinel-2 L2A downloads now resolve Earth Search semantic asset keys for B8A, B12 and SCL, decode the STAC radiometric scale/offset contract without double-applying the BOA offset, and preserve an AOI-level Scene Classification quality report. Cloud, cloud-shadow, snow and invalid pixels are excluded from quantitative spectral processing.
 
 The deep-learning layer registers a Prithvi-EO-2.0 Burn Scars checkpoint contract but deliberately blocks inference for raw Sentinel-2 L2A until an explicit Sentinel-2/HLS harmonization path is validated. The six-band model contract is B02, B03, B04, B8A, B11 and B12; the Burn Scars checkpoint was fine-tuned on HLS data.
+
+
+### Sentinel-2 → Prithvi adapter
+
+The deep-learning layer now contains a dedicated adapter that orders B02/B03/B04/B8A/B11/B12, resamples the native 10 m/20 m Sentinel-2 inputs to a 30 m target grid using area averaging, and applies the published Prithvi Burn Scars normalization constants. The adapter reports its provenance explicitly as `spatially_harmonized`.
+
+It does **not** claim to be an HLS S30 product. NASA HLS additionally applies spectral bandpass adjustment and nadir/BRDF normalization. Consequently the Burn Scars checkpoint remains disabled until a validated HLS-equivalent harmonization path is established.
