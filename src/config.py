@@ -15,7 +15,10 @@ data/
         ├── B03.tif
         ├── B04.tif
         ├── B08.tif
-        └── B11.tif
+        ├── B8A.tif
+        ├── B11.tif
+        ├── B12.tif
+        └── SCL.tif
 """
 
 from pathlib import Path
@@ -100,5 +103,11 @@ AVAILABLE_BANDS = {
 
     "B08": "NIR",
 
-    "B11": "SWIR",
+    "B8A": "Narrow NIR",
+
+    "B11": "SWIR 1",
+
+    "B12": "SWIR 2",
+
+    "SCL": "Scene Classification",
 }
