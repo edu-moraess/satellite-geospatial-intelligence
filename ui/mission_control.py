@@ -28,7 +28,7 @@ def render_sidebar() -> dict:
 
         st.markdown("**Scene Filter**")
         max_cloud_cover = st.slider("Max cloud cover", 0, 100, 10, 1, format="%d%%", key="mission_cloud")
-        search_clicked = st.button("Search Satellite Data", type="primary", width="stretch", key="mission_search")
+        search_clicked = st.button("Search Satellite Data", type="primary", use_container_width=True, key="mission_search")
 
     return {"sensor_id": sensor_id, "sensor": sensor, "latitude": float(latitude), "longitude": float(longitude), "area_size": float(area_size), "start_date": start_date, "end_date": end_date, "max_cloud_cover": int(max_cloud_cover), "search_clicked": search_clicked}
 
