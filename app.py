@@ -208,13 +208,13 @@ if st.session_state.index_stats:
         "NDBI": f'{stats.get("ndbi", {}).get("mean", 0.0):.3f}',
     })
     if st.session_state.index_figure is not None:
-        st.plotly_chart(st.session_state.index_figure, use_container_width=True)
+        st.pyplot(st.session_state.index_figure, use_container_width=True)
 else:
     st.caption("No spectral analysis available. Download a scene first.")
 
 section_header("Land Cover", "Spectral classification")
 if st.session_state.classification_fig is not None:
-    st.plotly_chart(st.session_state.classification_fig, use_container_width=True)
+    st.pyplot(st.session_state.classification_fig, use_container_width=True)
     if st.session_state.percentages:
         cols = st.columns(5)
         for col, label in zip(cols, ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"]):
@@ -252,7 +252,7 @@ else:
 if st.session_state.change_result:
     stats = st.session_state.change_result["statistics"]
     render_change_metrics(f'{stats.get("decrease_area_km2",0):.3f} km²', f'{stats.get("increase_area_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
-    st.plotly_chart(st.session_state.change_result["figure"], use_container_width=True)
+    st.pyplot(st.session_state.change_result["figure"], use_container_width=True)
 
 section_header("Geospatial AI", "Real checkpoint required")
 models = list_models()
