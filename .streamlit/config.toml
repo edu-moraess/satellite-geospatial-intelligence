@@ -1,9 +1,12 @@
 # Satellite Geospatial Intelligence — Streamlit configuration
-# Theme: only primary accent is set. Background / text / base mode
-# remain under Streamlit Light/Dark control (no forced skin).
+# Explicit dark theme. Native Streamlit surfaces must match the application shell.
 
 [theme]
-primaryColor = "#3B82F6"
+base = "dark"
+primaryColor = "#2BB0D9"
+backgroundColor = "#071014"
+secondaryBackgroundColor = "#0B171C"
+textColor = "#E8EEF2"
 font = "sans serif"
 
 [server]
