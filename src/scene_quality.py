@@ -58,16 +58,9 @@ def scene_quality_report(scl: np.ndarray | None, reference: np.ndarray) -> dict:
     snow_fraction = float(np.mean(snow))
     usable_fraction = float(np.mean(usable))
 
-    score = max(
-        0.0,
-        min(
-            1.0,
-            usable_fraction
-            * (1.0 - cloud_fraction)
-            * (1.0 - shadow_fraction)
-            * (1.0 - snow_fraction),
-        ),
-    )
+    # Keep the score deterministic and directly interpretable: it is
+    # simply the fraction of AOI pixels classified as usable.
+    score = usable_fraction
 
     return {
         "available": True,
