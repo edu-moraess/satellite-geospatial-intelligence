@@ -614,7 +614,7 @@ def render_map_panel(
 ) -> dict[str, Any]:
 
     st.subheader(
-        "Geospatial Operations Center"
+        "Geospatial workspace"
     )
 
     st.caption(
