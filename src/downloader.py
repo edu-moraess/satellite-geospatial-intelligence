@@ -255,15 +255,31 @@ def download_band(
     # FIND ASSET
     # --------------------------------------------------------
 
-    asset = item.assets.get(
-        band_name
+    # Earth Search v1 uses semantic STAC asset keys for Sentinel-2 COGs.
+    # Keep the internal B02/B03/B04/B08/B11 contract and resolve the
+    # provider-specific asset key at the download boundary.
+    asset_candidates = {
+        "B02": ("blue", "B02"),
+        "B03": ("green", "B03"),
+        "B04": ("red", "B04"),
+        "B08": ("nir", "B08"),
+        "B11": ("swir16", "B11"),
+    }.get(band_name, (band_name,))
+
+    asset = next(
+        (
+            item.assets[key]
+            for key in asset_candidates
+            if key in item.assets and "jp2" not in key.lower()
+        ),
+        None,
     )
 
     if asset is None:
-
+        available = ", ".join(sorted(item.assets.keys()))
         raise ValueError(
-            f"Band {band_name} was not found "
-            f"in scene {item.id}."
+            f"Asset for Sentinel-2 band {band_name} was not found "
+            f"in scene {item.id}. Available assets: {available}"
         )
 
     # --------------------------------------------------------
