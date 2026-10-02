@@ -44,6 +44,34 @@ def load_theme():
             max-width: 1400px !important;
         }}
 
+        /* Global Streamlit surfaces */
+        .stApp, .stAppViewContainer, [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"], [data-testid="stToolbar"] {
+            background: ${COLORS["bg_primary"]} !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"],
+        [data-testid="stPopover"],
+        div[data-baseweb="popover"],
+        div[data-baseweb="menu"],
+        ul[role="listbox"],
+        div[data-baseweb="select"] [role="listbox"] {
+            background: ${COLORS["bg_panel"]} !important;
+            color: ${COLORS["text_primary"]} !important;
+            border-color: ${COLORS["border"]} !important;
+        }
+        [data-baseweb="menu"] li,
+        [role="option"],
+        [role="menuitem"] {
+            background: ${COLORS["bg_panel"]} !important;
+            color: ${COLORS["text_primary"]} !important;
+        }
+        [data-baseweb="menu"] li:hover,
+        [role="option"]:hover,
+        [role="menuitem"]:hover {
+            background: ${COLORS["accent_dim"]} !important;
+            color: ${COLORS["text_primary"]} !important;
+        }
+
         /* Sidebar */
         section[data-testid="stSidebar"] {{
             background: {COLORS["bg_secondary"]};
@@ -209,8 +237,9 @@ def load_theme():
         }}
 
         /* Botões */
+        /* Primary and secondary buttons */
         .stButton button {{
-            background: transparent;
+            background: ${COLORS["bg_secondary"]};
             border: 1px solid {COLORS["border"]};
             color: {COLORS["text_primary"]};
             border-radius: 4px;
@@ -226,6 +255,43 @@ def load_theme():
         .stButton button[data-baseweb="button"]:focus {{
             box-shadow: none;
         }}
+
+        /* Inputs, selects, sliders and widget surfaces */
+        .stTextInput input,
+        .stNumberInput input,
+        .stDateInput input,
+        .stTimeInput input,
+        .stTextArea textarea,
+        .stSelectbox [data-baseweb="select"] > div,
+        .stMultiSelect [data-baseweb="select"] > div,
+        .stSlider [data-baseweb="slider"] {
+            background: ${COLORS["bg_secondary"]} !important;
+            color: ${COLORS["text_primary"]} !important;
+            border-color: ${COLORS["border"]} !important;
+        }
+        .stTextInput input::placeholder,
+        .stNumberInput input::placeholder,
+        .stDateInput input::placeholder {
+            color: ${COLORS["text_secondary"]} !important;
+        }
+        .stSelectbox [data-baseweb="select"] *,
+        .stMultiSelect [data-baseweb="select"] *,
+        .stDateInput input,
+        .stNumberInput input,
+        .stTextInput input {
+            color: ${COLORS["text_primary"]} !important;
+        }
+        .stCheckbox label,
+        .stRadio label,
+        .stSelectbox label,
+        .stMultiSelect label,
+        .stDateInput label,
+        .stNumberInput label,
+        .stSlider label,
+        .stTextInput label,
+        .stTextArea label {
+            color: ${COLORS["text_secondary"]} !important;
+        }
 
         /* Selectbox, inputs */
         .stSelectbox div[data-baseweb="select"] > div,
@@ -258,6 +324,13 @@ def load_theme():
             background: {COLORS["bg_panel"]};
             border-bottom: 2px solid {COLORS["accent"]};
         }}
+
+        /* Alerts / notifications */
+        [data-testid="stAlert"] {
+            background: ${COLORS["bg_panel"]} !important;
+            color: ${COLORS["text_primary"]} !important;
+            border: 1px solid ${COLORS["border"]} !important;
+        }
 
         /* Expanders */
         .streamlit-expanderHeader {{
