@@ -251,7 +251,7 @@ else:
     st.caption("At least two scenes are required for change detection.")
 if st.session_state.change_result:
     stats = st.session_state.change_result["statistics"]
-    render_change_metrics(f'{stats.get("decrease_area_km2",0):.3f} km²', f'{stats.get("increase_area_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
+    render_change_metrics(f'{stats.get("decrease_km2",0):.3f} km²', f'{stats.get("increase_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
     st.pyplot(st.session_state.change_result["figure"], use_container_width=True)
 
 section_header("Geospatial AI", "Real checkpoint required")

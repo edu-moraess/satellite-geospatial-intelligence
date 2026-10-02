@@ -78,6 +78,11 @@ class TestChangeStatistics(unittest.TestCase):
         )
 
         self.assertEqual(stats["increase_pixels"], 2)
+        self.assertIn("decrease_km2", stats)
+        self.assertIn("increase_km2", stats)
+        self.assertIn("total_changed_km2", stats)
+        self.assertAlmostEqual(stats["decrease_km2"], 1 * (10.0 ** 2) / 1_000_000.0, places=8)
+        self.assertAlmostEqual(stats["increase_km2"], 2 * (10.0 ** 2) / 1_000_000.0, places=8)
         self.assertEqual(stats["decrease_pixels"], 1)
         self.assertEqual(stats["unchanged_pixels"], 1)
         self.assertAlmostEqual(
@@ -95,6 +100,22 @@ class TestNormalizedChange(unittest.TestCase):
 
         result = normalized_change(before, after)
         self.assertAlmostEqual(float(result[0, 0]), 0.5, places=5)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+from pathlib import Path
+import unittest
+
+
+class TestChangeStatisticsAppContract(unittest.TestCase):
+    def test_app_uses_change_statistics_keys(self):
+        app_text = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+        self.assertIn("decrease_km2", app_text)
+        self.assertIn("increase_km2", app_text)
+        self.assertNotIn("decrease_area_km2", app_text)
+        self.assertNotIn("increase_area_km2", app_text)
 
 
 if __name__ == "__main__":
