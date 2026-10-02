@@ -132,7 +132,7 @@ if active_item is not None:
     with meta_cols[0]: st.caption(active_item.id)
     with meta_cols[1]: st.caption(sensor.name)
     with meta_cols[2]:
-        if st.button("Download Scene", type="primary", width="stretch", key="download_active"):
+        if st.button("Download Scene", type="primary", use_container_width=True, key="download_active"):
             bbox = st.session_state.drawn_aoi["bbox"] if st.session_state.drawn_aoi else create_bbox(latitude, longitude, area_size)
             with st.spinner(f"Downloading {active_item.id}..."):
                 try:
@@ -159,22 +159,22 @@ else:
 if st.session_state.rgb_img is not None:
     c1, c2 = st.columns(2)
     with c1:
-        st.image(st.session_state.rgb_img, caption="Natural Color", width="stretch")
+        st.image(st.session_state.rgb_img, caption="Natural Color", use_container_width=True)
     with c2:
-        st.image(st.session_state.false_color_img, caption="False Color · NIR", width="stretch")
+        st.image(st.session_state.false_color_img, caption="False Color · NIR", use_container_width=True)
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
 section_header("Spectral Intelligence", "NDVI · NDWI · NDBI")
 if st.session_state.ndvi is not None:
     render_spectral_cards({"NDVI": f'{st.session_state.ndvi:.3f}', "NDWI": f'{st.session_state.ndwi:.3f}', "NDBI": f'{st.session_state.ndbi:.3f}'})
-    if st.session_state.index_figure is not None: st.plotly_chart(st.session_state.index_figure, width="stretch")
+    if st.session_state.index_figure is not None: st.plotly_chart(st.session_state.index_figure, use_container_width=True)
 else:
     st.caption("No spectral analysis available. Download a scene first.")
 
 section_header("Land Cover", "Rule-based classification from spectral indices")
 if st.session_state.classification_fig is not None:
-    st.plotly_chart(st.session_state.classification_fig, width="stretch")
+    st.plotly_chart(st.session_state.classification_fig, use_container_width=True)
     if st.session_state.percentages:
         cols = st.columns(5)
         for col, label in zip(cols, ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"]):
@@ -212,7 +212,7 @@ else:
 if st.session_state.change_result:
     stats = st.session_state.change_result["statistics"]
     render_change_metrics(f'{stats.get("decrease_area_km2",0):.3f} km²', f'{stats.get("increase_area_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
-    st.plotly_chart(st.session_state.change_result["figure"], width="stretch")
+    st.plotly_chart(st.session_state.change_result["figure"], use_container_width=True)
 
 section_header("Geospatial AI", "Inference only when a real checkpoint is available")
 models = list_models()
@@ -239,10 +239,10 @@ else:
             update_pipeline_status("AI", "error"); st.error("Geospatial AI inference failed.")
             with st.expander("Technical details"): st.exception(exc)
 if st.session_state.detection_figure is not None:
-    st.image(st.session_state.detection_figure, caption="Detected objects", width="stretch")
+    st.image(st.session_state.detection_figure, caption="Detected objects", use_container_width=True)
 if st.session_state.object_detections and st.session_state.transform is not None:
     gdf = georeference_detections(st.session_state.object_detections, transform=st.session_state.transform, crs=st.session_state.crs)
-    st.download_button("Download GeoJSON", data=to_geojson_bytes(gdf), file_name="detections.geojson", mime="application/geo+json", width="stretch")
+    st.download_button("Download GeoJSON", data=to_geojson_bytes(gdf), file_name="detections.geojson", mime="application/geo+json", use_container_width=True)
 
 section_header("Processing Pipeline", "Current mission state")
 render_pipeline_status(get_pipeline_status())
