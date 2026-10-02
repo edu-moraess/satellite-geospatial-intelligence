@@ -11,9 +11,9 @@ def scene_label(item) -> str:
 
 
 def render_scene_catalog(items, active_scene_id: str | None = None):
-    section_header("Satellite Archive", f"{len(items)} observations")
+    section_header("Scenes", f"{len(items)} observations")
     if not items:
-        st.caption("No scenes match the current mission filters.")
+        st.caption("No scenes match the current filters.")
         return None
 
     header = st.columns([2.2, 1.2, 1.1, 1.0])
