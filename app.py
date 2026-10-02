@@ -200,9 +200,15 @@ if st.session_state.rgb_img is not None:
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
 section_header("Spectral", "NDVI · NDWI · NDBI")
-if st.session_state.ndvi is not None:
-    render_spectral_cards({"NDVI": f'{st.session_state.ndvi:.3f}', "NDWI": f'{st.session_state.ndwi:.3f}', "NDBI": f'{st.session_state.ndbi:.3f}'})
-    if st.session_state.index_figure is not None: st.plotly_chart(st.session_state.index_figure, use_container_width=True)
+if st.session_state.index_stats:
+    stats = st.session_state.index_stats
+    render_spectral_cards({
+        "NDVI": f'{stats.get("ndvi", {}).get("mean", 0.0):.3f}',
+        "NDWI": f'{stats.get("ndwi", {}).get("mean", 0.0):.3f}',
+        "NDBI": f'{stats.get("ndbi", {}).get("mean", 0.0):.3f}',
+    })
+    if st.session_state.index_figure is not None:
+        st.plotly_chart(st.session_state.index_figure, use_container_width=True)
 else:
     st.caption("No spectral analysis available. Download a scene first.")
 
