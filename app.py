@@ -19,7 +19,6 @@ from src.object_detection import filter_classes, filter_detections, draw_detecti
 from src.tiling import create_tiles
 from src.detector_model import SatelliteDetector
 from src.raster_validation import RasterValidationError
-from src.sensor_registry import get_sensor
 from src.workflows.imagery import process_scene
 from src.workflows.change import run_change
 from src.map_view import render_map_panel
@@ -72,31 +71,67 @@ def reset_analysis_state() -> None:
 
 
 def perform_search() -> None:
-    if config["start_date"] > config["end_date"]:
+    start_date = config["start_date"]
+    end_date = config["end_date"]
+
+    if start_date > end_date:
         st.error("Start date must be before end date.")
         return
+
+    bbox = st.session_state.get("drawn_aoi", {}).get("bbox")
+    if bbox is None:
+        bbox = create_bbox(latitude, longitude, area_size)
+
+    if len(bbox) != 4 or bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        st.error("Invalid AOI. Check latitude, longitude and area size.")
+        return
+
+    # A new query is authoritative: do not keep stale scenes from a previous AOI.
+    st.session_state.search_results = []
+    st.session_state.active_scene_id = None
+    st.session_state.retry_search = False
+    update_pipeline_status("Catalog", "running")
+
     with st.spinner(f"Searching {sensor.name} catalog..."):
         try:
-            aoi = st.session_state.get("drawn_aoi")
             results = search_sensor_catalog(
-                sensor_id=config["sensor_id"], latitude=latitude, longitude=longitude,
-                area_size=area_size, start_date=str(config["start_date"]), end_date=str(config["end_date"]),
-                max_cloud_cover=config["max_cloud_cover"], bbox=aoi["bbox"] if aoi else None,
-                max_retries=3, max_items=30,
+                sensor_id=config["sensor_id"],
+                latitude=latitude,
+                longitude=longitude,
+                area_size=area_size,
+                start_date=str(start_date),
+                end_date=str(end_date),
+                max_cloud_cover=config["max_cloud_cover"],
+                bbox=bbox,
+                max_retries=3,
+                max_items=30,
             )
-            st.session_state.search_results = results
+
+            st.session_state.search_results = results or []
             reset_analysis_state()
             update_pipeline_status("Catalog", "done")
-            st.session_state.retry_search = False
+
+            if not st.session_state.search_results:
+                st.warning(
+                    f"No {sensor.name} scenes found for this AOI and filters. "
+                    f"Try a larger area, wider date range or higher cloud-cover limit."
+                )
+                return
+
+            st.success(f"{len(st.session_state.search_results)} scene(s) found in the satellite catalog.")
             st.rerun()
+
         except Exception as exc:
-            st.session_state.retry_search = True
             update_pipeline_status("Catalog", "error")
-            st.error(f"Catalog search failed for {sensor.name}.")
+            st.error(
+                f"Could not access the {sensor.name} satellite catalog. "
+                "The query was not completed."
+            )
             with st.expander("Technical details"):
                 st.exception(exc)
 
-if config["search_clicked"] or st.session_state.get("retry_search"):
+
+if config["search_clicked"]:
     perform_search()
 
 items = st.session_state.search_results
