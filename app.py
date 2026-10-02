@@ -90,7 +90,7 @@ def perform_search() -> None:
     st.session_state.search_results = []
     st.session_state.active_scene_id = None
     st.session_state.retry_search = False
-    update_pipeline_status("Catalog", "running")
+    update_pipeline_status("Catalog", "active")
 
     with st.spinner(f"Searching {sensor.name} catalog..."):
         try:
