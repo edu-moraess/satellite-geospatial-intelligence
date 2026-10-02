@@ -138,7 +138,7 @@ if config["search_clicked"]:
 items = st.session_state.search_results
 
 render_header()
-section_header("Geospatial Workspace", "AOI · Scenes · Observations")
+section_header("Mission Workspace", "AOI · Archive · Analysis")
 try:
     map_state = render_map_panel(latitude=latitude, longitude=longitude, area_size=area_size, key="aoi_map")
     selected_aoi = get_selected_aoi(map_state)
@@ -161,7 +161,7 @@ if selected is not None:
 
 active_item = next((x for x in items if x.id == st.session_state.active_scene_id), None)
 if active_item is not None:
-    section_header("Observation", f"{active_item.datetime.date() if active_item.datetime else 'Unknown'} · {float(active_item.properties.get('eo:cloud_cover', 0)):.2f}%")
+    section_header("Scene", f"{active_item.datetime.date() if active_item.datetime else 'Unknown'} · {float(active_item.properties.get('eo:cloud_cover', 0)):.2f}%")
     meta_cols = st.columns([3, 2, 1.2])
     with meta_cols[0]: st.caption(active_item.id)
     with meta_cols[1]: st.caption(sensor.name)
@@ -187,8 +187,8 @@ if active_item is not None:
                     update_pipeline_status("Imagery", "error"); st.error("Scene download or processing failed.")
                     with st.expander("Technical details"): st.exception(exc)
 else:
-    section_header("Observation", "No scene selected")
-    st.caption("Select a scene from the archive to download and analyze it.")
+    section_header("Scene", "NO ACTIVE SCENE")
+    st.caption("Awaiting acquisition selection.")
 
 if st.session_state.rgb_img is not None:
     c1, c2 = st.columns(2)
@@ -199,7 +199,7 @@ if st.session_state.rgb_img is not None:
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-section_header("Spectral", "NDVI · NDWI · NDBI")
+section_header("Spectral Analysis", "NDVI · NDWI · NDBI")
 if st.session_state.index_stats:
     stats = st.session_state.index_stats
     render_spectral_cards({
@@ -210,9 +210,9 @@ if st.session_state.index_stats:
     if st.session_state.index_figure is not None:
         st.pyplot(st.session_state.index_figure, use_container_width=True)
 else:
-    st.caption("No spectral analysis available. Download a scene first.")
+    st.caption("Awaiting scene data.")
 
-section_header("Land Cover", "Spectral classification")
+section_header("Land Cover", "Classification")
 if st.session_state.classification_fig is not None:
     st.pyplot(st.session_state.classification_fig, use_container_width=True)
     if st.session_state.percentages:
@@ -220,9 +220,9 @@ if st.session_state.classification_fig is not None:
         for col, label in zip(cols, ["Vegetation", "Water", "Built-up", "Bare Soil", "Other"]):
             with col: st.metric(label, f'{st.session_state.percentages.get(label, 0):.1f}%')
 else:
-    st.caption("No land-cover classification available. Download a scene first.")
+    st.caption("Awaiting scene data.")
 
-section_header("Change", "Before / After")
+section_header("Change Detection", "Temporal analysis")
 if len(items) >= 2:
     labels = {f'{i.id[:14]} · {i.datetime.date() if i.datetime else "Unknown"} · {float(i.properties.get("eo:cloud_cover",0)):.2f}%': i for i in items}
     c1,c2,c3,c4 = st.columns(4)
@@ -248,13 +248,13 @@ if len(items) >= 2:
                 update_pipeline_status("Change", "error"); st.error("Change detection failed.")
                 with st.expander("Technical details"): st.exception(exc)
 else:
-    st.caption("At least two scenes are required for change detection.")
+    st.caption("Requires a temporal pair.")
 if st.session_state.change_result:
     stats = st.session_state.change_result["statistics"]
     render_change_metrics(f'{stats.get("decrease_km2",0):.3f} km²', f'{stats.get("increase_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
     st.pyplot(st.session_state.change_result["figure"], use_container_width=True)
 
-section_header("Geospatial AI", "Real checkpoint required")
+section_header("Geospatial Intelligence", "Model inference")
 models = list_models()
 model_id = st.selectbox("Model", models, key="ai_model")
 model = get_model(model_id)
