@@ -11,13 +11,13 @@ def scene_label(item) -> str:
 
 
 def render_scene_catalog(items, active_scene_id: str | None = None):
-    section_header("Scenes", f"{len(items)} observations")
+    section_header("Archive", f"{len(items)} acquisitions")
     if not items:
-        st.caption("No scenes match the current filters.")
+        st.caption("No acquisitions match the current query.")
         return None
 
     header = st.columns([2.2, 1.2, 1.1, 1.0])
-    for col, label in zip(header, ["Acquisition", "Cloud", "Status", "Action"]):
+    for col, label in zip(header, ["Acquisition", "Cloud", "State", "Action"]):
         with col:
             st.markdown(f'<div class="table-header">{label}</div>', unsafe_allow_html=True)
 
