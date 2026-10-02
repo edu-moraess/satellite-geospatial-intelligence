@@ -235,7 +235,7 @@ def load_theme():
         /* Botões */
         /* Primary and secondary buttons */
         .stButton button {{
-            background: ${COLORS["bg_secondary"]};
+            background: {COLORS["bg_secondary"]};
             border: 1px solid {COLORS["border"]};
             color: {COLORS["text_primary"]};
             border-radius: 4px;
@@ -251,43 +251,6 @@ def load_theme():
         .stButton button[data-baseweb="button"]:focus {{
             box-shadow: none;
         }}
-
-        /* Inputs, selects, sliders and widget surfaces */
-        .stTextInput input,
-        .stNumberInput input,
-        .stDateInput input,
-        .stTimeInput input,
-        .stTextArea textarea,
-        .stSelectbox [data-baseweb="select"] > div,
-        .stMultiSelect [data-baseweb="select"] > div,
-        .stSlider [data-baseweb="slider"] {
-            background: ${COLORS["bg_secondary"]} !important;
-            color: ${COLORS["text_primary"]} !important;
-            border-color: ${COLORS["border"]} !important;
-        }
-        .stTextInput input::placeholder,
-        .stNumberInput input::placeholder,
-        .stDateInput input::placeholder {
-            color: ${COLORS["text_secondary"]} !important;
-        }
-        .stSelectbox [data-baseweb="select"] *,
-        .stMultiSelect [data-baseweb="select"] *,
-        .stDateInput input,
-        .stNumberInput input,
-        .stTextInput input {
-            color: ${COLORS["text_primary"]} !important;
-        }
-        .stCheckbox label,
-        .stRadio label,
-        .stSelectbox label,
-        .stMultiSelect label,
-        .stDateInput label,
-        .stNumberInput label,
-        .stSlider label,
-        .stTextInput label,
-        .stTextArea label {
-            color: ${COLORS["text_secondary"]} !important;
-        }
 
         /* Widget surfaces */
         .stTextInput input,
@@ -341,13 +304,6 @@ def load_theme():
             background: {COLORS["bg_panel"]};
             border-bottom: 2px solid {COLORS["accent"]};
         }}
-
-        /* Alerts / notifications */
-        [data-testid="stAlert"] {
-            background: ${COLORS["bg_panel"]} !important;
-            color: ${COLORS["text_primary"]} !important;
-            border: 1px solid ${COLORS["border"]} !important;
-        }
 
         /* Alerts */
         [data-testid="stAlert"] {{
