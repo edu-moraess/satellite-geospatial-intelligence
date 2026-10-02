@@ -17,6 +17,8 @@ class EOModelDefinition:
     native_resolution_m: int
     source_domain: str
     classes: tuple[str, ...]
+    checkpoint_repo: str | None = None
+    input_size: int = 512
 
 
 MODELS = {
@@ -34,6 +36,8 @@ MODELS = {
         native_resolution_m=30,
         source_domain="HLS",
         classes=("Not burned", "Burn scar"),
+        checkpoint_repo="ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars",
+        input_size=512,
     ),
 }
 
