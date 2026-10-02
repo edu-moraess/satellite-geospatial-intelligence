@@ -264,6 +264,9 @@ def download_band(
             output_directory
         )
     )
+    output_directory = ensure_output_directory(
+        output_directory / bbox_cache_key(bbox)
+    )
 
     # --------------------------------------------------------
     # FIND ASSET
