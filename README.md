@@ -302,3 +302,10 @@ The deep-learning layer registers a Prithvi-EO-2.0 Burn Scars checkpoint contrac
 The deep-learning layer now contains a dedicated adapter that orders B02/B03/B04/B8A/B11/B12, resamples the native 10 m/20 m Sentinel-2 inputs to a 30 m target grid using area averaging, and applies the published Prithvi Burn Scars normalization constants. The adapter reports its provenance explicitly as `spatially_harmonized`.
 
 It does **not** claim to be an HLS S30 product. NASA HLS additionally applies spectral bandpass adjustment and nadir/BRDF normalization. Consequently the Burn Scars checkpoint remains disabled until a validated HLS-equivalent harmonization path is established.
+
+
+### Real Deep Learning runtime
+
+GEOCORE now registers the official **Prithvi-EO-2.0-300M-BurnScars** checkpoint and includes a lazy TerraTorch/PyTorch inference runtime. The model consumes six bands at 512×512 and predicts two classes: Not burned and Burn scar. The official repository reports inference on HLS imagery and publishes the model checkpoint at approximately 1.3 GB. The optional runtime is isolated from the base Streamlit dependency set to avoid making the core application depend on a very large ML stack. citeturn2view0turn5search0
+
+Sentinel-2 inference remains gated until the GEOCORE Sentinel-2 → HLS S30 harmonization is scientifically validated. Spatial resampling to 30 m and applying model normalization alone does not establish equivalence to HLS.
