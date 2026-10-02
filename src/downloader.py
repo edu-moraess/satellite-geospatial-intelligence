@@ -467,6 +467,33 @@ def download_band(
                     )
 
                 # --------------------------------------------
+                # RADIOMETRIC DECODING
+                # --------------------------------------------
+                # Earth Search exposes Sentinel-2 COGs as integer storage
+                # values plus STAC raster scale/offset metadata. The item
+                # flag tells us whether the BOA offset was already applied
+                # during COG creation; never subtract it twice.
+                if band_name != "SCL":
+                    raster_bands = asset.extra_fields.get("raster:bands", [])
+                    raster_meta = raster_bands[0] if raster_bands else {}
+                    scale = float(raster_meta.get("scale", 1.0))
+                    offset = float(raster_meta.get("offset", 0.0))
+                    if item.properties.get("earthsearch:boa_offset_applied") is True:
+                        offset = 0.0
+
+                    raw_nodata = raster_meta.get("nodata")
+                    data = data.astype(np.float32, copy=False)
+                    if raw_nodata is not None:
+                        data[data == float(raw_nodata)] = np.nan
+                    data = data * scale + offset
+                    output_dtype = "float32"
+                    output_nodata = np.nan
+                else:
+                    data = data.astype(np.uint8, copy=False)
+                    output_dtype = "uint8"
+                    output_nodata = 0
+
+                # --------------------------------------------
                 # TRANSFORM
                 # --------------------------------------------
 
@@ -492,9 +519,8 @@ def download_band(
                         "transform": transform,
                         "count": 1,
                         "compress": "deflate",
-                        "dtype": str(
-                            data.dtype
-                        ),
+                        "dtype": output_dtype,
+                        "nodata": output_nodata,
                     }
                 )
 
