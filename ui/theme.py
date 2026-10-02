@@ -338,6 +338,33 @@ def load_theme():
             background: {COLORS["text_secondary"]};
         }}
 
+        /* Mission Control / application shell */
+        .eyebrow { font-size:0.65rem; letter-spacing:0.14em; color:{COLORS["accent"]}; }
+        .sidebar-title { font-size:1.05rem; font-weight:600; color:{COLORS["text_primary"]}; margin-top:0.15rem; }
+        .sidebar-subtitle { font-size:0.7rem; color:{COLORS["text_secondary"]}; margin-bottom:1.2rem; }
+        .mission-metric, .telemetry { padding:0.35rem 0; min-height:2.5rem; }
+        .metric-value-small { font-size:0.86rem; font-weight:500; color:{COLORS["text_primary"]}; }
+        .table-header { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em; color:{COLORS["text_secondary"]}; padding:0.35rem 0; border-bottom:1px solid {COLORS["border"]}; }
+        .table-cell { padding:0.55rem 0; min-height:2.2rem; border-bottom:1px solid {COLORS["border"]}; color:{COLORS["text_primary"]}; }
+        .scene-id { display:block; font-size:0.62rem; color:{COLORS["text_secondary"]}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .active-scene-line { font-size:0.58rem; letter-spacing:0.12em; color:{COLORS["accent"]}; padding:0.15rem 0 0.35rem; }
+        .section-divider { height:1px; background:{COLORS["border"]}; margin:1.2rem 0; }
+        .footer-note { margin-top:2rem; padding-top:0.9rem; border-top:1px solid {COLORS["border"]}; font-size:0.65rem; color:{COLORS["text_secondary"]}; text-align:center; letter-spacing:0.03em; }
+
+        /* Primary button keeps a clear action hierarchy. */
+        .stButton button[kind="primary"], .stButton button[data-testid="stBaseButton-primary"] {
+            background:{COLORS["accent"]} !important;
+            border-color:{COLORS["accent"]} !important;
+            color:#061014 !important;
+        }
+        .stButton button[kind="primary"]:hover, .stButton button[data-testid="stBaseButton-primary"]:hover {
+            filter:brightness(1.08);
+        }
+
+        /* Streamlit data surfaces */
+        [data-testid="stDataFrame"], [data-testid="stTable"] { background:{COLORS["bg_panel"]} !important; }
+        [data-testid="stImage"] { border-radius:6px; overflow:hidden; }
+
         /* Responsividade */
         @media (max-width: 768px) {{
             .block-container {{
