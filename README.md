@@ -288,3 +288,10 @@ Spectral values should be interpreted in the context of sensor characteristics a
 ---
 
 *GEOCORE — experimental Earth Observation / remote sensing analysis on Sentinel-2.*
+
+
+### Scientific processing safeguards
+
+Sentinel-2 L2A downloads now resolve Earth Search semantic asset keys for B8A, B12 and SCL, decode the STAC radiometric scale/offset contract without double-applying the BOA offset, and preserve an AOI-level Scene Classification quality report. Cloud, cloud-shadow, snow and invalid pixels are excluded from quantitative spectral processing.
+
+The deep-learning layer registers a Prithvi-EO-2.0 Burn Scars checkpoint contract but deliberately blocks inference for raw Sentinel-2 L2A until an explicit Sentinel-2/HLS harmonization path is validated. The six-band model contract is B02, B03, B04, B8A, B11 and B12; the Burn Scars checkpoint was fine-tuned on HLS data.
