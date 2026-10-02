@@ -27,6 +27,7 @@ streamlit-folium
 
 # ---- figures (spectral indices, land cover, change maps) ----
 matplotlib
+plotly
 
 # ---- weather intelligence (src/weather/) ----
 requests
