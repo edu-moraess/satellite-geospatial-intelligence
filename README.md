@@ -306,6 +306,6 @@ It does **not** claim to be an HLS S30 product. NASA HLS additionally applies sp
 
 ### Real Deep Learning runtime
 
-GEOCORE now registers the official **Prithvi-EO-2.0-300M-BurnScars** checkpoint and includes a lazy TerraTorch/PyTorch inference runtime. The model consumes six bands at 512×512 and predicts two classes: Not burned and Burn scar. The official repository reports inference on HLS imagery and publishes the model checkpoint at approximately 1.3 GB. The optional runtime is isolated from the base Streamlit dependency set to avoid making the core application depend on a very large ML stack. citeturn2view0turn5search0
+GEOCORE now registers the official **Prithvi-EO-2.0-300M-BurnScars** checkpoint and includes a lazy TerraTorch/PyTorch inference runtime. The model consumes six bands at 512×512 and predicts two classes: Not burned and Burn scar. The official repository reports inference on HLS imagery and publishes the model checkpoint at approximately 1.3 GB. The optional runtime is isolated from the base Streamlit dependency set to avoid making the core application depend on a very large ML stack.
 
 Sentinel-2 inference remains gated until the GEOCORE Sentinel-2 → HLS S30 harmonization is scientifically validated. Spatial resampling to 30 m and applying model normalization alone does not establish equivalence to HLS.
