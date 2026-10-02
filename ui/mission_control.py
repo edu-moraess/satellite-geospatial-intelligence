@@ -25,7 +25,7 @@ def render_sidebar() -> dict:
         sensor = get_sensor(sensor_id)
         st.caption(sensor.description)
 
-        st.markdown("**Area of Interest**")
+        st.markdown("**AOI**")
         latitude = st.number_input(
             "Latitude", -90.0, 90.0, DEFAULT_LATITUDE,
             key="aoi_latitude", format="%.6f",
@@ -43,7 +43,7 @@ def render_sidebar() -> dict:
         )
         st.caption("Coordinates can be entered manually or selected on the map.")
 
-        st.markdown("**Temporal Window**")
+        st.markdown("**Temporal**")
         start_date = st.date_input(
             "Start", value=date(2026, 1, 1), key="mission_start_date"
         )
@@ -57,7 +57,7 @@ def render_sidebar() -> dict:
             format="%d%%", key="mission_cloud",
         )
         search_clicked = st.button(
-            "Search Satellite Data", type="primary",
+            "Search Scenes", type="primary",
             use_container_width=True, key="mission_search",
         )
 
