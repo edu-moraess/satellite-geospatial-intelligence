@@ -68,34 +68,6 @@ def load_theme():
             color: {COLORS["text_primary"]} !important;
         }}
 
-        /* Global Streamlit surfaces */
-        .stApp, .stAppViewContainer, [data-testid="stAppViewContainer"],
-        [data-testid="stHeader"], [data-testid="stToolbar"] {
-            background: ${COLORS["bg_primary"]} !important;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"],
-        [data-testid="stPopover"],
-        div[data-baseweb="popover"],
-        div[data-baseweb="menu"],
-        ul[role="listbox"],
-        div[data-baseweb="select"] [role="listbox"] {
-            background: ${COLORS["bg_panel"]} !important;
-            color: ${COLORS["text_primary"]} !important;
-            border-color: ${COLORS["border"]} !important;
-        }
-        [data-baseweb="menu"] li,
-        [role="option"],
-        [role="menuitem"] {
-            background: ${COLORS["bg_panel"]} !important;
-            color: ${COLORS["text_primary"]} !important;
-        }
-        [data-baseweb="menu"] li:hover,
-        [role="option"]:hover,
-        [role="menuitem"]:hover {
-            background: ${COLORS["accent_dim"]} !important;
-            color: ${COLORS["text_primary"]} !important;
-        }
-
         /* Sidebar */
         section[data-testid="stSidebar"] {{
             background: {COLORS["bg_secondary"]};
