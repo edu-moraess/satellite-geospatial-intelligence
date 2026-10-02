@@ -66,3 +66,11 @@ def test_prithvi_gate_accepts_only_explicit_hls_status_before_checkpoint_check()
 
     assert gate.ready is False
     assert "checkpoint" in gate.reason.lower()
+
+
+def test_prithvi_registry_points_to_official_checkpoint():
+    from src.deep_learning.registry import get_model
+
+    model = get_model("prithvi_eo_v2_300m_burn_scars")
+    assert model.checkpoint_repo == "ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars"
+    assert model.input_size == 512
