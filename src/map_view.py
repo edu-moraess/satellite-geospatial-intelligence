@@ -448,8 +448,8 @@ def create_geospatial_map(
             top: 12px;
             left: 52px;
             z-index: 9999;
-            background: rgba(15, 23, 42, 0.92);
-            color: white;
+            background: rgba(7, 16, 20, 0.94);
+            color: #E8EEF2;
             padding: 8px 12px;
             border-radius: 6px;
             font-family: Arial, sans-serif;
