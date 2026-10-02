@@ -68,11 +68,10 @@ MAPS_DIR = (
 # STAC CATALOG ENDPOINT
 # ============================================================
 # Usando AWS Earth Search (rápido e sem autenticação)
-# Para voltar ao Planetary Computer, troque para:
-# "https://planetarycomputer.microsoft.com/api/stac/v1"
+# O endpoint atual é o AWS Earth Search STAC API.
 # ============================================================
 
-PLANETARY_COMPUTER_STAC = (
+EARTH_SEARCH_STAC_URL = (
     "https://earth-search.aws.element84.com/v1"
 )
 

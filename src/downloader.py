@@ -5,7 +5,7 @@ Satellite Geospatial Intelligence
 Robust Sentinel-2 downloader.
 
 Features:
-- Planetary Computer signed assets
+- AWS Earth Search public COG assets (no signing)
 - AOI window download
 - Retry mechanism
 - Safe directory creation

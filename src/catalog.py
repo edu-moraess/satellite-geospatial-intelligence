@@ -14,7 +14,7 @@ import pystac_client
 from pystac_client.stac_api_io import StacApiIO
 
 from .config import (
-    PLANETARY_COMPUTER_STAC,
+    EARTH_SEARCH_STAC_URL,
     SENTINEL_COLLECTION,
 )
 

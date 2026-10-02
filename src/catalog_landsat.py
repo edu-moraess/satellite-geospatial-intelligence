@@ -7,7 +7,7 @@ import planetary_computer
 from pystac_client import Client
 
 from src.catalog import create_bbox
-from src.config import PLANETARY_COMPUTER_STAC
+from src.config import EARTH_SEARCH_STAC_URL
 
 
 def search_landsat(
