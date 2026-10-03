@@ -2,7 +2,11 @@ import unittest
 
 import numpy as np
 
-from src.ml.features import (\n    FEATURE_ORDER,\n    SENTINEL2_L2A_REFLECTANCE_SCALING,\n    extract_features,\n)
+from src.ml.features import (
+    FEATURE_ORDER,
+    SENTINEL2_L2A_REFLECTANCE_SCALING,
+    extract_features,
+)
 
 
 def _bands(shape=(2, 2)):
