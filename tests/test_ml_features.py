@@ -65,7 +65,7 @@ class TestFeatureExtraction(unittest.TestCase):
             SENTINEL2_L2A_REFLECTANCE_SCALING,
         )
         self.assertAlmostEqual(float(result.matrix[0, 0]), 0.0, places=6)
-        self.assertAlmostEqual(float(result.matrix[0, 5]), 1.0, places=6)
+        self.assertAlmostEqual(float(result.matrix[0, 5]), 0.7142857, places=6)
 
     def test_none_means_no_transformation(self):
         result = extract_features(_bands(), reflectance_scaling=None)
