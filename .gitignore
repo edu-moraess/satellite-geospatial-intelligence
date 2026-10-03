@@ -17,3 +17,7 @@ data/processed/*
 
 # Generated outputs
 outputs/*
+
+# ML dataset artifacts
+data/ml_diagnostic/*
+data/models/*
