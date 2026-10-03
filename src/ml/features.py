@@ -78,6 +78,7 @@ def extract_features(
     bands: Mapping[str, np.ndarray],
     *,
     reflectance_scaling: Mapping[str, Mapping[str, float]] | None = None,
+    input_valid_mask: np.ndarray | None = None,
 ) -> FeatureResult:
     """Build an ML-ready feature matrix from aligned Sentinel-2 bands.
 
@@ -86,6 +87,14 @@ def extract_features(
     ``SENTINEL2_L2A_REFLECTANCE_SCALING`` explicitly.
     """
     _validate_bands(bands)
+    if input_valid_mask is not None:
+        input_valid_mask = np.asarray(input_valid_mask, dtype=bool)
+        expected_shape = np.asarray(bands[BAND_ORDER[0]]).shape
+        if input_valid_mask.shape != expected_shape:
+            raise ValueError(
+                "input_valid_mask must match the aligned band shape: "
+                f"{input_valid_mask.shape} != {expected_shape}"
+            )
     bands, scaling_used = _apply_scaling(bands, reflectance_scaling)
 
     ndvi = calculate_ndvi(bands["B04"], bands["B08"])
@@ -101,6 +110,8 @@ def extract_features(
     ).astype(np.float32, copy=False)
 
     valid_mask = np.all(np.isfinite(cube), axis=-1)
+    if input_valid_mask is not None:
+        valid_mask &= input_valid_mask
     return FeatureResult(
         matrix=cube[valid_mask],
         feature_names=FEATURE_ORDER,
