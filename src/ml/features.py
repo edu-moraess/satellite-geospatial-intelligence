@@ -11,6 +11,12 @@ from src.spectral import calculate_ndbi, calculate_ndvi, calculate_ndwi
 BAND_ORDER = ("B02", "B03", "B04", "B08", "B11")
 FEATURE_ORDER = ("B02", "B03", "B04", "B08", "B11", "NDVI", "NDWI", "NDBI")
 
+# Verified from an Earth Search Sentinel-2 L2A scene (S2A_23KLQ_20211107_1_L2A):
+# raster:bands reports scale=0.0001 and offset=-0.1 for all five ML bands.
+SENTINEL2_L2A_REFLECTANCE_SCALING = {
+    name: {"scale": 0.0001, "offset": -0.1} for name in BAND_ORDER
+}
+
 
 @dataclass(frozen=True)
 class FeatureResult:
@@ -75,7 +81,9 @@ def extract_features(
 ) -> FeatureResult:
     """Build an ML-ready feature matrix from aligned Sentinel-2 bands.
 
-    None is an explicit no-transformation choice. No scaling convention is inferred.
+    ``None`` is an explicit no-transformation choice. No scaling convention is inferred.
+    For Earth Search Sentinel-2 L2A COGs, pass
+    ``SENTINEL2_L2A_REFLECTANCE_SCALING`` explicitly.
     """
     _validate_bands(bands)
     bands, scaling_used = _apply_scaling(bands, reflectance_scaling)
