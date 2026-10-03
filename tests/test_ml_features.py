@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from src.ml.features import FEATURE_ORDER, extract_features
+from src.ml.features import (\n    FEATURE_ORDER,\n    SENTINEL2_L2A_REFLECTANCE_SCALING,\n    extract_features,\n)
 
 
 def _bands(shape=(2, 2)):
@@ -32,16 +32,16 @@ class TestFeatureExtraction(unittest.TestCase):
 
     def test_explicit_scaling_is_applied_and_preserved(self):
         scaling = {
-            name: {"scale": 0.0001, "offset": 0.0}
+            name: {"scale": 0.0001, "offset": -0.1}
             for name in ("B02", "B03", "B04", "B08", "B11")
         }
         result = extract_features(_bands(), reflectance_scaling=scaling)
-        self.assertAlmostEqual(float(result.matrix[0, 0]), 0.1, places=6)
-        self.assertEqual(result.reflectance_scaling["B02"]["scale"], 0.0001)
+        self.assertAlmostEqual(float(result.matrix[0, 0]), 0.0, places=6)
+        self.assertEqual(result.reflectance_scaling["B02"], {"scale": 0.0001, "offset": -0.1})
 
     def test_missing_band_scaling_is_rejected(self):
         scaling = {
-            name: {"scale": 0.0001, "offset": 0.0}
+            name: {"scale": 0.0001, "offset": -0.1}
             for name in ("B02", "B03", "B04", "B08")
         }
         with self.assertRaises(ValueError):
@@ -49,12 +49,23 @@ class TestFeatureExtraction(unittest.TestCase):
 
     def test_missing_scale_field_is_rejected(self):
         scaling = {
-            name: {"scale": 0.0001, "offset": 0.0}
+            name: {"scale": 0.0001, "offset": -0.1}
             for name in ("B02", "B03", "B04", "B08", "B11")
         }
         del scaling["B11"]["scale"]
         with self.assertRaises(ValueError):
             extract_features(_bands(), reflectance_scaling=scaling)
+
+    def test_verified_sentinel2_l2a_scaling_contract(self):
+        result = extract_features(
+            _bands(), reflectance_scaling=SENTINEL2_L2A_REFLECTANCE_SCALING
+        )
+        self.assertEqual(
+            result.reflectance_scaling,
+            SENTINEL2_L2A_REFLECTANCE_SCALING,
+        )
+        self.assertAlmostEqual(float(result.matrix[0, 0]), 0.0, places=6)
+        self.assertAlmostEqual(float(result.matrix[0, 5]), 1.0, places=6)
 
     def test_none_means_no_transformation(self):
         result = extract_features(_bands(), reflectance_scaling=None)
