@@ -71,6 +71,17 @@ class TestFeatureExtraction(unittest.TestCase):
         self.assertAlmostEqual(float(result.matrix[0, 0]), 0.0, places=6)
         self.assertAlmostEqual(float(result.matrix[0, 5]), 0.7142857, places=6)
 
+    def test_input_valid_mask_excludes_nodata_pixels(self):
+        mask = np.ones((2, 2), dtype=bool)
+        mask[0, 1] = False
+        result = extract_features(_bands(), input_valid_mask=mask)
+        self.assertEqual(result.matrix.shape, (3, 8))
+        self.assertFalse(result.valid_mask[0, 1])
+
+    def test_input_valid_mask_shape_is_rejected(self):
+        with self.assertRaises(ValueError):
+            extract_features(_bands(), input_valid_mask=np.ones((3, 3), dtype=bool))
+
     def test_none_means_no_transformation(self):
         result = extract_features(_bands(), reflectance_scaling=None)
         self.assertIsNone(result.reflectance_scaling)
