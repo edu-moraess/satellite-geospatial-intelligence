@@ -1,0 +1,15 @@
+{
+  "project": "VYRA GEOCORE",
+  "rebuild_id": "rebuild_v1",
+  "status": "BOOTSTRAP",
+  "stage": "GATE_0",
+  "decision": "NOT_EXECUTED",
+  "github_branch": "rebuild/geocore-v1",
+  "drive_root": "/content/drive/MyDrive/vyra_geocore/rebuild_v1",
+  "artifacts": [],
+  "safety": {
+    "split_executed": false,
+    "training_executed": false,
+    "policy_changes": false
+  }
+}
