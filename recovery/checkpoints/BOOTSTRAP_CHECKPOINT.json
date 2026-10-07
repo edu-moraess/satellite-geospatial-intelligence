@@ -1,0 +1,8 @@
+{
+  "stage": "BOOTSTRAP",
+  "status": "PASS",
+  "decision": "READY_FOR_GATE_0",
+  "branch": "rebuild/geocore-v1",
+  "drive_root": "/content/drive/MyDrive/vyra_geocore/rebuild_v1",
+  "next_stage": "GATE_0_OFFICIAL_UNIVERSE"
+}
