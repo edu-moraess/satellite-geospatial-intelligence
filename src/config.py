@@ -100,4 +100,7 @@ AVAILABLE_BANDS = {
     "B08": "NIR",
 
     "B11": "SWIR",
+
+    # VYRA SmallCNN LULC input (Sentinel-2 red-edge 3)
+    "B07": "Red Edge 3",
 }
