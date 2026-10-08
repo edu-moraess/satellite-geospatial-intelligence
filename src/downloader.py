@@ -281,6 +281,7 @@ def download_band(
         "B04": ("red", "B04"),
         "B08": ("nir", "B08"),
         "B11": ("swir16", "B11"),
+        "B07": ("rededge3", "B07"),
     }.get(band_name, (band_name,))
 
     asset = next(
@@ -569,6 +570,24 @@ def download_band(
         )
 
     return output_path
+
+
+# ============================================================
+# DOWNLOAD VYRA B07
+# ============================================================
+
+def download_vyra_b07(
+    item,
+    bbox,
+    output_directory: Path,
+):
+    """Download only Sentinel-2 B07 required by the VYRA LULC path."""
+    return download_band(
+        item=item,
+        band_name="B07",
+        bbox=bbox,
+        output_directory=output_directory,
+    )
 
 
 # ============================================================
