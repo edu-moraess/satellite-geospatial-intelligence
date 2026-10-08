@@ -31,7 +31,8 @@ SENSORS = {
             "green": "B03",
             "red": "B04",
             "nir": "B08",
-            "swir": "B11"
+            "swir": "B11",
+            "rededge3": "B07"
         },
         resolution=10,
         ndvi_bands=("B08", "B04"),
