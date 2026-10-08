@@ -12,7 +12,7 @@ from src.aoi import get_selected_aoi
 from src.catalog import create_bbox
 from src.catalog_interface import search_sensor_catalog
 from src.config import RAW_DIR
-from src.download_interface import download_sensor_bands
+from src.download_interface import download_sensor_bands, download_vyra_b07_band
 from src.geospatial_detections import georeference_detections, to_geojson_bytes
 from src.model_registry import list_models, get_model, model_available
 from src.object_detection import filter_classes, filter_detections, draw_detections
@@ -42,7 +42,7 @@ DEFAULTS = {
     "index_figure": None, "classification_fig": None, "percentages": None,
     "area_data": None, "detection_rgb": None, "object_detections": [],
     "detection_figure": None, "transform": None, "crs": None,
-    "change_result": None, "retry_search": False,
+    "change_result": None, "retry_search": False, "vyra_b07_path": None,
 }
 for key, value in DEFAULTS.items():
     if key not in st.session_state:
@@ -64,6 +64,7 @@ def reset_analysis_state() -> None:
         "index_stats": {}, "index_figure": None, "classification_fig": None,
         "percentages": None, "area_data": None, "detection_rgb": None,
         "object_detections": [], "detection_figure": None, "transform": None,
+        "vyra_b07_path": None,
         "crs": None, "change_result": None,
     }.items():
         st.session_state[key] = value
@@ -254,30 +255,72 @@ if st.session_state.change_result:
     render_change_metrics(f'{stats.get("decrease_km2",0):.3f} km²', f'{stats.get("increase_km2",0):.3f} km²', f'{stats.get("total_changed_km2",0):.3f} km²')
     st.pyplot(st.session_state.change_result["figure"], use_container_width=True)
 
-section_header("Geospatial AI", "Real checkpoint required")
+section_header("Geospatial AI", "Object detection + VYRA LULC")
 models = list_models()
 model_id = st.selectbox("Model", models, key="ai_model")
 model = get_model(model_id)
 st.caption(model.description)
-if not model_available(model_id):
-    st.info("MODEL UNAVAILABLE — no checkpoint is registered for this model. No synthetic detections will be generated.")
+
+if model.task == "lulc_classification":
+    st.markdown(
+        f"**VYRA contract:** {model.band} · {model.input_size}×{model.input_size} · "
+        f"{model.channels} channel · {len(model.classes)} classes"
+    )
+    st.caption(f"Checkpoint SHA256: {model.checkpoint_sha256}")
+    st.caption(f"Patch fingerprint: {model.patch_fingerprint}")
+    st.caption(f"Experiment fingerprint: {model.experiment_fingerprint}")
+
+    if st.session_state.satellite_data is not None and st.session_state.active_scene_id:
+        bbox = (
+            st.session_state.drawn_aoi["bbox"]
+            if st.session_state.drawn_aoi
+            else create_bbox(latitude, longitude, area_size)
+        )
+        if st.button("Prepare VYRA B07", type="primary", key="prepare_vyra_b07"):
+            try:
+                with st.spinner("Downloading Sentinel-2 B07 / rededge3..."):
+                    st.session_state.vyra_b07_path = download_vyra_b07_band(
+                        item=active_item,
+                        bbox=bbox,
+                        output_directory=RAW_DIR / active_item.id,
+                    )
+                update_pipeline_status("AI", "active")
+                st.success(f"B07 ready: {st.session_state.vyra_b07_path}")
+            except Exception as exc:
+                update_pipeline_status("AI", "error")
+                st.error("VYRA B07 preparation failed.")
+                with st.expander("Technical details"):
+                    st.exception(exc)
+        if st.session_state.vyra_b07_path is not None:
+            st.caption(f"B07 asset: {st.session_state.vyra_b07_path}")
+    else:
+        st.caption("Select and download a scene before preparing the VYRA B07 input.")
+
+    st.warning(
+        "INFERENCE BLOCKED — the frozen checkpoint is identified, but the exact "
+        "SmallCNN architecture and training preprocessing contract are not yet "
+        "verified in this application. No predictions are generated."
+    )
 else:
-    c1,c2,c3 = st.columns(3)
-    with c1: confidence = st.slider("Confidence",0.1,0.9,0.5,0.05,key="ai_confidence")
-    with c2: tile_size = st.selectbox("Tile size",[256,512,1024],index=1,key="ai_tile")
-    with c3: overlap = st.slider("Overlap",0.0,0.5,0.2,0.05,key="ai_overlap")
-    classes = st.multiselect("Classes", list(model.classes), default=list(model.classes), key="ai_classes")
-    if st.button("Run Geospatial AI", type="primary", key="run_ai"):
-        try:
-            tiles = create_tiles(st.session_state.detection_rgb, tile_size=tile_size, overlap=overlap)
-            detections = SatelliteDetector(model_id=model_id, device="cpu").predict_tiles(tiles, confidence=confidence)
-            detections = filter_classes(filter_detections(detections, confidence), classes)
-            st.session_state.object_detections = detections
-            st.session_state.detection_figure = draw_detections(st.session_state.detection_rgb, detections) if detections else None
-            update_pipeline_status("AI", "done")
-        except Exception as exc:
-            update_pipeline_status("AI", "error"); st.error("Geospatial AI inference failed.")
-            with st.expander("Technical details"): st.exception(exc)
+    if not model_available(model_id):
+        st.info("MODEL UNAVAILABLE — no checkpoint is registered for this model. No synthetic detections will be generated.")
+    else:
+        c1,c2,c3 = st.columns(3)
+        with c1: confidence = st.slider("Confidence",0.1,0.9,0.5,0.05,key="ai_confidence")
+        with c2: tile_size = st.selectbox("Tile size",[256,512,1024],index=1,key="ai_tile")
+        with c3: overlap = st.slider("Overlap",0.0,0.5,0.2,0.05,key="ai_overlap")
+        classes = st.multiselect("Classes", list(model.classes), default=list(model.classes), key="ai_classes")
+        if st.button("Run Geospatial AI", type="primary", key="run_ai"):
+            try:
+                tiles = create_tiles(st.session_state.detection_rgb, tile_size=tile_size, overlap=overlap)
+                detections = SatelliteDetector(model_id=model_id, device="cpu").predict_tiles(tiles, confidence=confidence)
+                detections = filter_classes(filter_detections(detections, confidence), classes)
+                st.session_state.object_detections = detections
+                st.session_state.detection_figure = draw_detections(st.session_state.detection_rgb, detections) if detections else None
+                update_pipeline_status("AI", "done")
+            except Exception as exc:
+                update_pipeline_status("AI", "error"); st.error("Geospatial AI inference failed.")
+                with st.expander("Technical details"): st.exception(exc)
 if st.session_state.detection_figure is not None:
     st.image(st.session_state.detection_figure, caption="Detected objects", use_container_width=True)
 if st.session_state.object_detections and st.session_state.transform is not None:
